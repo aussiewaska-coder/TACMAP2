@@ -9,3 +9,4 @@ export { CityList } from './CityList';
 export { LayersList } from './LayersList';
 export { SettingsPanel } from './SettingsPanel';
 export { SearchPanel } from './SearchPanel';
+export { StylePicker } from './StylePicker';

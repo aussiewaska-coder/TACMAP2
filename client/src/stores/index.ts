@@ -7,3 +7,5 @@ export { useLayerStore, useLayers, useVisibleLayers, useLayerById } from './laye
 export type { LayerDefinition, LayerType } from './layerStore';
 export { useFeatureStore, useFeature, useFeatureEnabled, useEnabledFeatures } from './featureStore';
 export type { FeatureDefinition, FeatureCategory } from './featureStore';
+export { useBasemapStore, useCurrentBasemap, useBasemapChanging, BASEMAP_STYLES } from './basemapStore';
+export type { BasemapStyle } from './basemapStore';

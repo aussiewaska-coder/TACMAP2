@@ -1,7 +1,7 @@
 // MobileControls - Mobile-specific UI controls
 // Uses mobileUIStore - INDEPENDENT from desktop
 
-import { MapPin, Settings, Layers, Search, RotateCw, Navigation } from 'lucide-react';
+import { MapPin, Settings, Layers, Search, RotateCw, Navigation, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMobileUIStore } from '@/stores';
 import { useMapStore } from '@/stores';
@@ -17,14 +17,25 @@ import { toast } from 'sonner';
 export function MobileControls() {
     const controlsVisible = useMobileUIStore((state) => state.controlsVisible);
     const openBottomSheet = useMobileUIStore((state) => state.openBottomSheet);
-    const activeQuickAction = useMobileUIStore((state) => state.activeQuickAction);
-    const setActiveQuickAction = useMobileUIStore((state) => state.setActiveQuickAction);
+    const toggleControls = useMobileUIStore((state) => state.toggleControls);
 
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
 
     if (!controlsVisible) {
-        return null;
+        // Show a small button to bring controls back
+        return (
+            <Button
+                variant="default"
+                size="icon"
+                onClick={toggleControls}
+                title="Show Controls"
+                className="fixed bottom-4 right-4 bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl w-12 h-12 rounded-full"
+                style={{ zIndex: Z_INDEX.CONTROLS }}
+            >
+                <Settings className="w-5 h-5" />
+            </Button>
+        );
     }
 
     const handleRotate = () => {
@@ -56,9 +67,9 @@ export function MobileControls() {
 
     return (
         <>
-            {/* Bottom action buttons */}
+            {/* Bottom action buttons - floating on right */}
             <div
-                className="fixed bottom-24 right-4 flex flex-col gap-3"
+                className="fixed bottom-6 right-4 flex flex-col gap-3"
                 style={{ zIndex: Z_INDEX.CONTROLS }}
             >
                 {/* Navigation - Cities */}
@@ -67,18 +78,18 @@ export function MobileControls() {
                     size="icon"
                     onClick={handleNavigation}
                     title="Cities & Locations"
-                    className="bg-blue-600 text-white hover:bg-blue-700 shadow-xl w-14 h-14 rounded-full"
+                    className="bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-xl w-14 h-14 rounded-2xl"
                 >
                     <Navigation className="w-6 h-6" />
                 </Button>
 
-                {/* Layers */}
+                {/* Layers & Styles */}
                 <Button
                     variant="default"
                     size="icon"
                     onClick={handleLayers}
-                    title="Layers"
-                    className="bg-purple-600 text-white hover:bg-purple-700 shadow-xl w-14 h-14 rounded-full"
+                    title="Layers & Styles"
+                    className="bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-xl w-14 h-14 rounded-2xl"
                 >
                     <Layers className="w-6 h-6" />
                 </Button>
@@ -89,7 +100,7 @@ export function MobileControls() {
                     size="icon"
                     onClick={handleSettings}
                     title="Settings"
-                    className="bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl w-14 h-14 rounded-full"
+                    className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white hover:from-indigo-700 hover:to-indigo-800 shadow-xl w-14 h-14 rounded-2xl"
                 >
                     <Settings className="w-6 h-6" />
                 </Button>
@@ -100,15 +111,15 @@ export function MobileControls() {
                     size="icon"
                     onClick={handleRotate}
                     title="Rotate Map 90°"
-                    className="bg-white text-gray-800 hover:bg-gray-100 shadow-xl w-14 h-14 rounded-full"
+                    className="bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white shadow-xl w-14 h-14 rounded-2xl border-0"
                 >
                     <RotateCw className="w-6 h-6" />
                 </Button>
             </div>
 
-            {/* Top search button */}
+            {/* Top left - Search and hide controls */}
             <div
-                className="fixed top-4 left-4"
+                className="fixed top-4 left-4 flex gap-2"
                 style={{ zIndex: Z_INDEX.CONTROLS }}
             >
                 <Button
@@ -116,9 +127,24 @@ export function MobileControls() {
                     size="icon"
                     onClick={handleSearch}
                     title="Search"
-                    className="bg-white text-gray-800 hover:bg-gray-100 shadow-xl w-12 h-12 rounded-full"
+                    className="bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white shadow-xl w-12 h-12 rounded-2xl border-0"
                 >
                     <Search className="w-5 h-5" />
+                </Button>
+            </div>
+
+            {/* Top right - Hide controls button */}
+            <div
+                className="fixed top-4 right-4"
+                style={{ zIndex: Z_INDEX.CONTROLS }}
+            >
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={toggleControls}
+                    className="text-gray-500 hover:text-gray-700 text-xs"
+                >
+                    Hide UI
                 </Button>
             </div>
         </>

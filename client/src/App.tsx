@@ -5,8 +5,8 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
-import MapPage from "./pages/MapPage";
-import MapPageNew from "./pages/MapPageNew";
+import MapPageLegacy from "./pages/MapPage";
+import MapPage from "./pages/MapPageNew";
 import AdminDashboard from "./pages/AdminDashboard";
 
 function Router() {
@@ -14,7 +14,7 @@ function Router() {
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/map"} component={MapPage} />
-      <Route path={"/map2"} component={MapPageNew} />
+      <Route path={"/map-legacy"} component={MapPageLegacy} />
       <Route path={"/admin"} component={AdminDashboard} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
