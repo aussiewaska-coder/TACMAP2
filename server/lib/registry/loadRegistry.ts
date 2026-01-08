@@ -13,15 +13,27 @@ export async function loadRegistry(): Promise<RegistryEntry[]> {
     }
 
     try {
-        // In production (Vercel), load from public folder
-        // In development, load from file system
-        const registryPath = process.env.NODE_ENV === 'production'
-            ? './public/registry.json'
-            : './public/registry.json';
+        // In Vercel serverless, we can't reliably access the file system
+        // So we fetch from the public URL instead
+        if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+            // Fetch from public URL (works in Vercel)
+            const baseUrl = process.env.VERCEL_URL
+                ? `https://${process.env.VERCEL_URL}`
+                : 'https://tacmap-2.vercel.app';
 
-        const fs = await import('fs/promises');
-        const registryData = await fs.readFile(registryPath, 'utf-8');
-        cachedRegistry = JSON.parse(registryData) as RegistryEntry[];
+            const response = await fetch(`${baseUrl}/registry.json`);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch registry: ${response.statusText}`);
+            }
+            cachedRegistry = await response.json() as RegistryEntry[];
+        } else {
+            // Development: load from file system
+            const fs = await import('fs/promises');
+            const path = await import('path');
+            const registryPath = path.join(process.cwd(), 'public/registry.json');
+            const registryData = await fs.readFile(registryPath, 'utf-8');
+            cachedRegistry = JSON.parse(registryData) as RegistryEntry[];
+        }
 
         return cachedRegistry;
     } catch (error) {
