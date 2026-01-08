@@ -155,12 +155,13 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 } as unknown as maplibregl.LayerSpecification);
 
                 // === GOVERNMENT DATA LAYERS (WMS) ===
+                // NOTE: We use /api/wms-proxy to avoid CORS issues with these government servers
 
                 // 1. Land Use (Geoscience Australia)
                 map.addSource("gov-landuse", {
                     type: "raster",
                     tiles: [
-                        "https://services.ga.gov.au/gis/services/NM_Land_Use_18_19/MapServer/WMSServer?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=Land_Use_18_19"
+                        `/api/wms-proxy?url=${encodeURIComponent("https://services.ga.gov.au/gis/services/NM_Land_Use_18_19/MapServer/WMSServer")}&bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=Land_Use_18_19`
                     ],
                     tileSize: 256,
                     attribution: "Geoscience Australia"
@@ -178,7 +179,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 map.addSource("gov-geology", {
                     type: "raster",
                     tiles: [
-                        "https://services.ga.gov.au/gis/services/GA_Surface_Geology/MapServer/WMSServer?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=GA_Surface_Geology"
+                        `/api/wms-proxy?url=${encodeURIComponent("https://services.ga.gov.au/gis/services/GA_Surface_Geology/MapServer/WMSServer")}&bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=GA_Surface_Geology`
                     ],
                     tileSize: 256,
                     attribution: "Geoscience Australia"
@@ -196,7 +197,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 map.addSource("gov-bushfire", {
                     type: "raster",
                     tiles: [
-                        "https://sentinel.ga.gov.au/geoserver/public/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=hotspots_72hrs"
+                        `/api/wms-proxy?url=${encodeURIComponent("https://sentinel.ga.gov.au/geoserver/public/wms")}&bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=hotspots_72hrs`
                     ],
                     tileSize: 256,
                     attribution: "Sentinel Hotspots"

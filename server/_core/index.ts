@@ -35,6 +35,41 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
+  // WMS Proxy to bypass CORS for Government Data
+  app.get("/api/wms-proxy", async (req, res) => {
+    const { url, ...params } = req.query;
+    if (!url || typeof url !== "string") {
+      res.status(400).send("Missing url parameter");
+      return;
+    }
+
+    try {
+      // Reconstruct target URL with all standard WMS params (bbox, width, height, etc.)
+      // We do NOT use URLSearchParams for 'params' directly in the axios call because
+      // we want to control the exact string format if needed, but passing them as params is cleaner.
+      const response = await fetch(`${url}?${new URLSearchParams(params as any).toString()}`);
+
+      if (!response.ok) {
+        throw new Error(`Upstream error: ${response.statusText}`);
+      }
+
+      // Forward Content-Type
+      const contentType = response.headers.get("content-type");
+      if (contentType) res.setHeader("Content-Type", contentType);
+
+      // Stream the image back
+      // Node 18+ global fetch returns a web stream, we need to convert to node stream for express response
+      // or just use arrayBuffer. For images, arrayBuffer is fine/fast enough.
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+
+    } catch (error) {
+      console.error("WMS Proxy Error:", error);
+      res.status(500).send("Proxy Error");
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
