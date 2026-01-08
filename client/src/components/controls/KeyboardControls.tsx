@@ -132,7 +132,7 @@ export function KeyboardControls({ enabled = true }: KeyboardControlsProps) {
         try {
             (map as any).dragRotate.setPitchWithRotate(true);
         } catch (e) {
-            console.warn('Pitch with rotate not supported on this version', e);
+            // Silently ignore if not supported in this MapLibre version
         }
 
         // Custom mouse handlers for "3D button" feel
