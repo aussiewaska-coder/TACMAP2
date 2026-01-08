@@ -2,7 +2,8 @@
 // Extracted from PoliceLayer for use in unified sidebar
 
 import { useState, useMemo, useEffect } from 'react';
-import { AlertTriangle, Radio, Flame } from 'lucide-react';
+import { AlertTriangle, Radio, Flame, Scan } from 'lucide-react';
+import { toast } from 'sonner';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -24,6 +25,41 @@ export function PoliceAlertsPanel() {
     const [heatmapMode, setHeatmapMode] = useState(false);
     const [showMarkersOverlay, setShowMarkersOverlay] = useState(false);
     const [hoursAgo, setHoursAgo] = useState(336); // Default 14 days
+
+    const utils = trpc.useUtils();
+    const sweepMutation = trpc.waze.getAlertsAndJams.useMutation({
+        onSuccess: (data) => {
+            const count = data.count || 0;
+            if (count > 0) {
+                toast.success(`Found ${count} new alerts in area`);
+                utils.police.list.invalidate();
+                // "Bounce" effect could be handled by invalidating and letting new data render
+                // For a visual "bounce", we might need to track new IDs, but invalidation is a good start.
+            } else {
+                toast.info("No new alerts found in this area");
+            }
+        },
+        onError: (err) => {
+            toast.error(`Sweep failed: ${err.message}`);
+        }
+    });
+
+    const isSweeping = sweepMutation.isPending;
+
+    const handleSweep = async () => {
+        if (!map) return;
+        const bounds = map.getBounds();
+        const bottomLeft = `${bounds.getSouth()},${bounds.getWest()}`;
+        const topRight = `${bounds.getNorth()},${bounds.getEast()}`;
+
+        sweepMutation.mutate({
+            bottomLeft,
+            topRight,
+            radiusUnits: 'KM',
+            maxAlerts: 100, // Sweep more
+            maxJams: 0, // Focus on alerts for now as per "police" context, user asked for "recent reports"
+        });
+    };
 
     // Data Fetching
     const { data: reports, isLoading } = trpc.police.list.useQuery(
@@ -398,6 +434,23 @@ export function PoliceAlertsPanel() {
                             </div>
                         </div>
 
+                        {/* Sweep Button */}
+                        <div className="pt-2">
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                className="w-full bg-cyan-900/30 hover:bg-cyan-900/50 text-cyan-100 border border-cyan-800/50"
+                                onClick={handleSweep}
+                                disabled={isSweeping}
+                            >
+                                <Scan className={`w-4 h-4 mr-2 ${isSweeping ? 'animate-spin' : ''}`} />
+                                {isSweeping ? 'Sweeping...' : 'SWEEP AREA'}
+                            </Button>
+                            <p className="text-[10px] text-center text-white/40 mt-1">
+                                Scans current view for new police activity (2h)
+                            </p>
+                        </div>
+
                         {/* Stats */}
                         <div className="pt-3 border-t border-white/10">
                             <div className="flex items-center justify-between text-sm">
@@ -418,48 +471,52 @@ export function PoliceAlertsPanel() {
             </div>
 
             {/* Type breakdown */}
-            {enabled && typeBreakdown.length > 0 && (
-                <div>
-                    <h3 className="flex items-center gap-2 text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">
-                        <AlertTriangle className="w-4 h-4" />
-                        By Type
-                    </h3>
-                    <div className="space-y-2">
-                        {typeBreakdown.map(([type, count]) => (
-                            <div key={type} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
-                                <span className="text-sm capitalize">{type.toLowerCase().replace(/_/g, ' ')}</span>
-                                <span className="text-sm font-medium bg-white/10 px-2 py-0.5 rounded">{count}</span>
-                            </div>
-                        ))}
+            {
+                enabled && typeBreakdown.length > 0 && (
+                    <div>
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-white/60 uppercase tracking-wider mb-3">
+                            <AlertTriangle className="w-4 h-4" />
+                            By Type
+                        </h3>
+                        <div className="space-y-2">
+                            {typeBreakdown.map(([type, count]) => (
+                                <div key={type} className="bg-white/5 rounded-lg p-3 flex items-center justify-between">
+                                    <span className="text-sm capitalize">{type.toLowerCase().replace(/_/g, ' ')}</span>
+                                    <span className="text-sm font-medium bg-white/10 px-2 py-0.5 rounded">{count}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Legend */}
-            {enabled && (
-                <div className="bg-white/5 rounded-xl p-4">
-                    <h4 className="text-sm font-medium mb-3">Cluster Legend</h4>
-                    <div className="space-y-2 text-xs">
-                        <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-full bg-[#51bbd6]" />
-                            <span className="text-white/70">&lt; 10 incidents</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-full bg-[#f1f075]" />
-                            <span className="text-white/70">10-50 incidents</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-full bg-[#f28cb1]" />
-                            <span className="text-white/70">&gt; 50 incidents</span>
-                        </div>
-                        <div className="flex items-center gap-2 pt-1 border-t border-white/10 mt-2">
-                            <div className="w-3 h-3 rounded-full bg-red-600 ring-2 ring-red-400/40" />
-                            <span className="text-white/70">Individual report</span>
+            {
+                enabled && (
+                    <div className="bg-white/5 rounded-xl p-4">
+                        <h4 className="text-sm font-medium mb-3">Cluster Legend</h4>
+                        <div className="space-y-2 text-xs">
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded-full bg-[#51bbd6]" />
+                                <span className="text-white/70">&lt; 10 incidents</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded-full bg-[#f1f075]" />
+                                <span className="text-white/70">10-50 incidents</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded-full bg-[#f28cb1]" />
+                                <span className="text-white/70">&gt; 50 incidents</span>
+                            </div>
+                            <div className="flex items-center gap-2 pt-1 border-t border-white/10 mt-2">
+                                <div className="w-3 h-3 rounded-full bg-red-600 ring-2 ring-red-400/40" />
+                                <span className="text-white/70">Individual report</span>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 }
 

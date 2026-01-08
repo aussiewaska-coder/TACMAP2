@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import { eq, gt, desc } from "drizzle-orm";
+import { eq, gt, desc, sql } from "drizzle-orm";
 import * as schema from "../drizzle/schema.js";
 import {
   InsertUser,
@@ -271,4 +271,18 @@ export async function getPoliceReports(minTimestamp?: Date): Promise<PoliceRepor
 
   // default sort by latest
   return await query.orderBy(desc(policeReports.publishDatetimeUtc)).limit(15000); // hard limit to prevent explosion
+}
+
+export async function insertPoliceReports(reports: (typeof policeReports.$inferInsert)[]): Promise<void> {
+  const db = await getDb();
+  if (!db || reports.length === 0) return;
+
+  await db.insert(policeReports).values(reports).onConflictDoUpdate({
+    target: policeReports.alertId,
+    set: {
+      alertReliability: sql`excluded.alert_reliability`,
+      subtype: sql`excluded.subtype`,
+      // policeReports schema does not have updatedAt, so we only update fields that might change
+    }
+  });
 }
