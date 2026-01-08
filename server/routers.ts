@@ -175,7 +175,16 @@ export const appRouter = router({
         if (input?.hoursAgo) {
           minTimestamp = new Date(Date.now() - input.hoursAgo * 60 * 60 * 1000);
         }
-        return await getPoliceReports(minTimestamp);
+        try {
+          return await getPoliceReports(minTimestamp);
+        } catch (error) {
+          console.error("Failed to fetch police reports:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to fetch police reports",
+            cause: error
+          });
+        }
       }),
   }),
 });
