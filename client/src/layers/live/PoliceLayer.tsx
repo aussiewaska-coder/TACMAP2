@@ -43,24 +43,33 @@ export function PoliceLayer() {
     // Filtered / Processed Data
     const geoJsonData = useMemo(() => {
         if (!reports) return { type: 'FeatureCollection', features: [] };
+        const now = Date.now();
         return {
             type: 'FeatureCollection',
-            features: reports.map((r: any) => ({
-                type: 'Feature',
-                geometry: {
-                    type: 'Point',
-                    coordinates: [Number(r.longitude), Number(r.latitude)]
-                },
-                properties: {
-                    id: r.alertId,
-                    type: r.type,
-                    subtype: r.subtype,
-                    street: r.street,
-                    city: r.city,
-                    description: r.subtype ? r.subtype.replace(/_/g, ' ') : r.type,
-                    timestamp: r.publishDatetimeUtc
-                }
-            }))
+            features: reports.map((r: any) => {
+                // Weight calculation: recent reports are "heavier"
+                const reportTime = new Date(r.publishDatetimeUtc).getTime();
+                const hoursOld = (now - reportTime) / (1000 * 60 * 60);
+                const weight = Math.max(0.2, Math.exp(-0.05 * hoursOld));
+
+                return {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [Number(r.longitude), Number(r.latitude)]
+                    },
+                    properties: {
+                        id: r.alertId,
+                        type: r.type,
+                        subtype: r.subtype,
+                        street: r.street,
+                        city: r.city,
+                        description: r.subtype ? r.subtype.replace(/_/g, ' ') : r.type,
+                        timestamp: r.publishDatetimeUtc,
+                        weight: weight
+                    }
+                };
+            })
         };
     }, [reports]);
 
@@ -90,53 +99,56 @@ export function PoliceLayer() {
                     source: heatmapSourceId,
                     maxzoom: 18,
                     paint: {
-                        // Increase weight for all points equally
-                        'heatmap-weight': 1,
-                        // Increase intensity as zoom level increases
+                        // Weight by recency
+                        'heatmap-weight': [
+                            'interpolate',
+                            ['linear'],
+                            ['get', 'weight'],
+                            0, 0,
+                            0.5, 1,
+                            1, 2
+                        ],
+                        // Reduced intensity to prevent washout
                         'heatmap-intensity': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
                             0, 0.5,
                             9, 1,
-                            15, 2,
-                            18, 3
+                            15, 1.5,
+                            18, 2
                         ],
-                        // Police colors: blue to red (sharp ramping - requires high density for red)
+                        // Strict Police Logic: Blue (Base) -> Purple -> Red (Peak)
                         'heatmap-color': [
                             'interpolate',
                             ['linear'],
                             ['heatmap-density'],
                             0, 'rgba(0, 0, 0, 0)',           // Transparent
-                            0.1, 'rgba(0, 50, 150, 0.2)',    // Deep blue (very transparent)
-                            0.2, 'rgba(0, 100, 200, 0.3)',   // Blue
-                            0.3, 'rgba(0, 150, 220, 0.4)',   // Light blue
-                            0.4, 'rgba(0, 180, 200, 0.5)',   // Cyan-blue
-                            0.5, 'rgba(0, 200, 180, 0.6)',   // Cyan
-                            0.6, 'rgba(100, 200, 150, 0.7)', // Cyan-green
-                            0.7, 'rgba(200, 180, 100, 0.75)',// Yellow-orange (transition)
-                            0.85, 'rgba(255, 100, 50, 0.85)',// Orange-red
-                            0.95, 'rgba(255, 50, 50, 0.95)', // Red
-                            1, 'rgba(200, 0, 0, 1)'          // Deep red (only highest peaks)
+                            0.1, 'rgba(0, 191, 255, 0.3)',   // Deep Sky Blue (Low activity)
+                            0.3, 'rgba(0, 0, 255, 0.4)',     // Pure Blue (Standard presence)
+                            0.5, 'rgba(0, 0, 200, 0.5)',     // Deep Blue (Moderate)
+                            0.7, 'rgba(75, 0, 130, 0.6)',    // Indigo (High)
+                            0.85, 'rgba(139, 0, 139, 0.7)',  // Dark Magenta (Heavy)
+                            0.92, 'rgba(255, 0, 0, 0.8)',    // Red begins (Very Heavy)
+                            1, 'rgba(255, 50, 50, 0.95)'     // Bright Red (Peak only)
                         ],
                         // Enhanced radius for smooth, diffuse blur effect
                         'heatmap-radius': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            0, 8,
-                            5, 20,
-                            10, 40,
-                            15, 60,
-                            18, 80
+                            0, 5,
+                            5, 15,
+                            10, 30,
+                            15, 45,
+                            18, 60
                         ],
-                        // Keep heatmap visible at all zoom levels
                         'heatmap-opacity': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
                             0, 0.7,
-                            18, 0.5
+                            18, 0.6
                         ]
                     }
                 });
