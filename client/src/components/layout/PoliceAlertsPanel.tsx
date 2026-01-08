@@ -97,23 +97,26 @@ export function PoliceAlertsPanel() {
                             'interpolate',
                             ['linear'],
                             ['heatmap-density'],
-                            0, 'rgba(0, 0, 255, 0)',
-                            0.1, 'rgba(0, 0, 255, 0.4)',
-                            0.3, 'rgba(138, 43, 226, 0.6)',
-                            0.5, 'rgba(220, 20, 60, 0.8)',
-                            0.7, 'rgba(255, 69, 0, 0.9)',
-                            0.85, 'rgba(255, 215, 0, 1)',
-                            1, 'rgba(255, 255, 255, 1)'
+                            0, 'rgba(0, 0, 0, 0)',           // Transparent
+                            0.1, 'rgba(144, 238, 144, 0.3)', // Light green
+                            0.2, 'rgba(173, 255, 47, 0.5)',  // Yellow-green
+                            0.35, 'rgba(255, 255, 0, 0.7)',  // Yellow
+                            0.5, 'rgba(255, 200, 0, 0.8)',   // Golden yellow
+                            0.65, 'rgba(255, 140, 0, 0.9)',  // Orange
+                            0.8, 'rgba(255, 69, 0, 1)',      // Red-orange
+                            0.9, 'rgba(220, 20, 60, 1)',     // Crimson
+                            1, 'rgba(139, 0, 0, 1)'          // Deep red
                         ],
+                        // Enhanced radius for smooth, diffuse blur effect
                         'heatmap-radius': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            0, 3,
-                            5, 10,
-                            10, 20,
-                            15, 30,
-                            18, 40
+                            0, 5,
+                            5, 15,
+                            10, 30,
+                            15, 50,
+                            18, 70
                         ],
                         'heatmap-opacity': [
                             'interpolate',
