@@ -265,6 +265,8 @@ export const weatherPlugin = definePlugin({
     },
     initialize: async (map, config) => {
         const instance = new WeatherPluginInstance(map, config as WeatherPluginConfig);
+        // Automatically show if this is being initialized (which happens when enabled)
+        await instance.show();
         return instance;
     },
 });
