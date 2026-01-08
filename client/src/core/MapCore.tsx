@@ -2,7 +2,7 @@
 // This component ONLY handles map initialization and cleanup
 // All features are added via plugins
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import maplibregl, { Map as MapLibreGLMap, StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -85,6 +85,9 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const setError = useMapStore((state) => state.setError);
     const updateViewState = useMapStore((state) => state.updateViewState);
     const terrainExaggeration = useMapStore((state) => state.terrainExaggeration);
+
+    // Track current zoom for indicator
+    const [currentZoom, setCurrentZoom] = useState<number>(MAP_CONFIG.DEFAULT_ZOOM);
 
     // Initialize map
     const initializeMap = useCallback(() => {
@@ -208,11 +211,16 @@ export function MapCore({ className = '' }: MapCoreProps) {
 
                 // Initial view state sync
                 updateViewState();
+                setCurrentZoom(map.getZoom());
 
                 console.log('[MapCore] Map initialized with 3D terrain & Gov layers');
             });
 
             // Handle map move for view state updates
+            map.on('move', () => {
+                setCurrentZoom(map.getZoom());
+            });
+
             map.on('moveend', () => {
                 updateViewState();
                 const center = map.getCenter();
@@ -265,11 +273,17 @@ export function MapCore({ className = '' }: MapCoreProps) {
     }, [terrainExaggeration]);
 
     return (
-        <div
-            ref={containerRef}
-            className={`w-full h-full ${className}`}
-            style={{ minHeight: '100%' }}
-        />
+        <div className={`relative w-full h-full ${className}`}>
+            <div
+                ref={containerRef}
+                className="w-full h-full"
+                style={{ minHeight: '100%' }}
+            />
+            {/* Zoom Indicator - Top Right */}
+            <div className="absolute top-[100px] right-2.5 z-10 bg-black/80 text-cyan-400 px-2 py-1 rounded text-xs font-mono font-bold border border-cyan-900/50 backdrop-blur-sm pointer-events-none shadow-lg">
+                Z{currentZoom.toFixed(1)}
+            </div>
+        </div>
     );
 }
 
