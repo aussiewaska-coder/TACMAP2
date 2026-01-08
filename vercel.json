@@ -6,7 +6,7 @@
     "functions": {
         "api/**/*.ts": {
             "maxDuration": 10,
-            "includeFiles": "server/**"
+            "includeFiles": "server/**,shared/**,drizzle/**"
         }
     },
     "rewrites": [

@@ -3,7 +3,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '@server/routers';
+import { appRouter } from '../server/routers';
 import type { User } from '../drizzle/schema';
 
 // Minimal context for Vercel serverless
