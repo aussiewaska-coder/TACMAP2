@@ -5,7 +5,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import {
     MapPin, Settings, Layers, Search, Menu, X, Wrench,
-    ChevronLeft, Compass, Radio
+    ChevronLeft, Compass, Radio, Plane
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDesktopUIStore } from '@/stores';
@@ -17,8 +17,9 @@ import { SettingsPanel } from './SettingsPanel';
 import { ToolsPanel } from './ToolsPanel';
 import { SearchBox } from './SearchBox';
 import { PoliceAlertsPanel } from './PoliceAlertsPanel';
+import { EmergencyPanel } from './EmergencyPanel';
 
-type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts';
+type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts' | 'emergency';
 
 // Context for dark sidebar theme
 const SidebarThemeContext = createContext<{ isDark: boolean }>({ isDark: false });
@@ -33,6 +34,7 @@ interface TabConfig {
 const TABS: TabConfig[] = [
     { id: 'search', icon: <Search className="w-4 h-4" />, label: 'Search' },
     { id: 'alerts', icon: <Radio className="w-4 h-4" />, label: 'Alerts' },
+    { id: 'emergency', icon: <Plane className="w-4 h-4" />, label: 'Emergency' },
     { id: 'layers', icon: <Layers className="w-4 h-4" />, label: 'Layers' },
     { id: 'navigation', icon: <Compass className="w-4 h-4" />, label: 'Navigate' },
     { id: 'tools', icon: <Wrench className="w-4 h-4" />, label: 'Tools' },
@@ -182,6 +184,7 @@ export function UnifiedSidebar() {
                     </div>
                 )}
                 {currentTab === 'alerts' && <PoliceAlertsPanel />}
+                {currentTab === 'emergency' && <EmergencyPanel />}
                 {currentTab === 'layers' && <LayersList />}
                 {currentTab === 'navigation' && <CityList onSelect={closeSidebar} />}
                 {currentTab === 'tools' && <ToolsPanel />}
