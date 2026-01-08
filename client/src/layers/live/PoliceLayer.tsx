@@ -102,39 +102,41 @@ export function PoliceLayer() {
                             15, 2,
                             18, 3
                         ],
-                        // Smooth gradient: yellow-green to deep red
+                        // Police colors: blue to red (sharp ramping - requires high density for red)
                         'heatmap-color': [
                             'interpolate',
                             ['linear'],
                             ['heatmap-density'],
                             0, 'rgba(0, 0, 0, 0)',           // Transparent
-                            0.1, 'rgba(144, 238, 144, 0.3)', // Light green
-                            0.2, 'rgba(173, 255, 47, 0.5)',  // Yellow-green
-                            0.35, 'rgba(255, 255, 0, 0.7)',  // Yellow
-                            0.5, 'rgba(255, 200, 0, 0.8)',   // Golden yellow
-                            0.65, 'rgba(255, 140, 0, 0.9)',  // Orange
-                            0.8, 'rgba(255, 69, 0, 1)',      // Red-orange
-                            0.9, 'rgba(220, 20, 60, 1)',     // Crimson
-                            1, 'rgba(139, 0, 0, 1)'          // Deep red
+                            0.1, 'rgba(0, 50, 150, 0.2)',    // Deep blue (very transparent)
+                            0.2, 'rgba(0, 100, 200, 0.3)',   // Blue
+                            0.3, 'rgba(0, 150, 220, 0.4)',   // Light blue
+                            0.4, 'rgba(0, 180, 200, 0.5)',   // Cyan-blue
+                            0.5, 'rgba(0, 200, 180, 0.6)',   // Cyan
+                            0.6, 'rgba(100, 200, 150, 0.7)', // Cyan-green
+                            0.7, 'rgba(200, 180, 100, 0.75)',// Yellow-orange (transition)
+                            0.85, 'rgba(255, 100, 50, 0.85)',// Orange-red
+                            0.95, 'rgba(255, 50, 50, 0.95)', // Red
+                            1, 'rgba(200, 0, 0, 1)'          // Deep red (only highest peaks)
                         ],
                         // Enhanced radius for smooth, diffuse blur effect
                         'heatmap-radius': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            0, 5,
-                            5, 15,
-                            10, 30,
-                            15, 50,
-                            18, 70
+                            0, 8,
+                            5, 20,
+                            10, 40,
+                            15, 60,
+                            18, 80
                         ],
                         // Keep heatmap visible at all zoom levels
                         'heatmap-opacity': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            0, 0.8,
-                            18, 0.6
+                            0, 0.7,
+                            18, 0.5
                         ]
                     }
                 });
