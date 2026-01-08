@@ -1,6 +1,8 @@
 // Load and filter the emergency services registry
 
 import type { RegistryEntry, RegistryFilters } from './types.js';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 let cachedRegistry: RegistryEntry[] | null = null;
 
@@ -13,46 +15,41 @@ export async function loadRegistry(): Promise<RegistryEntry[]> {
     }
 
     try {
-        // Try multiple loading strategies
+        // Try multiple paths where registry.json might be located
+        const possiblePaths = [
+            // Vercel serverless: files are in /var/task
+            join(process.cwd(), 'public/registry.json'),
+            join(process.cwd(), 'registry.json'),
+            join('/var/task', 'public/registry.json'),
+            join('/var/task', 'registry.json'),
+            // Relative to this file
+            join(import.meta.dirname, '../../../public/registry.json'),
+        ];
+
         let registryData: string | null = null;
+        let loadedFrom: string | null = null;
 
-        // Strategy 1: Try file system first (works in dev and some deployments)
-        try {
-            const fs = await import('fs/promises');
-            const path = await import('path');
-            const registryPath = path.join(process.cwd(), 'public/registry.json');
-            registryData = await fs.readFile(registryPath, 'utf-8');
-            console.log('Loaded registry from file system');
-        } catch (fsError) {
-            console.log('File system load failed, trying public URL...');
-
-            // Strategy 2: Try fetching from public URL (Vercel deployment)
+        for (const path of possiblePaths) {
             try {
-                // Use relative path to avoid CORS and auth issues
-                const response = await fetch('/registry.json');
-                if (response.ok) {
-                    registryData = await response.text();
-                    console.log('Loaded registry from /registry.json');
-                } else {
-                    console.warn(`Registry fetch failed: ${response.status} ${response.statusText}`);
-                }
-            } catch (fetchError) {
-                console.warn('Public URL fetch failed:', fetchError);
+                registryData = readFileSync(path, 'utf-8');
+                loadedFrom = path;
+                break;
+            } catch (e) {
+                // Try next path
             }
         }
 
         if (!registryData) {
-            console.error('Failed to load registry from any source');
+            console.error('Failed to load registry from any path. Tried:', possiblePaths);
             return [];
         }
 
         cachedRegistry = JSON.parse(registryData) as RegistryEntry[];
-        console.log(`Registry loaded: ${cachedRegistry.length} entries`);
+        console.log(`Registry loaded from ${loadedFrom}: ${cachedRegistry.length} entries`);
 
         return cachedRegistry;
     } catch (error) {
         console.error('Failed to load registry:', error);
-        // Return empty array as fallback
         return [];
     }
 }
