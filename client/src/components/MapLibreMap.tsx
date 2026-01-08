@@ -74,6 +74,7 @@ export function MapLibreMap({
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreGLMap | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [currentZoom, setCurrentZoom] = useState(zoom);
 
   useEffect(() => {
     if (!mapContainer.current || map.current) return;
@@ -123,8 +124,9 @@ export function MapLibreMap({
     // Handle map load event
     map.current.on("load", () => {
       if (!map.current) return;
-      
+
       setMapLoaded(true);
+      setCurrentZoom(map.current.getZoom());
 
       // Enable terrain if requested
       if (enableTerrain) {
@@ -147,13 +149,14 @@ export function MapLibreMap({
     });
 
     // Handle map move events
-    if (onMapMove) {
-      map.current.on("move", () => {
-        if (map.current) {
+    map.current.on("move", () => {
+      if (map.current) {
+        setCurrentZoom(map.current.getZoom());
+        if (onMapMove) {
           onMapMove(map.current);
         }
-      });
-    }
+      }
+    });
 
     // Cleanup on unmount
     return () => {
@@ -172,11 +175,18 @@ export function MapLibreMap({
   }, [style, mapLoaded]);
 
   return (
-    <div 
-      ref={mapContainer} 
-      className={`w-full h-full ${className}`}
-      style={{ minHeight: "400px" }}
-    />
+    <div className="relative w-full h-full">
+      <div
+        ref={mapContainer}
+        className={`w-full h-full ${className}`}
+        style={{ minHeight: "400px" }}
+      />
+
+      {/* Zoom Indicator */}
+      <div className="absolute bottom-6 left-1 z-10 bg-black/80 text-cyan-400 px-2 py-1 rounded text-xs font-mono font-bold border border-cyan-900/50 backdrop-blur-sm pointer-events-none mb-4 ml-1">
+        Z{currentZoom.toFixed(1)}
+      </div>
+    </div>
   );
 }
 
