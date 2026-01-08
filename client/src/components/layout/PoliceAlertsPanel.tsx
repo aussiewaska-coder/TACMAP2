@@ -188,7 +188,7 @@ export function PoliceAlertsPanel() {
                 data: geoJsonData as any,
                 cluster: true,
                 clusterMaxZoom: 14,
-                clusterRadius: 50
+                clusterRadius: 80
             });
         } else {
             (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);

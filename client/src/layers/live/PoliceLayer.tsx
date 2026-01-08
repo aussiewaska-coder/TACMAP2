@@ -192,7 +192,7 @@ export function PoliceLayer() {
                 data: geoJsonData as any,
                 cluster: true,
                 clusterMaxZoom: 14, // Max zoom to cluster points on
-                clusterRadius: 50   // Radius of each cluster when clustering points (defaults to 50)
+                clusterRadius: 80   // Radius of each cluster when clustering points (defaults to 50)
             });
         } else {
             (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
