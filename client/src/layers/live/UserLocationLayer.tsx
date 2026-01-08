@@ -4,6 +4,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMapStore } from '@/stores';
 import maplibregl from 'maplibre-gl';
+import { Navigation, NavigationOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Z_INDEX } from '@/core/constants';
 
 interface LocationState {
     coords: [number, number] | null;
@@ -18,6 +21,7 @@ interface LocationState {
  * - White border for visibility
  * - Direction cone showing heading (when available)
  * - Accuracy circle
+ * - Location button to center map on user
  */
 export function UserLocationLayer() {
     const map = useMapStore((state) => state.map);
@@ -30,6 +34,7 @@ export function UserLocationLayer() {
         timestamp: 0
     });
     const [enabled, setEnabled] = useState(true);
+    const [tracking, setTracking] = useState(false); // Auto-center on location updates
     const [watchId, setWatchId] = useState<number | null>(null);
     const markerRef = useRef<maplibregl.Marker | null>(null);
     const headingRef = useRef<number | null>(null);
@@ -59,6 +64,27 @@ export function UserLocationLayer() {
             headingEl.style.opacity = '0';
         }
     }, []);
+
+    // Center map on user location
+    const centerOnLocation = useCallback(() => {
+        if (!map || !location.coords) return;
+
+        map.easeTo({
+            center: location.coords,
+            zoom: Math.max(map.getZoom(), 15), // Zoom in if too far out
+            duration: 1000,
+            pitch: 60
+        });
+    }, [map, location.coords]);
+
+    // Toggle tracking mode
+    const toggleTracking = useCallback(() => {
+        if (!tracking && location.coords) {
+            // Enabling tracking - center on location
+            centerOnLocation();
+        }
+        setTracking(!tracking);
+    }, [tracking, location.coords, centerOnLocation]);
 
     // Start watching position
     useEffect(() => {
@@ -136,6 +162,16 @@ export function UserLocationLayer() {
         };
     }, [enabled, updateHeading]);
 
+    // Auto-center when tracking is enabled and location updates
+    useEffect(() => {
+        if (tracking && location.coords && map) {
+            map.easeTo({
+                center: location.coords,
+                duration: 500
+            });
+        }
+    }, [tracking, location.coords, map]);
+
     // Create/update marker on map
     useEffect(() => {
         if (!map || !isLoaded || !location.coords) return;
@@ -157,7 +193,7 @@ export function UserLocationLayer() {
         // Update heading if available
         updateHeading(location.heading ?? headingRef.current);
 
-        // Update accuracy circle size (optional - could add a source/layer for this)
+        // Update accuracy circle size
         const el = markerRef.current.getElement();
         const accuracyEl = el?.querySelector('.location-accuracy') as HTMLElement;
         if (accuracyEl && map.getZoom()) {
@@ -177,8 +213,34 @@ export function UserLocationLayer() {
         };
     }, [map, isLoaded, location, createMarkerElement, updateHeading]);
 
-    // Component doesn't render anything visible itself
-    return null;
+    // Render location button
+    return (
+        <Button
+            variant={tracking ? "default" : "outline"}
+            size="icon"
+            onClick={toggleTracking}
+            disabled={!location.coords}
+            className={`
+                fixed bottom-24 right-4
+                w-12 h-12 rounded-2xl
+                shadow-xl
+                transition-all duration-300
+                ${tracking
+                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    : 'bg-white/90 hover:bg-white text-gray-800'
+                }
+                ${!location.coords ? 'opacity-50 cursor-not-allowed' : ''}
+            `}
+            style={{ zIndex: Z_INDEX.CONTROLS }}
+            title={tracking ? "Stop following location" : "Center on my location"}
+        >
+            {tracking ? (
+                <Navigation className="w-5 h-5" />
+            ) : (
+                <NavigationOff className="w-5 h-5" />
+            )}
+        </Button>
+    );
 }
 
 export default UserLocationLayer;
