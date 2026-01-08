@@ -16,6 +16,7 @@ import {
   getCustomLayersByUserId,
   upsertCustomLayer,
   deleteCustomLayer,
+  getPoliceReports,
 } from "./db";
 import { TRPCError } from "@trpc/server";
 
@@ -163,6 +164,18 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await deleteCustomLayer(input.id);
         return { success: true };
+      }),
+  }),
+
+  police: router({
+    list: publicProcedure
+      .input(z.object({ hoursAgo: z.number().optional() }).optional())
+      .query(async ({ input }) => {
+        let minTimestamp: Date | undefined;
+        if (input?.hoursAgo) {
+          minTimestamp = new Date(Date.now() - input.hoursAgo * 60 * 60 * 1000);
+        }
+        return await getPoliceReports(minTimestamp);
       }),
   }),
 });

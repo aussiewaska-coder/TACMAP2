@@ -9,6 +9,7 @@ import { StatusIndicator } from './StatusIndicator';
 import { BottomSheet } from './BottomSheet';
 import { KeyboardControls } from '@/components/controls/KeyboardControls';
 import { PluginLoader } from '@/plugins/PluginLoader';
+import { PoliceLayer } from '@/layers/live/PoliceLayer';
 
 interface MapLayoutProps {
     /** Additional CSS classes */
@@ -50,12 +51,14 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
                 <>
                     <DesktopControls />
                     <KeyboardControls enabled={true} />
+                    <PoliceLayer />
                 </>
             ) : (
                 // Tablet uses desktop controls with some mobile elements
                 <>
                     <DesktopControls />
                     <KeyboardControls enabled={true} />
+                    <PoliceLayer />
                 </>
             )}
 

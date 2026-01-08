@@ -1,4 +1,4 @@
-import { boolean, jsonb, pgEnum, pgTable, serial, text, timestamp, varchar, integer } from "drizzle-orm/pg-core";
+import { boolean, jsonb, pgEnum, pgTable, serial, text, timestamp, varchar, integer, doublePrecision } from "drizzle-orm/pg-core";
 
 /**
  * PostgreSQL version of the schema for Neon
@@ -89,4 +89,20 @@ export const customLayers = pgTable("custom_layers", {
 });
 
 export type CustomLayer = typeof customLayers.$inferSelect;
+
 export type InsertCustomLayer = typeof customLayers.$inferInsert;
+
+export const policeReports = pgTable("police_reports", {
+  alertId: varchar("alert_id").primaryKey(), // It seemed unique in sample
+  type: varchar("type"),
+  subtype: varchar("subtype"),
+  latitude: doublePrecision("latitude"),
+  longitude: doublePrecision("longitude"),
+  street: varchar("street"),
+  city: varchar("city"),
+  alertReliability: integer("alert_reliability"),
+  publishDatetimeUtc: timestamp("publish_datetime_utc"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export type PoliceReport = typeof policeReports.$inferSelect;

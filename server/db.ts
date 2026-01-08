@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import { eq } from "drizzle-orm";
+import { eq, gt, desc } from "drizzle-orm";
 import * as schema from "../drizzle/schema";
 import {
   InsertUser,
@@ -16,7 +16,9 @@ import {
   InsertMapStyle,
   customLayers,
   CustomLayer,
-  InsertCustomLayer
+  InsertCustomLayer,
+  policeReports,
+  PoliceReport
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -247,9 +249,26 @@ export async function upsertCustomLayer(layer: InsertCustomLayer): Promise<void>
   }
 }
 
+
 export async function deleteCustomLayer(id: number): Promise<void> {
   const db = await getDb();
   if (!db) return;
 
   await db.delete(customLayers).where(eq(customLayers.id, id));
+}
+
+// Police Reports Queries
+export async function getPoliceReports(minTimestamp?: Date): Promise<PoliceReport[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  let query = db.select().from(policeReports);
+
+  if (minTimestamp) {
+    // @ts-ignore - drizzle type inference can be tricky with optional where clauses in builder pattern sometimes, but let's try standard way
+    query = query.where(gt(policeReports.publishDatetimeUtc, minTimestamp));
+  }
+
+  // default sort by latest
+  return await query.orderBy(desc(policeReports.publishDatetimeUtc)).limit(15000); // hard limit to prevent explosion
 }
