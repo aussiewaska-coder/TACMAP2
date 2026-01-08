@@ -1,12 +1,10 @@
-// MapLayout - Main layout component with independent mobile/desktop views
-// This is the top-level layout that decides which UI to render
+// MapLayout - Main layout component with unified sidebar
+// This is the top-level layout that renders the map and controls
 
 import { MapContainer } from '@/core';
 import { useBreakpoint } from '@/hooks';
-import { MobileControls } from './MobileControls';
-import { DesktopControls } from './DesktopControls';
+import { UnifiedSidebar } from './UnifiedSidebar';
 import { StatusIndicator } from './StatusIndicator';
-import { BottomSheet } from './BottomSheet';
 import { KeyboardControls } from '@/components/controls/KeyboardControls';
 import { PluginLoader } from '@/plugins/PluginLoader';
 import { PoliceLayer } from '@/layers/live/PoliceLayer';
@@ -21,13 +19,12 @@ interface MapLayoutProps {
  * 
  * Renders:
  * - MapContainer (shared between mobile/desktop)
- * - MobileControls OR DesktopControls (independent, not both)
- * - BottomSheet (mobile only)
+ * - UnifiedSidebar (responsive - hamburger on mobile, persistent on desktop)
  * - StatusIndicator (shared)
  * - KeyboardControls (desktop only)
+ * - PoliceLayer (map data layer)
  * 
- * Mobile and desktop UIs are COMPLETELY INDEPENDENT.
- * They share the map and its state, but UI state is separate.
+ * The UnifiedSidebar handles all the responsive behavior internally.
  */
 export function MapLayout({ className = '' }: MapLayoutProps) {
     const { isMobile, isDesktop } = useBreakpoint();
@@ -40,27 +37,19 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
             {/* Plugin system initialization */}
             <PluginLoader />
 
-            {/* Controls - Separate implementations for mobile/desktop */}
-            {/* Only ONE is rendered at a time */}
-            {isMobile ? (
+            {/* Unified sidebar - handles mobile/desktop internally */}
+            <UnifiedSidebar />
+
+            {/* Desktop-only components */}
+            {!isMobile && (
                 <>
-                    <MobileControls />
-                    <BottomSheet />
-                </>
-            ) : isDesktop ? (
-                <>
-                    <DesktopControls />
-                    <KeyboardControls enabled={true} />
-                    <PoliceLayer />
-                </>
-            ) : (
-                // Tablet uses desktop controls with some mobile elements
-                <>
-                    <DesktopControls />
                     <KeyboardControls enabled={true} />
                     <PoliceLayer />
                 </>
             )}
+
+            {/* Mobile also gets police layer */}
+            {isMobile && <PoliceLayer />}
 
             {/* Status indicator - Shared, but styled differently per viewport */}
             <StatusIndicator />

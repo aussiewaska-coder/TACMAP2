@@ -174,4 +174,81 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+
+  /* Dark sidebar theme - inverts colors for components inside the sidebar */
+  .sidebar-dark-theme {
+    /* Override backgrounds */
+    & .bg-gray-50 {
+      background-color: rgba(255, 255, 255, 0.08);
+    }
+    & .bg-white {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Override text colors */
+    & .text-gray-900,
+    & .font-medium.text-gray-900 {
+      color: rgba(255, 255, 255, 0.95);
+    }
+    & .text-gray-800 {
+      color: rgba(255, 255, 255, 0.9);
+    }
+    & .text-gray-700 {
+      color: rgba(255, 255, 255, 0.85);
+    }
+    & .text-gray-600 {
+      color: rgba(255, 255, 255, 0.75);
+    }
+    & .text-gray-500 {
+      color: rgba(255, 255, 255, 0.6);
+    }
+    & .text-gray-400 {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    
+    /* Override borders */
+    & .border-t,
+    & .border-b,
+    & .border {
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Override icon backgrounds */
+    & .bg-green-100 {
+      background-color: rgba(34, 197, 94, 0.2);
+    }
+    & .bg-amber-100 {
+      background-color: rgba(245, 158, 11, 0.2);
+    }
+    & .bg-blue-100 {
+      background-color: rgba(59, 130, 246, 0.2);
+    }
+    & .bg-indigo-100 {
+      background-color: rgba(99, 102, 241, 0.2);
+    }
+    
+    /* Override hover states */
+    & .hover\:bg-gray-100:hover {
+      background-color: rgba(255, 255, 255, 0.15);
+    }
+    & .hover\:bg-gray-50:hover {
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Button overrides */
+    & button[data-slot="control"],
+    & .bg-gray-200 {
+      background-color: rgba(255, 255, 255, 0.15);
+      color: rgba(255, 255, 255, 0.8);
+    }
+  }
+
+  /* Hide scrollbar utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }
