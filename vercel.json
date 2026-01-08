@@ -4,9 +4,7 @@
     "outputDirectory": "dist/public",
     "installCommand": "pnpm install",
     "functions": {
-        "api/**/*.ts": {
-            "runtime": "@vercel/node@3.0.0"
-        }
+        "api/**/*.ts": {}
     },
     "rewrites": [
         {
