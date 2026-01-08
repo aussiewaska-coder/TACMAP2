@@ -27,8 +27,8 @@ function DraggableModal({ children, isOpen, onClose }: { children: React.ReactNo
 
   const style = transform
     ? {
-        transform: CSS.Translate.toString(transform),
-      }
+      transform: CSS.Translate.toString(transform),
+    }
     : undefined;
 
   if (!isOpen) return null;
@@ -36,11 +36,11 @@ function DraggableModal({ children, isOpen, onClose }: { children: React.ReactNo
   return (
     <>
       {/* Backdrop */}
-      <div 
+      <div
         className="fixed inset-0 bg-black/20 z-[200]"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div
         ref={setNodeRef}
@@ -90,11 +90,11 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
   const [zoom, setZoom] = useState(4);
   const [activeStyle, setActiveStyle] = useState("default");
   const [localTerrainExaggeration, setLocalTerrainExaggeration] = useState(parentTerrainExaggeration || 1.5);
-  
+
   // Use parent state if provided, otherwise use local state
   const terrainExaggeration = parentTerrainExaggeration !== undefined ? parentTerrainExaggeration : localTerrainExaggeration;
   const setTerrainExaggeration = onTerrainExaggerationChange || setLocalTerrainExaggeration;
-  
+
   // Real map styles
   const mapStyles = [
     {
@@ -129,6 +129,9 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
     { id: "hills", name: "Hillshade", visible: true, opacity: 100, type: "hillshade" },
     { id: "sky", name: "Sky Layer", visible: true, opacity: 100, type: "sky" },
     { id: "australia-outline-layer", name: "Australia Outline", visible: true, opacity: 100, type: "line" },
+    { id: "gov-landuse-layer", name: "🇦🇺 Land Use (2019)", visible: false, opacity: 70, type: "raster" },
+    { id: "gov-geology-layer", name: "🇦🇺 Surface Geology", visible: false, opacity: 60, type: "raster" },
+    { id: "gov-bushfire-layer", name: "🔥 Active Fires (72h)", visible: false, opacity: 90, type: "raster" },
     { id: "heatmap-layer", name: "Heatmap", visible: true, opacity: 100, type: "heatmap" },
     { id: "clusters", name: "Clusters", visible: true, opacity: 100, type: "circle" },
   ]);
@@ -174,16 +177,16 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
 
   const handleTerrainExaggerationChange = (value: number[]) => {
     if (!map) return;
-    
+
     const exaggeration = value[0];
     setTerrainExaggeration(exaggeration);
-    
+
     // ACTUALLY SET THE TERRAIN EXAGGERATION
     map.setTerrain({
       source: "terrainSource",
       exaggeration: exaggeration,
     });
-    
+
     toast.success(`Terrain exaggeration: ${exaggeration.toFixed(1)}x`);
   };
 
@@ -193,7 +196,7 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
     setLayers(layers.map(layer => {
       if (layer.id === layerId) {
         const newVisibility = !layer.visible;
-        
+
         try {
           if (map.getLayer(layerId)) {
             map.setLayoutProperty(
@@ -236,6 +239,9 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
               case "heatmap":
                 map.setPaintProperty(layerId, "heatmap-opacity", opacityValue);
                 break;
+              case "raster":
+                map.setPaintProperty(layerId, "raster-opacity", opacityValue);
+                break;
             }
           }
         } catch (error) {
@@ -254,14 +260,14 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
     const style = mapStyles.find(s => s.id === styleId);
     if (style) {
       toast.info(`Switching to ${style.name}...`);
-      
+
       const currentCenter = map.getCenter();
       const currentZoom = map.getZoom();
       const currentPitch = map.getPitch();
       const currentBearing = map.getBearing();
-      
+
       map.setStyle(style.url);
-      
+
       map.once("style.load", () => {
         map.jumpTo({
           center: currentCenter,
@@ -269,7 +275,7 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
           pitch: currentPitch,
           bearing: currentBearing,
         });
-        
+
         // Re-add terrain sources
         if (!map.getSource("terrainSource")) {
           map.addSource("terrainSource", {
@@ -278,7 +284,7 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
             tileSize: 256,
           });
         }
-        
+
         if (!map.getSource("hillshadeSource")) {
           map.addSource("hillshadeSource", {
             type: "raster-dem",
@@ -286,203 +292,203 @@ export function MapSettingsModal({ map, isOpen, onClose, terrainExaggeration: pa
             tileSize: 256,
           });
         }
-        
+
         // Re-enable terrain
         map.setTerrain({
           source: "terrainSource",
           exaggeration: terrainExaggeration,
         });
-        
+
         toast.success(`Switched to ${style.name}`);
       });
-      
+
       setActiveStyle(styleId);
     }
   };
 
   return (
-      <DraggableModal isOpen={isOpen} onClose={onClose}>
-        <CardContent className="p-4 overflow-y-auto max-h-[60vh]">
-          <Tabs defaultValue="terrain" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="terrain">
-                <MapIcon className="w-4 h-4 mr-1" />
-                Terrain
-              </TabsTrigger>
-              <TabsTrigger value="layers">
-                <Layers className="w-4 h-4 mr-1" />
-                Layers
-              </TabsTrigger>
-              <TabsTrigger value="styles">
-                <Palette className="w-4 h-4 mr-1" />
-                Styles
-              </TabsTrigger>
-              <TabsTrigger value="controls">
-                <Sliders className="w-4 h-4 mr-1" />
-                Controls
-              </TabsTrigger>
-            </TabsList>
+    <DraggableModal isOpen={isOpen} onClose={onClose}>
+      <CardContent className="p-4 overflow-y-auto max-h-[60vh]">
+        <Tabs defaultValue="terrain" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="terrain">
+              <MapIcon className="w-4 h-4 mr-1" />
+              Terrain
+            </TabsTrigger>
+            <TabsTrigger value="layers">
+              <Layers className="w-4 h-4 mr-1" />
+              Layers
+            </TabsTrigger>
+            <TabsTrigger value="styles">
+              <Palette className="w-4 h-4 mr-1" />
+              Styles
+            </TabsTrigger>
+            <TabsTrigger value="controls">
+              <Sliders className="w-4 h-4 mr-1" />
+              Controls
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Terrain Tab - FIRST */}
-            <TabsContent value="terrain" className="space-y-4 mt-4">
-              <div className="space-y-4">
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm font-semibold text-green-800 mb-2">✅ 3D Terrain is ACTIVE</p>
-                  <p className="text-xs text-green-700">Zoom in to cities to see real elevation. Adjust exaggeration below.</p>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="font-semibold">Terrain Exaggeration</Label>
-                    <span className="text-sm font-bold text-indigo-600">{terrainExaggeration.toFixed(1)}x</span>
-                  </div>
-                  <Slider
-                    value={[terrainExaggeration]}
-                    onValueChange={handleTerrainExaggerationChange}
-                    min={0.5}
-                    max={3}
-                    step={0.1}
-                    className="w-full"
-                  />
-                  <p className="text-xs text-gray-600">
-                    Adjust vertical exaggeration of terrain elevation. Higher values make mountains more dramatic.
-                  </p>
-                </div>
+          {/* Terrain Tab - FIRST */}
+          <TabsContent value="terrain" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm font-semibold text-green-800 mb-2">✅ 3D Terrain is ACTIVE</p>
+                <p className="text-xs text-green-700">Zoom in to cities to see real elevation. Adjust exaggeration below.</p>
               </div>
-            </TabsContent>
 
-            {/* Layers Tab */}
-            <TabsContent value="layers" className="space-y-4 mt-4">
-              <div className="space-y-4">
-                {layers.map(layer => (
-                  <div key={layer.id} className="space-y-2 p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor={`layer-${layer.id}`} className="font-medium">
-                        {layer.name}
-                      </Label>
-                      <Switch
-                        id={`layer-${layer.id}`}
-                        checked={layer.visible}
-                        onCheckedChange={() => handleLayerVisibilityToggle(layer.id)}
-                      />
-                    </div>
-                    {layer.visible && layer.type !== "sky" && layer.type !== "hillshade" && (
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Opacity</span>
-                          <span className="font-medium">{layer.opacity}%</span>
-                        </div>
-                        <Slider
-                          value={[layer.opacity]}
-                          onValueChange={(value) => handleLayerOpacityChange(layer.id, value[0])}
-                          min={0}
-                          max={100}
-                          step={1}
-                          className="w-full"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Styles Tab */}
-            <TabsContent value="styles" className="space-y-4 mt-4">
-              <div className="space-y-3">
-                <Label>Basemap Style</Label>
-                <Select value={activeStyle} onValueChange={handleStyleChange}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a style" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {mapStyles.map(style => (
-                      <SelectItem key={style.id} value={style.id}>
-                        {style.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-sm text-gray-600">
-                  Choose a basemap style. Terrain will be preserved when switching.
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold">Terrain Exaggeration</Label>
+                  <span className="text-sm font-bold text-indigo-600">{terrainExaggeration.toFixed(1)}x</span>
+                </div>
+                <Slider
+                  value={[terrainExaggeration]}
+                  onValueChange={handleTerrainExaggerationChange}
+                  min={0.5}
+                  max={3}
+                  step={0.1}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-600">
+                  Adjust vertical exaggeration of terrain elevation. Higher values make mountains more dramatic.
                 </p>
               </div>
-            </TabsContent>
+            </div>
+          </TabsContent>
 
-            {/* Controls Tab */}
-            <TabsContent value="controls" className="space-y-4 mt-4">
-              <div className="space-y-4">
-                {/* Pitch Control */}
-                <div className="space-y-2">
+          {/* Layers Tab */}
+          <TabsContent value="layers" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              {layers.map(layer => (
+                <div key={layer.id} className="space-y-2 p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <Label>Pitch (Tilt)</Label>
-                    <span className="text-sm font-medium">{pitch}°</span>
+                    <Label htmlFor={`layer-${layer.id}`} className="font-medium">
+                      {layer.name}
+                    </Label>
+                    <Switch
+                      id={`layer-${layer.id}`}
+                      checked={layer.visible}
+                      onCheckedChange={() => handleLayerVisibilityToggle(layer.id)}
+                    />
                   </div>
-                  <Slider
-                    value={[pitch]}
-                    onValueChange={handlePitchChange}
-                    min={0}
-                    max={85}
-                    step={1}
-                    className="w-full"
-                  />
+                  {layer.visible && layer.type !== "sky" && layer.type !== "hillshade" && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Opacity</span>
+                        <span className="font-medium">{layer.opacity}%</span>
+                      </div>
+                      <Slider
+                        value={[layer.opacity]}
+                        onValueChange={(value) => handleLayerOpacityChange(layer.id, value[0])}
+                        min={0}
+                        max={100}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
                 </div>
+              ))}
+            </div>
+          </TabsContent>
 
-                {/* Bearing Control */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Bearing (Rotation)</Label>
-                    <span className="text-sm font-medium">{bearing}°</span>
-                  </div>
-                  <Slider
-                    value={[bearing]}
-                    onValueChange={handleBearingChange}
-                    min={0}
-                    max={360}
-                    step={1}
-                    className="w-full"
-                  />
+          {/* Styles Tab */}
+          <TabsContent value="styles" className="space-y-4 mt-4">
+            <div className="space-y-3">
+              <Label>Basemap Style</Label>
+              <Select value={activeStyle} onValueChange={handleStyleChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a style" />
+                </SelectTrigger>
+                <SelectContent>
+                  {mapStyles.map(style => (
+                    <SelectItem key={style.id} value={style.id}>
+                      {style.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-gray-600">
+                Choose a basemap style. Terrain will be preserved when switching.
+              </p>
+            </div>
+          </TabsContent>
+
+          {/* Controls Tab */}
+          <TabsContent value="controls" className="space-y-4 mt-4">
+            <div className="space-y-4">
+              {/* Pitch Control */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Pitch (Tilt)</Label>
+                  <span className="text-sm font-medium">{pitch}°</span>
                 </div>
-
-                {/* Zoom Control */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>Zoom Level</Label>
-                    <span className="text-sm font-medium">{zoom}</span>
-                  </div>
-                  <Slider
-                    value={[zoom]}
-                    onValueChange={handleZoomChange}
-                    min={3}
-                    max={20}
-                    step={0.1}
-                    className="w-full"
-                  />
-                </div>
-
-                <Button
-                  variant="outline"
+                <Slider
+                  value={[pitch]}
+                  onValueChange={handlePitchChange}
+                  min={0}
+                  max={85}
+                  step={1}
                   className="w-full"
-                  onClick={() => {
-                    if (map) {
-                      map.easeTo({
-                        pitch: 60,
-                        bearing: 0,
-                        zoom: 4,
-                        center: [133.7751, -25.2744],
-                        duration: 1000,
-                      });
-                      toast.success("Reset to default view");
-                    }
-                  }}
-                >
-                  Reset to Default View
-                </Button>
+                />
               </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </DraggableModal>
+
+              {/* Bearing Control */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Bearing (Rotation)</Label>
+                  <span className="text-sm font-medium">{bearing}°</span>
+                </div>
+                <Slider
+                  value={[bearing]}
+                  onValueChange={handleBearingChange}
+                  min={0}
+                  max={360}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+
+              {/* Zoom Control */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Zoom Level</Label>
+                  <span className="text-sm font-medium">{zoom}</span>
+                </div>
+                <Slider
+                  value={[zoom]}
+                  onValueChange={handleZoomChange}
+                  min={3}
+                  max={20}
+                  step={0.1}
+                  className="w-full"
+                />
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  if (map) {
+                    map.easeTo({
+                      pitch: 60,
+                      bearing: 0,
+                      zoom: 4,
+                      center: [133.7751, -25.2744],
+                      duration: 1000,
+                    });
+                    toast.success("Reset to default view");
+                  }
+                }}
+              >
+                Reset to Default View
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </DraggableModal>
   );
 }
 

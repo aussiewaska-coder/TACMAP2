@@ -7,14 +7,15 @@ import { trpc } from "@/lib/trpc";
 import { Settings, MapPin, Pencil, RotateCw, Navigation } from "lucide-react";
 import MapSettingsModal from "@/components/MapSettingsModal";
 import { toast } from "sonner";
+import * as turf from "@turf/turf";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import MapPlugins from "@/components/MapPlugins";
 
 /**
  * Mobile-friendly map page with clean UI
@@ -27,7 +28,8 @@ export default function MapPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCities, setShowCities] = useState(false);
   const [terrainExaggeration, setTerrainExaggeration] = useState(1.5);
-  
+  const [drawEnabled, setDrawEnabled] = useState(false);
+
   // Fetch map settings
   const { data: settings } = trpc.mapSettings.get.useQuery();
 
@@ -170,6 +172,65 @@ export default function MapPage() {
 
       setMapLoaded(true);
       console.log("Map loaded with AWS 3D terrain (DEFAULT)");
+
+      // === GOVERNMENT DATA LAYERS (WMS) ===
+
+      // 1. Land Use (Geoscience Australia)
+      // Source: https://services.ga.gov.au/gis/services/NM_Land_Use_18_19/MapServer/WMSServer
+      mapRef.current.addSource("gov-landuse", {
+        type: "raster",
+        tiles: [
+          "https://services.ga.gov.au/gis/services/NM_Land_Use_18_19/MapServer/WMSServer?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=Land_Use_18_19"
+        ],
+        tileSize: 256,
+        attribution: "Geoscience Australia"
+      });
+
+      mapRef.current.addLayer({
+        id: "gov-landuse-layer",
+        type: "raster",
+        source: "gov-landuse",
+        layout: { visibility: "none" }, // Hidden by default
+        paint: { "raster-opacity": 0.7 }
+      });
+
+      // 2. Surface Geology (Geoscience Australia)
+      // Source: https://services.ga.gov.au/gis/services/GA_Surface_Geology/MapServer/WMSServer
+      mapRef.current.addSource("gov-geology", {
+        type: "raster",
+        tiles: [
+          "https://services.ga.gov.au/gis/services/GA_Surface_Geology/MapServer/WMSServer?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=GA_Surface_Geology"
+        ],
+        tileSize: 256,
+        attribution: "Geoscience Australia"
+      });
+
+      mapRef.current.addLayer({
+        id: "gov-geology-layer",
+        type: "raster",
+        source: "gov-geology",
+        layout: { visibility: "none" },
+        paint: { "raster-opacity": 0.6 }
+      });
+
+      // 3. Bushfire Hotspots (Sentinel)
+      // Source: Sentinel Hotspots (Geoscience Australia)
+      mapRef.current.addSource("gov-bushfire", {
+        type: "raster",
+        tiles: [
+          "https://sentinel.ga.gov.au/geoserver/public/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=hotspots_72hrs"
+        ],
+        tileSize: 256,
+        attribution: "Sentinel Hotspots"
+      });
+
+      mapRef.current.addLayer({
+        id: "gov-bushfire-layer",
+        type: "raster",
+        source: "gov-bushfire",
+        layout: { visibility: "none" },
+        paint: { "raster-opacity": 0.9 }
+      });
     });
 
     return () => {
@@ -198,10 +259,10 @@ export default function MapPage() {
     if (!mapRef.current) return;
 
     const map = mapRef.current;
-    
+
     // Show loading toast
     const loadingToast = toast.loading(`Preparing ${name}...`);
-    
+
     try {
       // Step 1: Preload tiles at destination by temporarily setting view
       // This loads tiles without animation
@@ -209,13 +270,13 @@ export default function MapPage() {
       const currentZoom = map.getZoom();
       const currentPitch = map.getPitch();
       const currentBearing = map.getBearing();
-      
+
       // Jump to destination to trigger tile loading (invisible to user)
       map.jumpTo({
         center: [lng, lat],
         zoom: zoom,
       });
-      
+
       // Wait for tiles to load
       await new Promise<void>((resolve) => {
         let tilesLoaded = false;
@@ -239,7 +300,7 @@ export default function MapPage() {
           }
         }, 3000);
       });
-      
+
       // Step 2: Jump back to original position
       map.jumpTo({
         center: currentCenter,
@@ -247,11 +308,11 @@ export default function MapPage() {
         pitch: currentPitch,
         bearing: currentBearing,
       });
-      
+
       // Dismiss loading toast
       toast.dismiss(loadingToast);
       toast.success(`Flying to ${name}`);
-      
+
       // Step 3: Now do the smooth animated flyTo
       // Tiles are already loaded, so no loading delay!
       map.flyTo({
@@ -265,7 +326,7 @@ export default function MapPage() {
           return t * (2 - t); // ease-out quad
         },
       });
-      
+
       setShowCities(false); // Close modal after selection
     } catch (error) {
       toast.dismiss(loadingToast);
@@ -299,8 +360,44 @@ export default function MapPage() {
     }
   };
 
+  // Draw/Measurement handlers
+  const onDrawCreate = (features: any) => {
+    if (!features || features.length === 0) return;
+    const feature = features[0];
+    calculateAndShowMeasurement(feature);
+  };
+
+  const onDrawUpdate = (features: any) => {
+    if (!features || features.length === 0) return;
+    const feature = features[0];
+    calculateAndShowMeasurement(feature);
+  };
+
+  const calculateAndShowMeasurement = (feature: any) => {
+    if (feature.geometry.type === "LineString") {
+      const length = turf.length(feature, { units: "kilometers" });
+      toast.info(`Distance: ${length.toFixed(2)} km`, {
+        duration: 4000,
+        icon: "📏"
+      });
+    } else if (feature.geometry.type === "Polygon") {
+      const area = turf.area(feature);
+      // Convert to sq km
+      const areaSqKm = area / 1000000;
+      toast.info(`Area: ${areaSqKm.toFixed(2)} km²`, {
+        duration: 4000,
+        icon: "📐"
+      });
+    }
+  };
+
   const toggleDraw = () => {
-    toast.info("Draw mode - Coming soon");
+    setDrawEnabled(!drawEnabled);
+    if (!drawEnabled) {
+      toast.success("Draw tools enabled - Controls at top left");
+    } else {
+      toast.info("Draw tools disabled");
+    }
   };
 
   return (
@@ -308,6 +405,18 @@ export default function MapPage() {
       <div className="relative w-full h-screen">
         {/* Map Container */}
         <div ref={mapContainer} className="w-full h-full" />
+
+        {/* Map Plugins (Draw, Geocoder, etc) */}
+        {mapRef.current && (
+          <MapPlugins
+            map={mapRef.current}
+            enableDraw={drawEnabled}
+            enableGeocoder={true} // Always enabled per spec priority
+            enableExport={true}
+            onDrawCreate={onDrawCreate}
+            onDrawUpdate={onDrawUpdate}
+          />
+        )}
 
         {/* Settings Modal */}
         {showSettings && mapRef.current && (
@@ -386,7 +495,7 @@ export default function MapPage() {
           >
             <Navigation className="w-6 h-6" />
           </Button>
-          
+
           {/* Settings Button */}
           <Button
             variant="default"
@@ -397,18 +506,21 @@ export default function MapPage() {
           >
             <Settings className="w-6 h-6" />
           </Button>
-          
+
           {/* Draw Button */}
           <Button
-            variant="outline"
+            variant={drawEnabled ? "default" : "outline"}
             size="icon"
             onClick={toggleDraw}
-            title="Toggle Draw Mode"
-            className="bg-white text-gray-800 hover:bg-gray-100 shadow-xl w-14 h-14 md:w-12 md:h-12"
+            title={drawEnabled ? "Exit Draw Mode" : "Enable Draw & Measure"}
+            className={`${drawEnabled
+              ? "bg-amber-600 text-white hover:bg-amber-700"
+              : "bg-white text-gray-800 hover:bg-gray-100"
+              } shadow-xl w-14 h-14 md:w-12 md:h-12`}
           >
             <Pencil className="w-6 h-6" />
           </Button>
-          
+
           {/* Rotate Button */}
           <Button
             variant="outline"
