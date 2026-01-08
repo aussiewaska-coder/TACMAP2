@@ -72,6 +72,37 @@ async function startServer() {
     }
   });
 
+  // Emergency Services API routes (for local dev - in production these are Vercel serverless)
+  app.get("/api/emergency/registry", async (req, res) => {
+    try {
+      const { default: handler } = await import("../../api/emergency/registry.js");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("Registry API error:", error);
+      res.status(500).json({ error: "Failed to load registry API" });
+    }
+  });
+
+  app.get("/api/emergency/tracks", async (req, res) => {
+    try {
+      const { default: handler } = await import("../../api/emergency/tracks.js");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("Tracks API error:", error);
+      res.status(500).json({ error: "Failed to load tracks API" });
+    }
+  });
+
+  app.get("/api/emergency/alerts", async (req, res) => {
+    try {
+      const { default: handler } = await import("../../api/emergency/alerts.js");
+      await handler(req as any, res as any);
+    } catch (error) {
+      console.error("Alerts API error:", error);
+      res.status(500).json({ error: "Failed to load alerts API" });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
