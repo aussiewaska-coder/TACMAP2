@@ -131,16 +131,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 'bottom-right'
             );
 
-            map.addControl(
-                new maplibregl.GeolocateControl({
-                    positionOptions: {
-                        enableHighAccuracy: true,
-                    },
-                    trackUserLocation: true,
-                }),
-                'top-right'
-            );
-
             // Handle map load
             map.on('load', () => {
                 // Add sky layer for 3D atmosphere

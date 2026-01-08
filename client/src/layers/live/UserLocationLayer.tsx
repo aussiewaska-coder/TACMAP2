@@ -1,27 +1,27 @@
-// UserLocationLayer - Shows user's current location with pulsing green marker and heading direction
-// Uses browser Geolocation API and DeviceOrientation for heading
+// UserLocationLayer - Clean implementation of user location tracking
+// Single source of truth for geolocation with smooth animations
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMapStore } from '@/stores';
 import maplibregl from 'maplibre-gl';
-import { Navigation, NavigationOff } from 'lucide-react';
+import { Navigation, NavigationOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
+import { toast } from 'sonner';
 
 interface LocationState {
     coords: [number, number] | null;
     accuracy: number;
     heading: number | null;
-    timestamp: number;
 }
 
+type TrackingState = 'off' | 'pending' | 'active';
+
 /**
- * User location layer with:
- * - Green pulsing dot for current position
- * - White border for visibility
- * - Direction cone showing heading (when available)
- * - Accuracy circle
- * - Location button to center map on user
+ * User location layer with clean state management
+ * - Green pulsing marker with heading cone
+ * - Single button with 3 states: off, pending, active
+ * - Smooth flyTo animations
  */
 export function UserLocationLayer() {
     const map = useMapStore((state) => state.map);
@@ -30,16 +30,16 @@ export function UserLocationLayer() {
     const [location, setLocation] = useState<LocationState>({
         coords: null,
         accuracy: 0,
-        heading: null,
-        timestamp: 0
+        heading: null
     });
-    const [enabled, setEnabled] = useState(true);
-    const [tracking, setTracking] = useState(false); // Auto-center on location updates
-    const [watchId, setWatchId] = useState<number | null>(null);
-    const markerRef = useRef<maplibregl.Marker | null>(null);
-    const headingRef = useRef<number | null>(null);
+    const [trackingState, setTrackingState] = useState<TrackingState>('off');
+    const [permissionDenied, setPermissionDenied] = useState(false);
 
-    // Create custom marker element
+    const watchIdRef = useRef<number | null>(null);
+    const markerRef = useRef<maplibregl.Marker | null>(null);
+    const isFirstLocationRef = useRef(true);
+
+    // Create marker element
     const createMarkerElement = useCallback(() => {
         const container = document.createElement('div');
         container.className = 'user-location-marker';
@@ -52,94 +52,170 @@ export function UserLocationLayer() {
         return container;
     }, []);
 
-    // Update marker rotation for heading
+    // Update heading cone rotation
     const updateHeading = useCallback((heading: number | null) => {
         if (!markerRef.current) return;
         const el = markerRef.current.getElement();
         const headingEl = el?.querySelector('.location-heading') as HTMLElement;
-        if (headingEl && heading !== null) {
-            headingEl.style.transform = `rotate(${heading}deg)`;
-            headingEl.style.opacity = '1';
-        } else if (headingEl) {
-            headingEl.style.opacity = '0';
+        if (headingEl) {
+            if (heading !== null) {
+                headingEl.style.transform = `rotate(${heading}deg)`;
+                headingEl.style.opacity = '1';
+            } else {
+                headingEl.style.opacity = '0';
+            }
         }
     }, []);
 
-    // Center map on user location
-    const centerOnLocation = useCallback(() => {
-        if (!map || !location.coords) return;
+    // Smooth flyTo location
+    const flyToLocation = useCallback((coords: [number, number], isFirst: boolean = false) => {
+        if (!map) return;
 
-        map.easeTo({
-            center: location.coords,
-            zoom: Math.max(map.getZoom(), 15), // Zoom in if too far out
-            duration: 1000,
-            pitch: 60
+        const currentZoom = map.getZoom();
+        const targetZoom = isFirst ? 16 : Math.max(currentZoom, 15);
+
+        map.flyTo({
+            center: coords,
+            zoom: targetZoom,
+            pitch: 60,
+            duration: isFirst ? 2000 : 1000,
+            essential: true
         });
-    }, [map, location.coords]);
+    }, [map]);
 
-    // Toggle tracking mode
-    const toggleTracking = useCallback(() => {
-        if (!tracking && location.coords) {
-            // Enabling tracking - center on location
-            centerOnLocation();
+    // Start location tracking
+    const startTracking = useCallback(() => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation not supported');
+            return;
         }
-        setTracking(!tracking);
-    }, [tracking, location.coords, centerOnLocation]);
 
-    // Start watching position
-    useEffect(() => {
-        if (!enabled || !navigator.geolocation) return;
+        setTrackingState('pending');
+        setPermissionDenied(false);
 
         const options: PositionOptions = {
             enableHighAccuracy: true,
             timeout: 10000,
-            maximumAge: 5000
+            maximumAge: 0
         };
 
         const successHandler = (position: GeolocationPosition) => {
             const { longitude, latitude, accuracy, heading } = position.coords;
+            const coords: [number, number] = [longitude, latitude];
+
             setLocation({
-                coords: [longitude, latitude],
-                accuracy: accuracy,
-                heading: heading,
-                timestamp: position.timestamp
+                coords,
+                accuracy,
+                heading
             });
-            headingRef.current = heading;
+
+            setTrackingState('active');
+
+            // Fly to location on first fix or when re-enabling
+            if (isFirstLocationRef.current) {
+                flyToLocation(coords, true);
+                isFirstLocationRef.current = false;
+                toast.success('Location found');
+            }
         };
 
         const errorHandler = (error: GeolocationPositionError) => {
-            console.warn('Geolocation error:', error.message);
+            console.error('Geolocation error:', error);
+            setTrackingState('off');
+
+            if (error.code === error.PERMISSION_DENIED) {
+                setPermissionDenied(true);
+                toast.error('Location permission denied');
+            } else if (error.code === error.TIMEOUT) {
+                toast.error('Location request timed out');
+            } else {
+                toast.error('Unable to get location');
+            }
         };
 
         const id = navigator.geolocation.watchPosition(successHandler, errorHandler, options);
-        setWatchId(id);
+        watchIdRef.current = id;
+    }, [flyToLocation]);
 
-        return () => {
-            if (id !== null) {
-                navigator.geolocation.clearWatch(id);
+    // Stop location tracking
+    const stopTracking = useCallback(() => {
+        if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+        }
+        setTrackingState('off');
+        isFirstLocationRef.current = true;
+
+        // Remove marker
+        if (markerRef.current) {
+            markerRef.current.remove();
+            markerRef.current = null;
+        }
+
+        toast.info('Location tracking disabled');
+    }, []);
+
+    // Handle button interactions
+    const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [isLongPressing, setIsLongPressing] = useState(false);
+
+    const handleMouseDown = useCallback(() => {
+        setIsLongPressing(false);
+        longPressTimerRef.current = setTimeout(() => {
+            setIsLongPressing(true);
+            // Long press detected - disable tracking
+            if (trackingState === 'active') {
+                stopTracking();
             }
-        };
-    }, [enabled]);
+        }, 500); // 500ms for long press
+    }, [trackingState, stopTracking]);
 
-    // Listen for device orientation (heading/compass)
+    const handleMouseUp = useCallback(() => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+
+        // If not a long press, treat as click
+        if (!isLongPressing) {
+            if (trackingState === 'off') {
+                // Start tracking
+                startTracking();
+            } else if (trackingState === 'active' && location.coords) {
+                // Zoom to current location
+                flyToLocation(location.coords, false);
+                toast.info('Centered on location');
+            }
+        }
+
+        setIsLongPressing(false);
+    }, [isLongPressing, trackingState, location.coords, startTracking, flyToLocation, stopTracking]);
+
+    const handleMouseLeave = useCallback(() => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+        setIsLongPressing(false);
+    }, []);
+
+    // Listen for device orientation (compass heading)
     useEffect(() => {
-        if (!enabled) return;
+        if (trackingState !== 'active') return;
 
         const handleOrientation = (event: DeviceOrientationEvent) => {
-            // alpha is the compass direction the device is facing
             if (event.alpha !== null) {
-                // Adjust for device orientation
                 let heading = event.alpha;
 
-                // On iOS, we need to use webkitCompassHeading if available
+                // iOS uses webkitCompassHeading
                 if ((event as any).webkitCompassHeading !== undefined) {
                     heading = (event as any).webkitCompassHeading;
                 } else {
-                    // On Android, alpha is reversed from compass heading
+                    // Android reverses alpha
                     heading = 360 - heading;
                 }
 
-                headingRef.current = heading;
+                setLocation(prev => ({ ...prev, heading }));
                 updateHeading(heading);
             }
         };
@@ -160,21 +236,13 @@ export function UserLocationLayer() {
         return () => {
             window.removeEventListener('deviceorientation', handleOrientation, true);
         };
-    }, [enabled, updateHeading]);
+    }, [trackingState, updateHeading]);
 
-    // Auto-center when tracking is enabled and location updates
+    // Update marker on map
     useEffect(() => {
-        if (tracking && location.coords && map) {
-            map.easeTo({
-                center: location.coords,
-                duration: 500
-            });
+        if (!map || !isLoaded || !location.coords || trackingState === 'off') {
+            return;
         }
-    }, [tracking, location.coords, map]);
-
-    // Create/update marker on map
-    useEffect(() => {
-        if (!map || !isLoaded || !location.coords) return;
 
         if (!markerRef.current) {
             // Create new marker
@@ -186,59 +254,79 @@ export function UserLocationLayer() {
                 .setLngLat(location.coords)
                 .addTo(map);
         } else {
-            // Update existing marker position
+            // Update position smoothly
             markerRef.current.setLngLat(location.coords);
         }
 
-        // Update heading if available
-        updateHeading(location.heading ?? headingRef.current);
+        // Update heading
+        updateHeading(location.heading);
 
-        // Update accuracy circle size
+        // Update accuracy circle
         const el = markerRef.current.getElement();
         const accuracyEl = el?.querySelector('.location-accuracy') as HTMLElement;
-        if (accuracyEl && map.getZoom()) {
-            // Scale accuracy circle based on zoom level
-            const metersPerPixel = 40075016.686 * Math.abs(Math.cos(location.coords[1] * Math.PI / 180)) / Math.pow(2, map.getZoom() + 8);
+        if (accuracyEl) {
+            const zoom = map.getZoom();
+            const metersPerPixel = 40075016.686 * Math.abs(Math.cos(location.coords[1] * Math.PI / 180)) / Math.pow(2, zoom + 8);
             const radiusPixels = Math.min(200, Math.max(20, location.accuracy / metersPerPixel));
             accuracyEl.style.width = `${radiusPixels * 2}px`;
             accuracyEl.style.height = `${radiusPixels * 2}px`;
         }
+    }, [map, isLoaded, location, trackingState, createMarkerElement, updateHeading]);
 
+    // Cleanup on unmount
+    useEffect(() => {
         return () => {
-            // Cleanup on unmount
-            if (markerRef.current) {
-                markerRef.current.remove();
-                markerRef.current = null;
-            }
+            stopTracking();
         };
-    }, [map, isLoaded, location, createMarkerElement, updateHeading]);
+    }, [stopTracking]);
 
-    // Render location button
+    // Render button
+    const getButtonState = () => {
+        if (trackingState === 'pending') {
+            return {
+                icon: <Loader2 className="w-5 h-5 animate-spin" />,
+                className: 'bg-blue-600 hover:bg-blue-700 text-white',
+                title: 'Getting location...'
+            };
+        }
+        if (trackingState === 'active') {
+            return {
+                icon: <Navigation className="w-5 h-5" />,
+                className: 'bg-green-600 hover:bg-green-700 text-white',
+                title: 'Recenter on my location'
+            };
+        }
+        return {
+            icon: <NavigationOff className="w-5 h-5" />,
+            className: 'bg-white/90 hover:bg-white text-gray-800',
+            title: permissionDenied ? 'Location permission denied' : 'Show my location'
+        };
+    };
+
+    const buttonState = getButtonState();
+
     return (
         <Button
-            variant={tracking ? "default" : "outline"}
             size="icon"
-            onClick={toggleTracking}
-            disabled={!location.coords}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onTouchStart={handleMouseDown}
+            onTouchEnd={handleMouseUp}
+            disabled={trackingState === 'pending' || permissionDenied}
             className={`
                 fixed bottom-24 right-4
                 w-12 h-12 rounded-2xl
-                shadow-xl
+                shadow-xl border-0
                 transition-all duration-300
-                ${tracking
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-white/90 hover:bg-white text-gray-800'
-                }
-                ${!location.coords ? 'opacity-50 cursor-not-allowed' : ''}
+                ${buttonState.className}
+                ${(trackingState === 'pending' || permissionDenied) ? 'opacity-50 cursor-not-allowed' : ''}
+                ${isLongPressing ? 'scale-95' : ''}
             `}
             style={{ zIndex: Z_INDEX.CONTROLS }}
-            title={tracking ? "Stop following location" : "Center on my location"}
+            title={buttonState.title}
         >
-            {tracking ? (
-                <Navigation className="w-5 h-5" />
-            ) : (
-                <NavigationOff className="w-5 h-5" />
-            )}
+            {buttonState.icon}
         </Button>
     );
 }
