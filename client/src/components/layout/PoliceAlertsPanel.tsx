@@ -22,6 +22,7 @@ export function PoliceAlertsPanel() {
     // State
     const [enabled, setEnabled] = useState(true);
     const [heatmapMode, setHeatmapMode] = useState(false);
+    const [showMarkersOverlay, setShowMarkersOverlay] = useState(false);
     const [hoursAgo, setHoursAgo] = useState(336); // Default 14 days
 
     // Data Fetching
@@ -277,9 +278,11 @@ export function PoliceAlertsPanel() {
 
         // Toggle Visibility
         const layers = [layerClusters, layerClusterCount, layerUnclustered, layerUnclusteredHalo];
+        const markersVisible = enabled && (!heatmapMode || showMarkersOverlay) ? 'visible' : 'none';
+
         layers.forEach(id => {
             if (map.getLayer(id)) {
-                map.setLayoutProperty(id, 'visibility', (enabled && !heatmapMode) ? 'visible' : 'none');
+                map.setLayoutProperty(id, 'visibility', markersVisible);
             }
         });
 
@@ -315,7 +318,7 @@ export function PoliceAlertsPanel() {
             map.off('mouseleave', layerClusters, handleMouseLeave);
         };
 
-    }, [map, isLoaded, geoJsonData, enabled, heatmapMode]);
+    }, [map, isLoaded, geoJsonData, enabled, heatmapMode, showMarkersOverlay]);
 
     // Get breakdown by type
     const typeBreakdown = useMemo(() => {
@@ -359,6 +362,21 @@ export function PoliceAlertsPanel() {
                             <Flame className={`w-4 h-4 mr-2 ${heatmapMode ? 'animate-pulse' : ''}`} />
                             {heatmapMode ? 'Heatmap Active' : 'Show Heatmap'}
                         </Button>
+
+                        {/* Show Markers Overlay Checkbox (Only visible when Heatmap is active) */}
+                        {heatmapMode && (
+                            <div className="flex items-center space-x-2 px-1 animate-in fade-in slide-in-from-top-1 duration-200 pt-2">
+                                <Switch
+                                    id="show-markers"
+                                    checked={showMarkersOverlay}
+                                    onCheckedChange={setShowMarkersOverlay}
+                                    className="scale-75 data-[state=checked]:bg-cyan-600"
+                                />
+                                <Label htmlFor="show-markers" className="text-xs text-white/70 cursor-pointer font-medium hover:text-white transition-colors">
+                                    Overlay Markers
+                                </Label>
+                            </div>
+                        )}
 
                         {/* Time filter */}
                         <div className="space-y-2">
