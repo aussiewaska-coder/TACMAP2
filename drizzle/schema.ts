@@ -106,3 +106,33 @@ export const policeReports = pgTable("police_reports", {
 });
 
 export type PoliceReport = typeof policeReports.$inferSelect;
+
+// Emergency Services Registry
+export const emergencyRegistry = pgTable("emergency_registry", {
+  id: serial("id").primaryKey(),
+  sourceId: varchar("source_id", { length: 200 }).notNull().unique(),
+  category: varchar("category", { length: 100 }).notNull(),
+  subcategory: varchar("subcategory", { length: 200 }),
+  tags: jsonb("tags").$type<string[]>().default([]),
+  jurisdictionState: varchar("jurisdiction_state", { length: 10 }),
+  endpointUrl: text("endpoint_url").notNull(),
+  streamType: varchar("stream_type", { length: 50 }),
+  format: varchar("format", { length: 50 }),
+  accessLevel: varchar("access_level", { length: 50 }),
+  certainlyOpen: boolean("certainly_open").default(false),
+  machineReadable: boolean("machine_readable").default(false),
+
+  // Aviation-specific fields
+  icao24: varchar("icao24", { length: 10 }),
+  registration: varchar("registration", { length: 20 }),
+  trackingKeys: jsonb("tracking_keys").$type<string[]>(),
+  aircraftType: varchar("aircraft_type", { length: 100 }),
+  operator: varchar("operator", { length: 200 }),
+  role: varchar("role", { length: 100 }),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type EmergencyRegistry = typeof emergencyRegistry.$inferSelect;
+export type InsertEmergencyRegistry = typeof emergencyRegistry.$inferInsert;
