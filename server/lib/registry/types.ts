@@ -1,7 +1,7 @@
 // Registry type definitions for Emergency Services feeds
 
 export type StreamType = 'geojson' | 'rss' | 'cap' | 'arcgis' | 'json' | 'radio';
-export type Category = 'Alerts' | 'Aviation' | 'Fire' | 'Flood' | 'Ground' | 'Communications';
+export type Category = 'Alerts' | 'Aviation' | 'Fire' | 'Flood' | 'Ground' | 'Communications' | 'Hazards' | 'Hazards & Warnings' | 'Weather' | 'Transport';
 export type JurisdictionState = 'NSW' | 'VIC' | 'QLD' | 'WA' | 'SA' | 'TAS' | 'NT' | 'ACT' | 'AUS';
 export type AccessLevel = 'Open' | 'Partial' | 'Internal';
 
