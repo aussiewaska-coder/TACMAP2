@@ -7,6 +7,7 @@ import { UnifiedSidebar } from './UnifiedSidebar';
 import { StatusIndicator } from './StatusIndicator';
 import { KeyboardControls } from '@/components/controls/KeyboardControls';
 import { PluginLoader } from '@/plugins/PluginLoader';
+import { UserLocationLayer } from '@/layers/live/UserLocationLayer';
 
 interface MapLayoutProps {
     /** Additional CSS classes */
@@ -40,6 +41,9 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
             {/* Unified sidebar - handles mobile/desktop internally */}
             {/* Police alerts are now in the sidebar's "Alerts" tab */}
             <UnifiedSidebar />
+
+            {/* User location with heading indicator */}
+            <UserLocationLayer />
 
             {/* Desktop-only keyboard controls */}
             {!isMobile && <KeyboardControls enabled={true} />}
