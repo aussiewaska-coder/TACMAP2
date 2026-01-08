@@ -13,27 +13,41 @@ export async function loadRegistry(): Promise<RegistryEntry[]> {
     }
 
     try {
-        // In Vercel serverless, we can't reliably access the file system
-        // So we fetch from the public URL instead
-        if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-            // Fetch from public URL (works in Vercel)
-            const baseUrl = process.env.VERCEL_URL
-                ? `https://${process.env.VERCEL_URL}`
-                : 'https://tacmap-2.vercel.app';
+        // Try multiple loading strategies
+        let registryData: string | null = null;
 
-            const response = await fetch(`${baseUrl}/registry.json`);
-            if (!response.ok) {
-                throw new Error(`Failed to fetch registry: ${response.statusText}`);
-            }
-            cachedRegistry = await response.json() as RegistryEntry[];
-        } else {
-            // Development: load from file system
+        // Strategy 1: Try file system first (works in dev and some deployments)
+        try {
             const fs = await import('fs/promises');
             const path = await import('path');
             const registryPath = path.join(process.cwd(), 'public/registry.json');
-            const registryData = await fs.readFile(registryPath, 'utf-8');
-            cachedRegistry = JSON.parse(registryData) as RegistryEntry[];
+            registryData = await fs.readFile(registryPath, 'utf-8');
+            console.log('Loaded registry from file system');
+        } catch (fsError) {
+            console.log('File system load failed, trying public URL...');
+
+            // Strategy 2: Try fetching from public URL (Vercel deployment)
+            try {
+                // Use relative path to avoid CORS and auth issues
+                const response = await fetch('/registry.json');
+                if (response.ok) {
+                    registryData = await response.text();
+                    console.log('Loaded registry from /registry.json');
+                } else {
+                    console.warn(`Registry fetch failed: ${response.status} ${response.statusText}`);
+                }
+            } catch (fetchError) {
+                console.warn('Public URL fetch failed:', fetchError);
+            }
         }
+
+        if (!registryData) {
+            console.error('Failed to load registry from any source');
+            return [];
+        }
+
+        cachedRegistry = JSON.parse(registryData) as RegistryEntry[];
+        console.log(`Registry loaded: ${cachedRegistry.length} entries`);
 
         return cachedRegistry;
     } catch (error) {
