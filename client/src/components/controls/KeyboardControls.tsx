@@ -128,6 +128,13 @@ export function KeyboardControls({ enabled = true }: KeyboardControlsProps) {
         map.touchPitch.enable();
         map.keyboard.enable();
 
+        // Ensure 3D interaction is fully enabled
+        try {
+            (map as any).dragRotate.setPitchWithRotate(true);
+        } catch (e) {
+            console.warn('Pitch with rotate not supported on this version', e);
+        }
+
         // Custom mouse handlers for "3D button" feel
         const onMouseDown = (e: any) => {
             const originalEvent = e.originalEvent;
@@ -135,32 +142,30 @@ export function KeyboardControls({ enabled = true }: KeyboardControlsProps) {
             // Shift + Click = Pitch mode (move up/down to tilt)
             if (originalEvent.shiftKey) {
                 map.dragPan.disable();
-                map.dragRotate.enable();
             }
             // Cmd/Ctrl + Click = Rotate only mode
             else if (originalEvent.metaKey || originalEvent.ctrlKey) {
                 map.dragPan.disable();
-                map.dragRotate.enable();
             }
             // Alt + Click = Strafe/Pan mode (force pan even if dragging might rotate)
             else if (originalEvent.altKey) {
                 map.dragRotate.disable();
-                map.dragPan.enable();
             }
         };
 
         const onMouseUp = () => {
-            // Restore defaults
+            // Safety net: Always restore defaults on any mouse release
             map.dragPan.enable();
             map.dragRotate.enable();
         };
 
         map.on('mousedown', onMouseDown);
-        map.on('mouseup', onMouseUp);
+        // Use window level mouseup in case release happens outside canvas
+        window.addEventListener('mouseup', onMouseUp);
 
         return () => {
             map.off('mousedown', onMouseDown);
-            map.off('mouseup', onMouseUp);
+            window.removeEventListener('mouseup', onMouseUp);
         };
     }, [map, isLoaded, enabled]);
 
