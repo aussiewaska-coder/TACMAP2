@@ -3,15 +3,9 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { fetchRequestHandler } from '@trpc/server/adapters/fetch';
-import { appRouter } from '../server/routers';
-import type { User } from '../drizzle/schema';
-
-// Minimal context for Vercel serverless
-interface VercelTrpcContext {
-    req: Request;
-    res: Response | null;
-    user: User | null;
-}
+import { appRouter } from '../server/routers.js';
+import { sdk } from '../server/_core/sdk.js';
+import type { User } from '../drizzle/schema.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle CORS preflight
@@ -55,12 +49,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             req: fetchRequest,
             router: appRouter,
             createContext: async ({ req: fetchReq }) => {
-                // For now, all routes are public on Vercel
-                // TODO: Implement auth from cookies/headers
+                let user: User | null = null;
+                try {
+                    // Adapt VercelRequest to Express-like Request for SDK
+                    user = await sdk.authenticateRequest(req as any);
+                } catch (error) {
+                    // Authentication is optional for public procedures
+                    user = null;
+                }
+
                 return {
                     req: fetchReq,
                     res: null,
-                    user: null as User | null,
+                    user,
                 };
             },
         });

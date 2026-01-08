@@ -1,7 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { eq, gt, desc } from "drizzle-orm";
-import * as schema from "../drizzle/schema";
+import * as schema from "../drizzle/schema.js";
 import {
   InsertUser,
   users,
@@ -19,8 +19,8 @@ import {
   InsertCustomLayer,
   policeReports,
   PoliceReport
-} from "../drizzle/schema";
-import { ENV } from './_core/env';
+} from "../drizzle/schema.js";
+import { ENV } from './_core/env.js';
 
 let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 

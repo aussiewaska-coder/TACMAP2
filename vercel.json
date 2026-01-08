@@ -5,8 +5,7 @@
     "installCommand": "pnpm install",
     "functions": {
         "api/**/*.ts": {
-            "maxDuration": 10,
-            "includeFiles": "server/**,shared/**,drizzle/**"
+            "maxDuration": 10
         }
     },
     "rewrites": [
