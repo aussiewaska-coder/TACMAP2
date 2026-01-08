@@ -17,6 +17,12 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-gray-800">MapLibre Australia</h1>
           </div>
           <div className="flex items-center gap-4">
+            <Link href="/emergency">
+              <Button variant="outline" size="sm">
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                Emergency
+              </Button>
+            </Link>
             {isAuthenticated ? (
               <>
                 <span className="text-sm text-gray-600">Welcome, {user?.name}</span>
