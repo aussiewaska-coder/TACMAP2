@@ -5,7 +5,7 @@
 import { useState, useEffect, createContext, useContext } from 'react';
 import {
     MapPin, Settings, Layers, Search, Menu, X, Wrench,
-    ChevronLeft, Compass
+    ChevronLeft, Compass, Radio
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDesktopUIStore } from '@/stores';
@@ -16,8 +16,9 @@ import { LayersList } from './LayersList';
 import { SettingsPanel } from './SettingsPanel';
 import { ToolsPanel } from './ToolsPanel';
 import { SearchBox } from './SearchBox';
+import { PoliceAlertsPanel } from './PoliceAlertsPanel';
 
-type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools';
+type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts';
 
 // Context for dark sidebar theme
 const SidebarThemeContext = createContext<{ isDark: boolean }>({ isDark: false });
@@ -31,6 +32,7 @@ interface TabConfig {
 
 const TABS: TabConfig[] = [
     { id: 'search', icon: <Search className="w-4 h-4" />, label: 'Search' },
+    { id: 'alerts', icon: <Radio className="w-4 h-4" />, label: 'Alerts' },
     { id: 'layers', icon: <Layers className="w-4 h-4" />, label: 'Layers' },
     { id: 'navigation', icon: <Compass className="w-4 h-4" />, label: 'Navigate' },
     { id: 'tools', icon: <Wrench className="w-4 h-4" />, label: 'Tools' },
@@ -179,6 +181,7 @@ export function UnifiedSidebar() {
                         <p className="text-sm">Use the search box above</p>
                     </div>
                 )}
+                {currentTab === 'alerts' && <PoliceAlertsPanel />}
                 {currentTab === 'layers' && <LayersList />}
                 {currentTab === 'navigation' && <CityList onSelect={closeSidebar} />}
                 {currentTab === 'tools' && <ToolsPanel />}

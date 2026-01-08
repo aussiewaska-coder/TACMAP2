@@ -5,7 +5,7 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { persist } from 'zustand/middleware';
 
-type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'data' | null;
+type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts' | 'data' | null;
 
 interface PanelPosition {
     x: number;
