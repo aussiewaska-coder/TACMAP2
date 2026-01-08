@@ -38,6 +38,9 @@
       ],
       "@shared/*": [
         "./shared/*"
+      ],
+      "@server/*": [
+        "./server/*"
       ]
     }
   }
