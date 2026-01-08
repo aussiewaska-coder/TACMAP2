@@ -17,8 +17,10 @@ interface PoliceReport {
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import maplibregl from 'maplibre-gl';
+import { Flame } from 'lucide-react';
 
 export function PoliceLayer() {
     const map = useMapStore((state) => state.map);
@@ -26,6 +28,7 @@ export function PoliceLayer() {
 
     // State
     const [enabled, setEnabled] = useState(true);
+    const [heatmapMode, setHeatmapMode] = useState(false);
     const [hoursAgo, setHoursAgo] = useState(336); // Default 14 days
     const [currentZoom, setCurrentZoom] = useState(12); // Assume decent zoom initially
     // Data Fetching - Clustering handles visual load, so we can fetch all (within reason)
@@ -61,7 +64,102 @@ export function PoliceLayer() {
         };
     }, [reports]);
 
-    // Map Layer Management
+    // Heatmap Layer Management
+    useEffect(() => {
+        if (!map || !isLoaded || !enabled) return;
+
+        const heatmapSourceId = 'police-heatmap-source';
+        const heatmapLayerId = 'police-heatmap-layer';
+
+        if (heatmapMode) {
+            // Add heatmap source if it doesn't exist
+            if (!map.getSource(heatmapSourceId)) {
+                map.addSource(heatmapSourceId, {
+                    type: 'geojson',
+                    data: geoJsonData as any
+                });
+            } else {
+                (map.getSource(heatmapSourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
+            }
+
+            // Add heatmap layer if it doesn't exist
+            if (!map.getLayer(heatmapLayerId)) {
+                map.addLayer({
+                    id: heatmapLayerId,
+                    type: 'heatmap',
+                    source: heatmapSourceId,
+                    maxzoom: 18,
+                    paint: {
+                        // Increase weight for all points equally
+                        'heatmap-weight': 1,
+                        // Increase intensity as zoom level increases
+                        'heatmap-intensity': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            0, 0.5,
+                            9, 1,
+                            15, 2,
+                            18, 3
+                        ],
+                        // Police-themed color ramp: dark blue -> red -> yellow -> white
+                        'heatmap-color': [
+                            'interpolate',
+                            ['linear'],
+                            ['heatmap-density'],
+                            0, 'rgba(0, 0, 255, 0)',      // Transparent
+                            0.1, 'rgba(0, 0, 255, 0.4)',  // Dark blue
+                            0.3, 'rgba(138, 43, 226, 0.6)', // Blue-purple
+                            0.5, 'rgba(220, 20, 60, 0.8)', // Crimson red
+                            0.7, 'rgba(255, 69, 0, 0.9)',  // Red-orange
+                            0.85, 'rgba(255, 215, 0, 1)',  // Gold
+                            1, 'rgba(255, 255, 255, 1)'    // White (hottest)
+                        ],
+                        // Adjust radius by zoom level for better visibility
+                        'heatmap-radius': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            0, 3,
+                            5, 10,
+                            10, 20,
+                            15, 30,
+                            18, 40
+                        ],
+                        // Keep heatmap visible at all zoom levels
+                        'heatmap-opacity': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            0, 0.8,
+                            18, 0.6
+                        ]
+                    }
+                });
+            }
+
+            // Show heatmap layer
+            map.setLayoutProperty(heatmapLayerId, 'visibility', 'visible');
+        } else {
+            // Hide heatmap layer
+            if (map.getLayer(heatmapLayerId)) {
+                map.setLayoutProperty(heatmapLayerId, 'visibility', 'none');
+            }
+        }
+
+        return () => {
+            // Cleanup on unmount
+            if (map.getLayer(heatmapLayerId)) {
+                map.removeLayer(heatmapLayerId);
+            }
+            if (map.getSource(heatmapSourceId)) {
+                map.removeSource(heatmapSourceId);
+            }
+        };
+
+    }, [map, isLoaded, geoJsonData, enabled, heatmapMode]);
+
+    // Map Layer Management (Markers/Clusters)
     useEffect(() => {
         if (!map || !isLoaded) return;
 
@@ -116,7 +214,7 @@ export function PoliceLayer() {
                         40
                     ]
                 },
-                layout: { visibility: enabled ? 'visible' : 'none' }
+                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
             });
         }
 
@@ -131,7 +229,7 @@ export function PoliceLayer() {
                     'text-field': '{point_count_abbreviated}',
                     'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
                     'text-size': 12,
-                    'visibility': enabled ? 'visible' : 'none'
+                    'visibility': (enabled && !heatmapMode) ? 'visible' : 'none'
                 }
             });
         }
@@ -150,7 +248,7 @@ export function PoliceLayer() {
                     'circle-stroke-width': 1,
                     'circle-stroke-color': '#FFFFFF'
                 },
-                layout: { visibility: enabled ? 'visible' : 'none' }
+                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
             });
         }
 
@@ -167,15 +265,15 @@ export function PoliceLayer() {
                     'circle-stroke-width': 1,
                     'circle-stroke-color': '#FFFFFF'
                 },
-                layout: { visibility: enabled ? 'visible' : 'none' }
+                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
             });
         }
 
-        // Toggle Visibility
+        // Toggle Visibility based on mode
         const layers = [layerClusters, layerClusterCount, layerUnclustered, layerUnclusteredHalo];
         layers.forEach(id => {
             if (map.getLayer(id)) {
-                map.setLayoutProperty(id, 'visibility', enabled ? 'visible' : 'none');
+                map.setLayoutProperty(id, 'visibility', (enabled && !heatmapMode) ? 'visible' : 'none');
             }
         });
 
@@ -217,7 +315,7 @@ export function PoliceLayer() {
             if (map.getSource(sourceId)) map.removeSource(sourceId);
         }
 
-    }, [map, isLoaded, geoJsonData, enabled]);
+    }, [map, isLoaded, geoJsonData, enabled, heatmapMode]);
 
 
     if (!isLoaded) return null;
@@ -234,6 +332,17 @@ export function PoliceLayer() {
 
             {enabled && (
                 <div className="space-y-4">
+                    {/* Heatmap Toggle Button */}
+                    <Button
+                        variant={heatmapMode ? "default" : "outline"}
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setHeatmapMode(!heatmapMode)}
+                    >
+                        <Flame className={`w-4 h-4 mr-2 ${heatmapMode ? 'animate-pulse' : ''}`} />
+                        {heatmapMode ? 'Heatmap Active' : 'Show Heatmap'}
+                    </Button>
+
                     <div className="space-y-2">
                         <div className="flex justify-between text-xs text-muted-foreground">
                             <span>Time Filter</span>
@@ -250,6 +359,11 @@ export function PoliceLayer() {
 
                     <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
                         {reports ? `${reports.length} active reports` : 'Loading...'}
+                        {heatmapMode && (
+                            <div className="mt-2 text-xs italic text-amber-600">
+                                🔥 Heatmap shows density of police sightings
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
