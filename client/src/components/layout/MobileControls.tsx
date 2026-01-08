@@ -1,7 +1,7 @@
 // MobileControls - Mobile-specific UI controls
 // Uses mobileUIStore - INDEPENDENT from desktop
 
-import { MapPin, Settings, Layers, Search, RotateCw, Navigation, Palette } from 'lucide-react';
+import { MapPin, Settings, Layers, Search, RotateCw, Navigation, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useMobileUIStore } from '@/stores';
 import { useMapStore } from '@/stores';
@@ -65,6 +65,10 @@ export function MobileControls() {
         openBottomSheet('search');
     };
 
+    const handleTools = () => {
+        openBottomSheet('tools');
+    };
+
     return (
         <>
             {/* Bottom action buttons - floating on right */}
@@ -92,6 +96,17 @@ export function MobileControls() {
                     className="bg-gradient-to-r from-purple-600 to-purple-700 text-white hover:from-purple-700 hover:to-purple-800 shadow-xl w-14 h-14 rounded-2xl"
                 >
                     <Layers className="w-6 h-6" />
+                </Button>
+
+                {/* Tools */}
+                <Button
+                    variant="default"
+                    size="icon"
+                    onClick={handleTools}
+                    title="Measurement & Directions"
+                    className="bg-gradient-to-r from-amber-600 to-amber-700 text-white hover:from-amber-700 hover:to-amber-800 shadow-xl w-14 h-14 rounded-2xl"
+                >
+                    <Wrench className="w-6 h-6" />
                 </Button>
 
                 {/* Settings */}

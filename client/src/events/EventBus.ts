@@ -41,6 +41,7 @@ export interface EventMap {
     'ui:modal:open': { modalId: string };
     'ui:modal:close': { modalId: string };
     'ui:panel:change': { panelId: string | null };
+    'ui:notification': { message: string; type?: 'info' | 'success' | 'error' };
 
     // Navigation events
     'navigation:flyto:start': { location: string };

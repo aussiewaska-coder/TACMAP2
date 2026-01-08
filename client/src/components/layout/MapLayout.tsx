@@ -7,6 +7,8 @@ import { MobileControls } from './MobileControls';
 import { DesktopControls } from './DesktopControls';
 import { StatusIndicator } from './StatusIndicator';
 import { BottomSheet } from './BottomSheet';
+import { KeyboardControls } from '@/components/controls/KeyboardControls';
+import { PluginLoader } from '@/plugins/PluginLoader';
 
 interface MapLayoutProps {
     /** Additional CSS classes */
@@ -21,6 +23,7 @@ interface MapLayoutProps {
  * - MobileControls OR DesktopControls (independent, not both)
  * - BottomSheet (mobile only)
  * - StatusIndicator (shared)
+ * - KeyboardControls (desktop only)
  * 
  * Mobile and desktop UIs are COMPLETELY INDEPENDENT.
  * They share the map and its state, but UI state is separate.
@@ -33,6 +36,9 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
             {/* Map - Shared between mobile and desktop */}
             <MapContainer className="absolute inset-0" />
 
+            {/* Plugin system initialization */}
+            <PluginLoader />
+
             {/* Controls - Separate implementations for mobile/desktop */}
             {/* Only ONE is rendered at a time */}
             {isMobile ? (
@@ -41,10 +47,16 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
                     <BottomSheet />
                 </>
             ) : isDesktop ? (
-                <DesktopControls />
+                <>
+                    <DesktopControls />
+                    <KeyboardControls enabled={true} />
+                </>
             ) : (
                 // Tablet uses desktop controls with some mobile elements
-                <DesktopControls />
+                <>
+                    <DesktopControls />
+                    <KeyboardControls enabled={true} />
+                </>
             )}
 
             {/* Status indicator - Shared, but styled differently per viewport */}

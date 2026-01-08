@@ -19,7 +19,7 @@ export type PluginStatus =
 /**
  * Plugin category
  */
-export type PluginCategory = 'core' | 'visualization' | 'tools' | 'data' | 'export';
+export type PluginCategory = 'core' | 'visualization' | 'tools' | 'data' | 'export' | 'overlays';
 
 /**
  * Plugin configuration

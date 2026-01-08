@@ -6,7 +6,8 @@ import { useMobileUIStore } from '@/stores';
 import { CityList } from './CityList';
 import { LayersList } from './LayersList';
 import { SettingsPanel } from './SettingsPanel';
-import { SearchPanel } from './SearchPanel';
+import { SearchBox } from './SearchBox';
+import { ToolsPanel } from './ToolsPanel';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -47,9 +48,17 @@ export function BottomSheet() {
             case 'settings':
                 return <SettingsPanel />;
             case 'search':
-                return <SearchPanel />;
+                return (
+                    <div className="space-y-4">
+                        <SearchBox onResultSelect={closeBottomSheet} placeholder="Search Australia..." />
+                        <div className="pt-4 border-t">
+                            <p className="text-sm text-gray-500 mb-3">Or choose a city:</p>
+                            <CityList onSelect={closeBottomSheet} />
+                        </div>
+                    </div>
+                );
             case 'tools':
-                return <div className="p-4 text-gray-500">Tools coming soon...</div>;
+                return <ToolsPanel />;
             default:
                 return null;
         }

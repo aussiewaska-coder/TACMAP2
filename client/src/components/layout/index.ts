@@ -10,3 +10,5 @@ export { LayersList } from './LayersList';
 export { SettingsPanel } from './SettingsPanel';
 export { SearchPanel } from './SearchPanel';
 export { StylePicker } from './StylePicker';
+export { SearchBox } from './SearchBox';
+export { ToolsPanel } from './ToolsPanel';

@@ -1,13 +1,16 @@
 // DesktopControls - Desktop-specific UI controls
 // Uses desktopUIStore - INDEPENDENT from mobile
 
-import { MapPin, Settings, Layers, Search, Menu, ChevronLeft } from 'lucide-react';
+import { MapPin, Settings, Layers, Search, Menu, ChevronLeft, Wrench, Cloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useDesktopUIStore } from '@/stores';
+import { useDesktopUIStore, useMapStore } from '@/stores';
 import { Z_INDEX } from '@/core/constants';
 import { CityList } from './CityList';
 import { LayersList } from './LayersList';
 import { SettingsPanel } from './SettingsPanel';
+import { ToolsPanel } from './ToolsPanel';
+import { SearchBox } from './SearchBox';
+import { useState } from 'react';
 
 /**
  * Desktop control elements
@@ -21,6 +24,8 @@ export function DesktopControls() {
     const activePanel = useDesktopUIStore((state) => state.activePanel);
     const setActivePanel = useDesktopUIStore((state) => state.setActivePanel);
     const sidebarWidth = useDesktopUIStore((state) => state.sidebarWidth);
+
+    const [searchOpen, setSearchOpen] = useState(false);
 
     return (
         <>
@@ -65,6 +70,12 @@ export function DesktopControls() {
                         onClick={() => setActivePanel('navigation')}
                     />
                     <PanelTab
+                        icon={<Wrench className="w-4 h-4" />}
+                        label="Tools"
+                        active={activePanel === 'tools'}
+                        onClick={() => setActivePanel('tools')}
+                    />
+                    <PanelTab
                         icon={<Settings className="w-4 h-4" />}
                         label="Settings"
                         active={activePanel === 'settings'}
@@ -76,12 +87,19 @@ export function DesktopControls() {
                 <div className="flex-1 overflow-y-auto p-4">
                     {activePanel === 'layers' && <LayersList />}
                     {activePanel === 'navigation' && <CityList />}
+                    {activePanel === 'tools' && <ToolsPanel />}
                     {activePanel === 'settings' && <SettingsPanel />}
                 </div>
 
-                {/* Footer */}
-                <div className="p-3 border-t bg-gray-50 text-xs text-gray-400 text-center">
-                    Modular Map Platform v2.0
+                {/* Keyboard shortcuts hint */}
+                <div className="p-3 border-t bg-gray-50 text-xs text-gray-500">
+                    <div className="font-medium mb-1">Keyboard shortcuts:</div>
+                    <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                        <span><kbd className="bg-gray-200 px-1 rounded">R</kbd> Reset north</span>
+                        <span><kbd className="bg-gray-200 px-1 rounded">T</kbd> Toggle 3D</span>
+                        <span><kbd className="bg-gray-200 px-1 rounded">Shift</kbd>+drag: Pitch</span>
+                        <span><kbd className="bg-gray-200 px-1 rounded">Ctrl</kbd>+drag: Rotate</span>
+                    </div>
                 </div>
             </div>
 
@@ -98,20 +116,36 @@ export function DesktopControls() {
                 </Button>
             )}
 
-            {/* Top-right search button */}
+            {/* Top-right search */}
             <div
-                className="fixed top-4 right-16"
-                style={{ zIndex: Z_INDEX.CONTROLS }}
+                className="fixed top-4 right-4"
+                style={{ zIndex: Z_INDEX.CONTROLS, width: searchOpen ? '400px' : 'auto' }}
             >
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white shadow-lg px-4 h-10 rounded-xl flex items-center gap-2 border"
-                >
-                    <Search className="w-4 h-4" />
-                    <span className="text-sm text-gray-500">Search locations...</span>
-                    <kbd className="hidden md:inline-flex ml-2 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-400">⌘K</kbd>
-                </Button>
+                {searchOpen ? (
+                    <div className="relative">
+                        <SearchBox
+                            onResultSelect={() => setSearchOpen(false)}
+                            placeholder="Search locations in Australia..."
+                        />
+                        <button
+                            onClick={() => setSearchOpen(false)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+                        >
+                            ✕
+                        </button>
+                    </div>
+                ) : (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSearchOpen(true)}
+                        className="bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white shadow-lg px-4 h-10 rounded-xl flex items-center gap-2 border"
+                    >
+                        <Search className="w-4 h-4" />
+                        <span className="text-sm text-gray-500">Search locations...</span>
+                        <kbd className="hidden md:inline-flex ml-2 px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-400">⌘K</kbd>
+                    </Button>
+                )}
             </div>
         </>
     );
