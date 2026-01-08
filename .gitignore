@@ -7,6 +7,12 @@ dist/
 build/
 *.dist
 
+# Reference data and documentation (local only)
+*REF_DATA/
+*DATABASE TABLES/
+DOCUMENTS/
+maplibre_mapping_app/
+
 # Environment variables
 .env
 .env.local
