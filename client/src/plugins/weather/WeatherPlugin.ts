@@ -39,7 +39,8 @@ const AUSTRALIA_BOUNDS = {
 
 /**
  * Weather Plugin
- * Displays rain radar overlay from BOM
+ * Displays rain radar overlay using RainViewer API
+ * Resolved CORS issues found with direct BOM GIF fetching
  */
 class WeatherPluginInstance implements PluginInstance {
     id = 'weather';
@@ -48,39 +49,61 @@ class WeatherPluginInstance implements PluginInstance {
     private sourceId = 'weather-radar-source';
     private layerId = 'weather-radar-layer';
     private refreshTimer: ReturnType<typeof setInterval> | null = null;
-    private imageUrl: string;
     private isVisible = false;
+    private currentTimestamp: number | null = null;
 
     constructor(map: MapLibreGLMap, config: WeatherPluginConfig) {
         this.map = map;
         this.config = {
-            refreshInterval: 10 * 60 * 1000, // 10 minutes
+            refreshInterval: 5 * 60 * 1000, // 5 minutes (RainViewer updates every 5-10m)
             opacity: 0.6,
             showControls: true,
             ...config,
         };
-
-        // Add cache-busting timestamp
-        this.imageUrl = this.getRadarUrl();
     }
 
     /**
-     * Get radar URL with cache-busting
+     * Fetch the latest radar metadata from RainViewer
      */
-    private getRadarUrl(): string {
-        return `${BOM_RADAR_URLS.national}?t=${Date.now()}`;
+    private async fetchMetadata(): Promise<{ timestamp: number; host: string } | null> {
+        try {
+            const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+            if (!response.ok) throw new Error('Failed to fetch RainViewer metadata');
+
+            const data = await response.json();
+            if (!data.radar || !data.radar.past || data.radar.past.length === 0) {
+                return null;
+            }
+
+            // Get the latest "past" radar image
+            const latest = data.radar.past[data.radar.past.length - 1];
+            return {
+                timestamp: latest.time,
+                host: data.host
+            };
+        } catch (error) {
+            console.error('[WeatherPlugin] Metadata error:', error);
+            return null;
+        }
     }
 
     /**
-     * Initialize radar layer
+     * Initialize radar layer using RainViewer tiles
      */
-    private initializeLayer(): void {
+    private async initializeLayer(): Promise<void> {
         if (!this.map.loaded()) {
             this.map.once('load', () => this.initializeLayer());
             return;
         }
 
-        const bounds = AUSTRALIA_BOUNDS.national;
+        const metadata = await this.fetchMetadata();
+        if (!metadata) {
+            console.warn('[WeatherPlugin] No radar data available');
+            return;
+        }
+
+        this.currentTimestamp = metadata.timestamp;
+        const tileUrl = `${metadata.host}/v2/radar/${metadata.timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
 
         // Remove existing if present
         if (this.map.getLayer(this.layerId)) {
@@ -90,16 +113,12 @@ class WeatherPluginInstance implements PluginInstance {
             this.map.removeSource(this.sourceId);
         }
 
-        // Add image source
+        // Add raster tile source
         this.map.addSource(this.sourceId, {
-            type: 'image',
-            url: this.imageUrl,
-            coordinates: [
-                [bounds.west, bounds.north], // top-left
-                [bounds.east, bounds.north], // top-right
-                [bounds.east, bounds.south], // bottom-right
-                [bounds.west, bounds.south], // bottom-left
-            ],
+            type: 'raster',
+            tiles: [tileUrl],
+            tileSize: 256,
+            attribution: '© <a href="https://www.rainviewer.com/api.html">RainViewer</a>',
         });
 
         // Add raster layer
@@ -109,19 +128,20 @@ class WeatherPluginInstance implements PluginInstance {
             source: this.sourceId,
             paint: {
                 'raster-opacity': this.config.opacity || 0.6,
-                'raster-fade-duration': 0,
+                'raster-fade-duration': 300,
             },
         });
 
         this.isVisible = true;
+        console.log(`[WeatherPlugin] Radar active (timestamp: ${metadata.timestamp})`);
     }
 
     /**
      * Show the weather radar overlay
      */
-    show(): void {
+    async show(): Promise<void> {
         if (this.isVisible) return;
-        this.initializeLayer();
+        await this.initializeLayer();
         this.startAutoRefresh();
     }
 
@@ -146,33 +166,37 @@ class WeatherPluginInstance implements PluginInstance {
     /**
      * Toggle visibility
      */
-    toggle(): boolean {
+    async toggle(): Promise<boolean> {
         if (this.isVisible) {
             this.hide();
         } else {
-            this.show();
+            await this.show();
         }
         return this.isVisible;
     }
 
     /**
-     * Refresh the radar image
+     * Refresh the radar tiles with latest metadata
      */
-    refresh(): void {
-        this.imageUrl = this.getRadarUrl();
+    async refresh(): Promise<void> {
+        const metadata = await this.fetchMetadata();
+        if (!metadata || metadata.timestamp === this.currentTimestamp) return;
 
-        const source = this.map.getSource(this.sourceId);
-        if (source && 'updateImage' in source) {
-            (source as any).updateImage({ url: this.imageUrl });
+        this.currentTimestamp = metadata.timestamp;
+        const tileUrl = `${metadata.host}/v2/radar/${metadata.timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
+
+        const source = this.map.getSource(this.sourceId) as any;
+        if (source && 'setTiles' in source) {
+            source.setTiles([tileUrl]);
+            console.log('[WeatherPlugin] Radar tiles updated:', metadata.timestamp);
         }
-
-        console.log('[WeatherPlugin] Radar refreshed');
     }
 
     /**
      * Start auto-refresh timer
      */
     private startAutoRefresh(): void {
+        this.stopAutoRefresh();
         if (this.config.refreshInterval && this.config.refreshInterval > 0) {
             this.refreshTimer = setInterval(() => {
                 this.refresh();
@@ -212,7 +236,7 @@ class WeatherPluginInstance implements PluginInstance {
         this.config = { ...this.config, ...config };
 
         if (this.config.opacity !== undefined) {
-            this.setOpacity(this.config.opacity);
+            this.setOpacity(this.config.opacity as number);
         }
     }
 
@@ -229,19 +253,20 @@ class WeatherPluginInstance implements PluginInstance {
 export const weatherPlugin = definePlugin({
     id: 'weather',
     name: 'Weather Radar',
-    description: 'Rain radar overlay from Bureau of Meteorology',
+    description: 'Global rain radar overlay using RainViewer API',
     category: 'overlays',
-    version: '1.0.0',
+    version: '1.1.0',
     dependencies: [],
     defaultEnabled: false,
     defaultConfig: {
-        refreshInterval: 10 * 60 * 1000, // 10 minutes
+        refreshInterval: 5 * 60 * 1000, // 5 minutes
         opacity: 0.6,
         showControls: true,
     },
     initialize: async (map, config) => {
-        return new WeatherPluginInstance(map, config as WeatherPluginConfig);
+        const instance = new WeatherPluginInstance(map, config as WeatherPluginConfig);
+        return instance;
     },
 });
 
-export { WeatherPluginInstance, BOM_RADAR_URLS };
+export { WeatherPluginInstance };
