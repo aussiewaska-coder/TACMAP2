@@ -2,10 +2,11 @@
 // Extracted from PoliceLayer for use in unified sidebar
 
 import { useState, useMemo, useEffect } from 'react';
-import { AlertTriangle, Radio } from 'lucide-react';
+import { AlertTriangle, Radio, Flame } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
 import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
 import maplibregl from 'maplibre-gl';
@@ -20,6 +21,7 @@ export function PoliceAlertsPanel() {
 
     // State
     const [enabled, setEnabled] = useState(true);
+    const [heatmapMode, setHeatmapMode] = useState(false);
     const [hoursAgo, setHoursAgo] = useState(336); // Default 14 days
 
     // Data Fetching
@@ -54,6 +56,93 @@ export function PoliceAlertsPanel() {
             }))
         };
     }, [reports]);
+
+    // Heatmap Layer Management
+    useEffect(() => {
+        if (!map || !isLoaded || !enabled) return;
+
+        const heatmapSourceId = 'police-heatmap-source';
+        const heatmapLayerId = 'police-heatmap-layer';
+
+        if (heatmapMode) {
+            // Add heatmap source if it doesn't exist
+            if (!map.getSource(heatmapSourceId)) {
+                map.addSource(heatmapSourceId, {
+                    type: 'geojson',
+                    data: geoJsonData as any
+                });
+            } else {
+                (map.getSource(heatmapSourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
+            }
+
+            // Add heatmap layer if it doesn't exist
+            if (!map.getLayer(heatmapLayerId)) {
+                map.addLayer({
+                    id: heatmapLayerId,
+                    type: 'heatmap',
+                    source: heatmapSourceId,
+                    maxzoom: 18,
+                    paint: {
+                        'heatmap-weight': 1,
+                        'heatmap-intensity': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            0, 0.5,
+                            9, 1,
+                            15, 2,
+                            18, 3
+                        ],
+                        'heatmap-color': [
+                            'interpolate',
+                            ['linear'],
+                            ['heatmap-density'],
+                            0, 'rgba(0, 0, 255, 0)',
+                            0.1, 'rgba(0, 0, 255, 0.4)',
+                            0.3, 'rgba(138, 43, 226, 0.6)',
+                            0.5, 'rgba(220, 20, 60, 0.8)',
+                            0.7, 'rgba(255, 69, 0, 0.9)',
+                            0.85, 'rgba(255, 215, 0, 1)',
+                            1, 'rgba(255, 255, 255, 1)'
+                        ],
+                        'heatmap-radius': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            0, 3,
+                            5, 10,
+                            10, 20,
+                            15, 30,
+                            18, 40
+                        ],
+                        'heatmap-opacity': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            0, 0.8,
+                            18, 0.6
+                        ]
+                    }
+                });
+            }
+
+            map.setLayoutProperty(heatmapLayerId, 'visibility', 'visible');
+        } else {
+            if (map.getLayer(heatmapLayerId)) {
+                map.setLayoutProperty(heatmapLayerId, 'visibility', 'none');
+            }
+        }
+
+        return () => {
+            if (map.getLayer(heatmapLayerId)) {
+                map.removeLayer(heatmapLayerId);
+            }
+            if (map.getSource(heatmapSourceId)) {
+                map.removeSource(heatmapSourceId);
+            }
+        };
+
+    }, [map, isLoaded, geoJsonData, enabled, heatmapMode]);
 
     // Map Layer Management
     useEffect(() => {
@@ -105,7 +194,7 @@ export function PoliceAlertsPanel() {
                         40
                     ]
                 },
-                layout: { visibility: enabled ? 'visible' : 'none' }
+                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
             });
         }
 
@@ -120,7 +209,7 @@ export function PoliceAlertsPanel() {
                     'text-field': '{point_count_abbreviated}',
                     'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
                     'text-size': 12,
-                    'visibility': enabled ? 'visible' : 'none'
+                    'visibility': (enabled && !heatmapMode) ? 'visible' : 'none'
                 }
             });
         }
@@ -139,7 +228,7 @@ export function PoliceAlertsPanel() {
                     'circle-stroke-width': 1,
                     'circle-stroke-color': '#FFFFFF'
                 },
-                layout: { visibility: enabled ? 'visible' : 'none' }
+                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
             });
         }
 
@@ -156,7 +245,7 @@ export function PoliceAlertsPanel() {
                     'circle-stroke-width': 1,
                     'circle-stroke-color': '#FFFFFF'
                 },
-                layout: { visibility: enabled ? 'visible' : 'none' }
+                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
             });
         }
 
@@ -164,7 +253,7 @@ export function PoliceAlertsPanel() {
         const layers = [layerClusters, layerClusterCount, layerUnclustered, layerUnclusteredHalo];
         layers.forEach(id => {
             if (map.getLayer(id)) {
-                map.setLayoutProperty(id, 'visibility', enabled ? 'visible' : 'none');
+                map.setLayoutProperty(id, 'visibility', (enabled && !heatmapMode) ? 'visible' : 'none');
             }
         });
 
@@ -200,7 +289,7 @@ export function PoliceAlertsPanel() {
             map.off('mouseleave', layerClusters, handleMouseLeave);
         };
 
-    }, [map, isLoaded, geoJsonData, enabled]);
+    }, [map, isLoaded, geoJsonData, enabled, heatmapMode]);
 
     // Get breakdown by type
     const typeBreakdown = useMemo(() => {
@@ -234,6 +323,17 @@ export function PoliceAlertsPanel() {
 
                 {enabled && (
                     <div className="space-y-4">
+                        {/* Heatmap Toggle Button */}
+                        <Button
+                            variant={heatmapMode ? "default" : "outline"}
+                            size="sm"
+                            className="w-full"
+                            onClick={() => setHeatmapMode(!heatmapMode)}
+                        >
+                            <Flame className={`w-4 h-4 mr-2 ${heatmapMode ? 'animate-pulse' : ''}`} />
+                            {heatmapMode ? 'Heatmap Active' : 'Show Heatmap'}
+                        </Button>
+
                         {/* Time filter */}
                         <div className="space-y-2">
                             <div className="flex justify-between text-xs">
@@ -262,6 +362,12 @@ export function PoliceAlertsPanel() {
                                     {isLoading ? '...' : reports?.length || 0}
                                 </span>
                             </div>
+                            {heatmapMode && (
+                                <div className="mt-2 text-xs italic text-amber-400 flex items-center gap-1">
+                                    <Flame className="w-3 h-3" />
+                                    Heatmap shows density of police sightings
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
