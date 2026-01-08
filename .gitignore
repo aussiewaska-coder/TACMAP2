@@ -111,3 +111,4 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+.vercel
