@@ -2,12 +2,15 @@ import type { CreateExpressContextOptions } from "@trpc/server/adapters/express"
 import type { User } from "../../drizzle/schema";
 import { sdk } from "./sdk";
 
+// Generic request/response types for both Express and serverless
 export type TrpcContext = {
-  req: CreateExpressContextOptions["req"];
-  res: CreateExpressContextOptions["res"];
+  req: CreateExpressContextOptions["req"] | Request;
+  res: CreateExpressContextOptions["res"] | null;
   user: User | null;
+  isServerless?: boolean;
 };
 
+// Express context creator
 export async function createContext(
   opts: CreateExpressContextOptions
 ): Promise<TrpcContext> {
@@ -24,5 +27,20 @@ export async function createContext(
     req: opts.req,
     res: opts.res,
     user,
+    isServerless: false,
+  };
+}
+
+// Vercel/serverless context creator
+export async function createServerlessContext(
+  req: Request
+): Promise<TrpcContext> {
+  // For serverless, we can't use the SDK authentication directly
+  // TODO: Implement cookie/header parsing for auth
+  return {
+    req,
+    res: null,
+    user: null,
+    isServerless: true,
   };
 }
