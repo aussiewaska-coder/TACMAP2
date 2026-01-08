@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
-import { Map, Settings, Layers, Database } from "lucide-react";
+import { Map, Settings, Layers, Database, AlertTriangle } from "lucide-react";
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -48,10 +48,10 @@ export default function Home() {
             Comprehensive MapLibre GL JS Application
           </h2>
           <p className="text-xl text-gray-700 mb-8">
-            A feature-rich, Australia-focused interactive mapping platform built with MapLibre GL JS. 
+            A feature-rich, Australia-focused interactive mapping platform built with MapLibre GL JS.
             Explore advanced mapping capabilities, plugins, and customization options.
           </p>
-          
+
           <Link href="/map">
             <Button size="lg" className="text-lg px-8 py-6">
               <Map className="w-6 h-6 mr-2" />
@@ -68,7 +68,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold mb-2">Australia-Focused</h3>
             <p className="text-gray-600">
-              Centered on Australia with optimized bounds, zoom levels, and geographic features. 
+              Centered on Australia with optimized bounds, zoom levels, and geographic features.
               Quick navigation to major cities including Sydney, Melbourne, and Brisbane.
             </p>
           </div>
@@ -79,7 +79,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold mb-2">Rich Plugin Ecosystem</h3>
             <p className="text-gray-600">
-              Integrated plugins including Draw, Geocoder, Export, Compare, Measures, and more. 
+              Integrated plugins including Draw, Geocoder, Export, Compare, Measures, and more.
               Full control over map layers, styles, and interactions.
             </p>
           </div>
@@ -90,7 +90,7 @@ export default function Home() {
             </div>
             <h3 className="text-xl font-semibold mb-2">Extensible Architecture</h3>
             <p className="text-gray-600">
-              Built as a skeleton for custom data integration. Add your own layers, data sources, 
+              Built as a skeleton for custom data integration. Add your own layers, data sources,
               and UI components with ease.
             </p>
           </div>
