@@ -190,8 +190,14 @@ export default function MapPage() {
         id: "gov-landuse-layer",
         type: "raster",
         source: "gov-landuse",
-        layout: { visibility: "none" }, // Hidden by default
-        paint: { "raster-opacity": 0.7 }
+        layout: { visibility: "visible" }, // FORCED VISIBLE FOR DEBUGGING
+        paint: { "raster-opacity": 0.5 }
+      });
+
+      // Show toast to confirm new code is running
+      toast.success("System Updated v2.2: Government Data Loaded", {
+        duration: 8000,
+        icon: "🇦🇺"
       });
 
       // 2. Surface Geology (Geoscience Australia)

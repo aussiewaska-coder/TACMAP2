@@ -144,7 +144,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
             // Handle map load
             map.on('load', () => {
                 // Add sky layer for 3D atmosphere
-                // Use unknown cast as sky layer type is not in standard LayerSpecification
                 map.addLayer({
                     id: 'sky',
                     type: 'sky',
@@ -155,6 +154,62 @@ export function MapCore({ className = '' }: MapCoreProps) {
                     },
                 } as unknown as maplibregl.LayerSpecification);
 
+                // === GOVERNMENT DATA LAYERS (WMS) ===
+
+                // 1. Land Use (Geoscience Australia)
+                map.addSource("gov-landuse", {
+                    type: "raster",
+                    tiles: [
+                        "https://services.ga.gov.au/gis/services/NM_Land_Use_18_19/MapServer/WMSServer?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=Land_Use_18_19"
+                    ],
+                    tileSize: 256,
+                    attribution: "Geoscience Australia"
+                });
+
+                map.addLayer({
+                    id: "gov-landuse-layer",
+                    type: "raster",
+                    source: "gov-landuse",
+                    layout: { visibility: "none" },
+                    paint: { "raster-opacity": 0.7 }
+                });
+
+                // 2. Surface Geology (Geoscience Australia)
+                map.addSource("gov-geology", {
+                    type: "raster",
+                    tiles: [
+                        "https://services.ga.gov.au/gis/services/GA_Surface_Geology/MapServer/WMSServer?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.3.0&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=GA_Surface_Geology"
+                    ],
+                    tileSize: 256,
+                    attribution: "Geoscience Australia"
+                });
+
+                map.addLayer({
+                    id: "gov-geology-layer",
+                    type: "raster",
+                    source: "gov-geology",
+                    layout: { visibility: "none" },
+                    paint: { "raster-opacity": 0.6 }
+                });
+
+                // 3. Bushfire Hotspots (Sentinel)
+                map.addSource("gov-bushfire", {
+                    type: "raster",
+                    tiles: [
+                        "https://sentinel.ga.gov.au/geoserver/public/wms?bbox={bbox-epsg-3857}&format=image/png&service=WMS&version=1.1.1&request=GetMap&srs=EPSG:3857&transparent=true&width=256&height=256&layers=hotspots_72hrs"
+                    ],
+                    tileSize: 256,
+                    attribution: "Sentinel Hotspots"
+                });
+
+                map.addLayer({
+                    id: "gov-bushfire-layer",
+                    type: "raster",
+                    source: "gov-bushfire",
+                    layout: { visibility: "none" },
+                    paint: { "raster-opacity": 0.9 }
+                });
+
                 mapRef.current = map;
                 setMap(map);
                 setLoaded(true);
@@ -163,7 +218,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 // Initial view state sync
                 updateViewState();
 
-                console.log('[MapCore] Map initialized with 3D terrain');
+                console.log('[MapCore] Map initialized with 3D terrain & Gov layers');
             });
 
             // Handle map move for view state updates

@@ -92,8 +92,86 @@ export function LayersList() {
                 </p>
             </div>
 
-            {/* Weather Radar layer */}
+            {/* Government Data Layers */}
             <div>
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    <Map className="w-4 h-4" />
+                    Australian Government Data
+                </h3>
+                <div className="space-y-2">
+                    {/* Land Use */}
+                    <div className="bg-gray-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="text-xl">
+                                    🇦🇺
+                                </div>
+                                <div>
+                                    <h4 className="font-medium text-gray-900">Land Use (2019)</h4>
+                                    <p className="text-sm text-gray-500">Geoscience Australia</p>
+                                </div>
+                            </div>
+                            <Switch
+                                onCheckedChange={(checked) => {
+                                    const map = useMapStore.getState().map;
+                                    if (map && map.getLayer('gov-landuse-layer')) {
+                                        map.setLayoutProperty('gov-landuse-layer', 'visibility', checked ? 'visible' : 'none');
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Geology */}
+                    <div className="bg-gray-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="text-xl">
+                                    🪨
+                                </div>
+                                <div>
+                                    <h4 className="font-medium text-gray-900">Surface Geology</h4>
+                                    <p className="text-sm text-gray-500">1:1M Geology</p>
+                                </div>
+                            </div>
+                            <Switch
+                                onCheckedChange={(checked) => {
+                                    const map = useMapStore.getState().map;
+                                    if (map && map.getLayer('gov-geology-layer')) {
+                                        map.setLayoutProperty('gov-geology-layer', 'visibility', checked ? 'visible' : 'none');
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Bushfire */}
+                    <div className="bg-gray-50 rounded-xl p-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="text-xl">
+                                    🔥
+                                </div>
+                                <div>
+                                    <h4 className="font-medium text-gray-900">Active Hotspots</h4>
+                                    <p className="text-sm text-gray-500">Satellite Detection (72h)</p>
+                                </div>
+                            </div>
+                            <Switch
+                                onCheckedChange={(checked) => {
+                                    const map = useMapStore.getState().map;
+                                    if (map && map.getLayer('gov-bushfire-layer')) {
+                                        map.setLayoutProperty('gov-bushfire-layer', 'visibility', checked ? 'visible' : 'none');
+                                    }
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Weather Radar layer */}
+            <div className="mt-6">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
                     <Cloud className="w-4 h-4" />
                     Weather
