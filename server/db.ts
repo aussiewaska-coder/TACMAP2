@@ -1,10 +1,12 @@
+import { neon } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { 
-  InsertUser, 
-  users, 
-  mapSettings, 
-  MapSettings, 
+import * as schema from "../drizzle/schema";
+import {
+  InsertUser,
+  users,
+  mapSettings,
+  MapSettings,
   InsertMapSettings,
   mapFeatures,
   MapFeature,
@@ -18,13 +20,18 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: ReturnType<typeof drizzle<typeof schema>> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      const sql = neon(process.env.DATABASE_URL);
+      _db = drizzle(sql, { schema });
+      // Only log once
+      if (process.env.NODE_ENV === 'development') {
+        console.log("[Database] Connected to Neon PostgreSQL");
+      }
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -83,7 +90,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    // Postgres upsert (onConflictDoUpdate)
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
   } catch (error) {
@@ -117,8 +126,17 @@ export async function upsertMapSettings(settings: InsertMapSettings): Promise<vo
   const db = await getDb();
   if (!db) return;
 
-  await db.insert(mapSettings).values(settings).onDuplicateKeyUpdate({
-    set: {
+  // We need to handle this manually since we don't have a unique constraint on userId in the schema definition yet,
+  // OR we can assume userId is unique for map settings if likely.
+  // Ideally, add a unique key to schema.pg.ts for (userId), but for now, let's use check-then-insert/update or rely on ID if we had it.
+  // Actually, standard pattern for settings is usually 0 or 1 row per user.
+  // Let's assume we want to match on ID if present, or userId.
+  // Since we don't have a unique index on 'userId' in the schema definition, 'onConflictDoUpdate' might fail if targeting userId.
+  // Let's do a meaningful check.
+
+  const existing = await getMapSettingsByUserId(settings.userId);
+  if (existing) {
+    await db.update(mapSettings).set({
       centerLat: settings.centerLat,
       centerLng: settings.centerLng,
       zoom: settings.zoom,
@@ -127,8 +145,11 @@ export async function upsertMapSettings(settings: InsertMapSettings): Promise<vo
       activeStyleId: settings.activeStyleId,
       layerVisibility: settings.layerVisibility,
       layerOpacity: settings.layerOpacity,
-    },
-  });
+      updatedAt: new Date(),
+    }).where(eq(mapSettings.userId, settings.userId));
+  } else {
+    await db.insert(mapSettings).values(settings);
+  }
 }
 
 // Map Features Queries
@@ -151,13 +172,15 @@ export async function upsertMapFeature(feature: InsertMapFeature): Promise<void>
   const db = await getDb();
   if (!db) return;
 
-  await db.insert(mapFeatures).values(feature).onDuplicateKeyUpdate({
+  await db.insert(mapFeatures).values(feature).onConflictDoUpdate({
+    target: mapFeatures.featureKey,
     set: {
       featureName: feature.featureName,
       description: feature.description,
       enabled: feature.enabled,
       category: feature.category,
       config: feature.config,
+      updatedAt: new Date(),
     },
   });
 }
@@ -189,7 +212,8 @@ export async function upsertMapStyle(style: InsertMapStyle): Promise<void> {
   const db = await getDb();
   if (!db) return;
 
-  await db.insert(mapStyles).values(style).onDuplicateKeyUpdate({
+  await db.insert(mapStyles).values(style).onConflictDoUpdate({
+    target: mapStyles.styleId,
     set: {
       styleName: style.styleName,
       description: style.description,
@@ -197,6 +221,7 @@ export async function upsertMapStyle(style: InsertMapStyle): Promise<void> {
       thumbnailUrl: style.thumbnailUrl,
       enabled: style.enabled,
       sortOrder: style.sortOrder,
+      updatedAt: new Date(),
     },
   });
 }
@@ -213,18 +238,13 @@ export async function upsertCustomLayer(layer: InsertCustomLayer): Promise<void>
   const db = await getDb();
   if (!db) return;
 
-  await db.insert(customLayers).values(layer).onDuplicateKeyUpdate({
-    set: {
-      layerName: layer.layerName,
-      description: layer.description,
-      layerType: layer.layerType,
-      dataSource: layer.dataSource,
-      styleConfig: layer.styleConfig,
-      visible: layer.visible,
-      opacity: layer.opacity,
-      zIndex: layer.zIndex,
-    },
-  });
+  // Custom layers usually rely on the auto-increment ID for updates.
+  // If we have an ID, update it. If not, insert.
+  if (layer.id) {
+    await db.update(customLayers).set(layer).where(eq(customLayers.id, layer.id));
+  } else {
+    await db.insert(customLayers).values(layer);
+  }
 }
 
 export async function deleteCustomLayer(id: number): Promise<void> {

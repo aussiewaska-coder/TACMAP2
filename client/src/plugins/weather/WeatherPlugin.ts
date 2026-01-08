@@ -15,7 +15,7 @@ export interface WeatherPluginConfig extends PluginConfig {
 
 // BOM Radar image URLs (free, no API key needed)
 // These are the publicly accessible rain radar composite images
-const BOM_RADAR_URLS = {
+export const BOM_RADAR_URLS = {
     // National composite (Australia-wide)
     national: 'https://www.bom.gov.au/radar/radar.national.gif',
     // IDR files by region
