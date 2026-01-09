@@ -5221,7 +5221,7 @@
       "xml"
     ],
     "jurisdiction_state": "QLD",
-    "endpoint_url": "QLD Bushfire Alerts.xml (sample file); website: https://www.fire.qld.gov.au",
+    "endpoint_url": "https://publiccontent-gis-psba-qld-gov-au.s3.amazonaws.com/content/Feeds/BushfireCurrentIncidents/bushfireAlert.xml",
     "stream_type": "xml",
     "format": "Atom XML",
     "access_level": "Open",

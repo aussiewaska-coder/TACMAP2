@@ -12,12 +12,12 @@ import { useMapStore } from '@/stores';
 import maplibregl from 'maplibre-gl';
 
 const HAZARD_TYPES = [
-    { id: 'fire', label: 'Fire', icon: Flame, color: 'text-red-500', bg: 'bg-red-500/10' },
-    { id: 'flood', label: 'Flood/Storm', icon: Waves, color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { id: 'road', label: 'Roads', icon: Construction, color: 'text-orange-500', bg: 'bg-orange-500/10' },
-    { id: 'aviation', label: 'Aviation', icon: Plane, color: 'text-green-500', bg: 'bg-green-500/10' },
-    { id: 'space', label: 'Space', icon: Satellite, color: 'text-purple-500', bg: 'bg-purple-500/10' },
-    { id: 'general', label: 'Alerts', icon: AlertTriangle, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+    { id: 'fire', label: 'Fire', icon: Flame, color: 'text-red-500', bg: 'bg-red-500/10', activeBg: 'bg-red-500', activeText: 'text-white' },
+    { id: 'flood', label: 'Flood/Storm', icon: Waves, color: 'text-blue-500', bg: 'bg-blue-500/10', activeBg: 'bg-blue-500', activeText: 'text-white' },
+    { id: 'road', label: 'Roads', icon: Construction, color: 'text-orange-500', bg: 'bg-orange-500/10', activeBg: 'bg-orange-500', activeText: 'text-white' },
+    { id: 'aviation', label: 'Aviation', icon: Plane, color: 'text-green-500', bg: 'bg-green-500/10', activeBg: 'bg-green-500', activeText: 'text-white' },
+    { id: 'space', label: 'Space', icon: Satellite, color: 'text-purple-500', bg: 'bg-purple-500/10', activeBg: 'bg-purple-500', activeText: 'text-white' },
+    { id: 'general', label: 'Alerts', icon: AlertTriangle, color: 'text-yellow-500', bg: 'bg-yellow-500/10', activeBg: 'bg-yellow-600', activeText: 'text-white' },
 ];
 
 /**
@@ -75,10 +75,10 @@ export function EmergencyPanel() {
 
             // Background circle for better visibility
             ctx.beginPath();
-            ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.arc(size / 2, size / 2, (size / 2) - 4, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
             ctx.fill();
-            ctx.strokeStyle = '#ffffff';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 2;
             ctx.stroke();
 
@@ -88,7 +88,7 @@ export function EmergencyPanel() {
             ctx.translate(size / 4, size / 4);
             ctx.scale(size / 48, size / 48); // Scale for 24x24 path to fit in 64x64 canvas
             ctx.strokeStyle = config.color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
             ctx.stroke(p);
             ctx.restore();
 
@@ -345,7 +345,7 @@ export function EmergencyPanel() {
                                             className={`
                                                 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all
                                                 ${isActive
-                                                    ? `${type.bg} ${type.color} ring-1 ring-inset ring-white/20 shadow-lg`
+                                                    ? `${type.activeBg} ${type.activeText} shadow-lg scale-105 ring-1 ring-white/20`
                                                     : 'bg-white/5 text-white/40 hover:bg-white/10'
                                                 }
                                             `}
