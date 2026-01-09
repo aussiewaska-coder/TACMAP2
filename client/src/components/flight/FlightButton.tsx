@@ -102,7 +102,7 @@ export function FlightButton() {
 
                 // Zoom easing - graceful exponential ease like ascending/descending
                 if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.12);
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
                 } else {
                     currentZoom = currentMap.getZoom();
                 }
@@ -205,7 +205,7 @@ export function FlightButton() {
 
                 // Zoom easing - graceful exponential ease like ascending/descending
                 if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.12);
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
                 } else {
                     currentZoom = currentMap.getZoom();
                 }
