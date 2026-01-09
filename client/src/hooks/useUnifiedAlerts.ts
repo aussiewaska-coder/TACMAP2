@@ -37,17 +37,24 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         // Police: data is an array
         if (alertSource === 'police' && Array.isArray(data)) {
             console.log(`✅ POLICE: ${data.length} items`);
-            const features = data.map((item: any) => ({
-                type: 'Feature',
-                geometry: {
-                    type: 'Point',
-                    coordinates: [Number(item.longitude), Number(item.latitude)]
-                },
-                properties: {
-                    ...item,
-                    title: `${item.type} Alert`
-                }
-            }));
+            const features = data.map((item: any) => {
+                // Calculate age in seconds for time-based weighting
+                const timestamp = item.reportedAt || item.timestamp || item.createdAt;
+                const ageSeconds = timestamp ? Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000) : 0;
+
+                return {
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [Number(item.longitude), Number(item.latitude)]
+                    },
+                    properties: {
+                        ...item,
+                        title: `${item.type} Alert`,
+                        age_s: ageSeconds // Add age for heatmap weighting
+                    }
+                };
+            });
             return { type: 'FeatureCollection', features };
         }
 
@@ -87,7 +94,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Source updated: ${sourceId}`);
         }
 
-        // Add HEATMAP layer - MUCH larger radius for proper blending
+        // Add HEATMAP layer - Time-weighted with large radius for proper blending
         if (!map.getLayer(heatmapLayerId)) {
             map.addLayer({
                 id: heatmapLayerId,
@@ -95,8 +102,21 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 source: sourceId,
                 filter: ['==', ['geometry-type'], 'Point'],
                 paint: {
-                    // Uniform weight for all points (1.0)
-                    'heatmap-weight': 1,
+                    // Time-based weight: newer alerts are hotter (exponential decay over 7 days)
+                    // age_s = 0 (now) -> weight = 1.0
+                    // age_s = 86400 (1 day) -> weight = 0.8
+                    // age_s = 604800 (7 days) -> weight = 0.3
+                    // age_s = 1209600+ (14 days) -> weight = 0.1
+                    'heatmap-weight': [
+                        'interpolate',
+                        ['exponential', 0.5],
+                        ['get', 'age_s'],
+                        0, 1.0,        // Just now: full weight
+                        86400, 0.8,    // 1 day old: 80%
+                        259200, 0.6,   // 3 days old: 60%
+                        604800, 0.3,   // 7 days old: 30%
+                        1209600, 0.1   // 14 days old: 10%
+                    ],
                     // High intensity across all zoom levels
                     'heatmap-intensity': [
                         'interpolate',
