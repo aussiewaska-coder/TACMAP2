@@ -1,12 +1,13 @@
 import { X, Plane, Compass, Gauge, Navigation, Globe, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
-import { useFlightStore, useFlightMode } from '@/stores/flightStore';
+import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
 import { useEffect, useState } from 'react';
 
 export function FlightDashboard() {
     const mode = useFlightMode();
+    const speed = useFlightSpeed(); // From store
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -14,8 +15,7 @@ export function FlightDashboard() {
         zoom: 0,
     });
 
-    // Controls state
-    const [speed, setSpeed] = useState(500); // km/h
+    // Local controls state (heading/altitude are local, speed is in store)
     const [heading, setHeading] = useState(0); // degrees
     const [altitude, setAltitude] = useState(10000); // meters (affects zoom)
 
@@ -88,10 +88,10 @@ export function FlightDashboard() {
         }
     };
 
-    // Store speed in flightStore for animation to use
-    useEffect(() => {
-        useFlightStore.setState({ speed });
-    }, [speed]);
+    // Update speed in store
+    const setSpeed = (newSpeed: number) => {
+        useFlightStore.getState().setSpeed(newSpeed);
+    };
 
     return (
         <div
