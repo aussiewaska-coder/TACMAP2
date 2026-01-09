@@ -1,7 +1,8 @@
 // MobileControls - Mobile-specific UI controls
 // Uses mobileUIStore - INDEPENDENT from desktop
 
-import { MapPin, Settings, Layers, Search, RotateCw, Navigation, Wrench } from 'lucide-react';
+import { MapPin, Settings, Layers, Search, RotateCw, Navigation, Wrench, Plane } from 'lucide-react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useMobileUIStore } from '@/stores';
 import { useMapStore } from '@/stores';
@@ -21,6 +22,12 @@ export function MobileControls() {
 
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
+
+    // Flight simulator state
+    const [flightMode, setFlightMode] = useState<'off' | 'pan' | 'sightseeing'>('off');
+    const flightRef = useRef<number | null>(null);
+    const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const prevProjRef = useRef<string | null>(null);
 
     if (!controlsVisible) {
         // Show a small button to bring controls back
@@ -69,6 +76,52 @@ export function MobileControls() {
         openBottomSheet('tools');
     };
 
+    const stopFlight = () => {
+        if (flightRef.current) { cancelAnimationFrame(flightRef.current); flightRef.current = null; }
+        if (prevProjRef.current && map) { map.setProjection({ type: prevProjRef.current as 'mercator' | 'globe' }); prevProjRef.current = null; }
+        setFlightMode('off');
+    };
+
+    const startPan = () => {
+        if (!map) return;
+        stopFlight();
+        setFlightMode('pan');
+        let last = 0;
+        const go = (t: number) => {
+            if (!map) return;
+            if (last) { const c = map.getCenter(); map.setCenter([c.lng, Math.min(85, c.lat + 0.00008 * (t - last))]); }
+            last = t;
+            flightRef.current = requestAnimationFrame(go);
+        };
+        flightRef.current = requestAnimationFrame(go);
+        toast.info('Flight: Pan north');
+    };
+
+    const startSightseeing = () => {
+        if (!map) return;
+        stopFlight();
+        prevProjRef.current = map.getProjection()?.type || 'mercator';
+        map.setProjection({ type: 'globe' });
+        setFlightMode('sightseeing');
+        let last = 0, tb = map.getBearing(), wp = { lng: map.getCenter().lng, lat: map.getCenter().lat };
+        const go = (t: number) => {
+            if (!map) return;
+            if (last) {
+                const d = Math.min(t - last, 50), c = map.getCenter(), dx = wp.lng - c.lng, dy = wp.lat - c.lat;
+                if (Math.sqrt(dx*dx + dy*dy) < 0.02) { const a = Math.random() * 6.28; wp = { lng: ((c.lng + Math.cos(a) * 0.15 + 180) % 360) - 180, lat: Math.max(-85, Math.min(85, c.lat + Math.sin(a) * 0.15)) }; tb = (tb + Math.random() * 90 - 45 + 360) % 360; }
+                const ma = Math.atan2(dy, dx), b = map.getBearing(), bd = ((tb - b + 540) % 360) - 180;
+                map.jumpTo({ center: [c.lng + Math.cos(ma) * 0.00012 * d, Math.max(-85, Math.min(85, c.lat + Math.sin(ma) * 0.00012 * d))], bearing: b + Math.sign(bd) * Math.min(Math.abs(bd), 0.03 * d) });
+            }
+            last = t;
+            flightRef.current = requestAnimationFrame(go);
+        };
+        flightRef.current = requestAnimationFrame(go);
+        toast.info('Flight: Sightseeing');
+    };
+
+    const flightDown = () => { pressTimerRef.current = setTimeout(() => { startSightseeing(); pressTimerRef.current = null; }, 500); };
+    const flightUp = () => { if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; if (flightMode === 'off') startPan(); else stopFlight(); } };
+
     return (
         <>
             {/* Bottom action buttons - floating on right */}
@@ -76,6 +129,21 @@ export function MobileControls() {
                 className="fixed bottom-6 right-4 flex flex-col gap-3"
                 style={{ zIndex: Z_INDEX.CONTROLS }}
             >
+                {/* Flight Simulator */}
+                <Button
+                    variant={flightMode !== 'off' ? 'default' : 'outline'}
+                    size="icon"
+                    onMouseDown={flightDown}
+                    onMouseUp={flightUp}
+                    onMouseLeave={() => { if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; } }}
+                    onTouchStart={flightDown}
+                    onTouchEnd={flightUp}
+                    title="Flight (click: pan, hold: sightseeing)"
+                    className={`shadow-xl w-14 h-14 rounded-2xl select-none ${flightMode === 'pan' ? 'bg-blue-600 text-white' : flightMode === 'sightseeing' ? 'bg-purple-600 text-white animate-pulse' : 'bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white border-0'}`}
+                >
+                    <Plane className="w-6 h-6" />
+                </Button>
+
                 {/* Navigation - Cities */}
                 <Button
                     variant="default"
