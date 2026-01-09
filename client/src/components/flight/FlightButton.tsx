@@ -65,13 +65,20 @@ export function FlightButton() {
         }
 
         stopFlight();
-        useFlightStore.getState().setMode('pan');
+
+        // Set default flight parameters: 3K altitude, 375 speed, 70° tilt, 0° heading
+        const store = useFlightStore.getState();
+        store.setMode('pan');
+        store.setTargetAltitude(13);    // 3K feet = zoom 13
+        store.setSpeed(375);            // Default speed for 3K
+        store.setTargetPitch(70);       // 70° tilt
+        store.setTargetHeading(0);      // North
 
         let lastTime = 0;
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
         let currentZoom = map.getZoom();
-        let currentSpeed = useFlightStore.getState().speed;
+        let currentSpeed = 375;
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
@@ -154,9 +161,15 @@ export function FlightButton() {
 
         const proj = map.getProjection();
         const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
-        useFlightStore.getState().setPrevProjection(currentProj);
+
+        // Set default flight parameters: 3K altitude, 375 speed, 70° tilt
+        const store = useFlightStore.getState();
+        store.setPrevProjection(currentProj);
         map.setProjection({ type: 'globe' });
-        useFlightStore.getState().setMode('sightseeing');
+        store.setMode('sightseeing');
+        store.setTargetAltitude(13);    // 3K feet = zoom 13
+        store.setSpeed(375);            // Default speed for 3K
+        store.setTargetPitch(70);       // 70° tilt
 
         let lastTime = 0;
         let autoTargetBearing = map.getBearing();
@@ -164,7 +177,7 @@ export function FlightButton() {
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
         let currentZoom = map.getZoom();
-        let currentSpeed = useFlightStore.getState().speed;
+        let currentSpeed = 375;
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
