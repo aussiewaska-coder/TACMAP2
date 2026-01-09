@@ -179,53 +179,75 @@ export function EmergencyPanel() {
         );
     };
 
-    // --- EFFECT: Aircraft Layer ---
+    // --- EFFECT: Aircraft Layer Management ---
     useEffect(() => {
-        if (!map || !isLoaded || !aircraftEnabled || !aircraftData) return;
+        if (!map || !isLoaded || !aircraftEnabled) return;
+
         const sourceId = 'emergency-aircraft-source';
         const pointsLayerId = 'emergency-aircraft-points';
         const labelsLayerId = 'emergency-aircraft-labels';
-        if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, { type: 'geojson', data: aircraftData as any });
-        } else {
-            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
-            if (source) source.setData(aircraftData as any);
-        }
-        if (!map.getLayer(pointsLayerId)) {
-            map.addLayer({
-                id: pointsLayerId, type: 'circle', source: sourceId,
-                paint: {
-                    'circle-radius': ['case', ['get', 'stale'], 6, 8],
-                    'circle-color': ['case', ['get', 'stale'], '#666666', ['==', ['get', 'source'], 'adsb_lol'], '#00ff00', '#ffaa00'],
-                    'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff',
-                    'circle-opacity': ['case', ['get', 'stale'], 0.4, 0.9],
-                },
-            });
-        }
-        if (!map.getLayer(labelsLayerId)) {
-            map.addLayer({
-                id: labelsLayerId, type: 'symbol', source: sourceId,
-                layout: {
-                    'text-field': ['coalesce', ['get', 'registration'], ['get', 'callsign'], ['get', 'icao24']],
-                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'], 'text-size': 11, 'text-offset': [0, 1.5], 'text-anchor': 'top',
-                },
-                paint: { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1, 'text-opacity': ['case', ['get', 'stale'], 0.5, 1], },
-            });
-        }
+
+        const addAircraftLayers = () => {
+            if (!map) return;
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: [] }
+                });
+            }
+
+            if (!map.getLayer(pointsLayerId)) {
+                map.addLayer({
+                    id: pointsLayerId, type: 'circle', source: sourceId,
+                    paint: {
+                        'circle-radius': ['case', ['get', 'stale'], 6, 8],
+                        'circle-color': ['case', ['get', 'stale'], '#666666', ['==', ['get', 'source'], 'adsb_lol'], '#00ff00', '#ffaa00'],
+                        'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff',
+                        'circle-opacity': ['case', ['get', 'stale'], 0.4, 0.9],
+                    },
+                });
+            }
+
+            if (!map.getLayer(labelsLayerId)) {
+                map.addLayer({
+                    id: labelsLayerId, type: 'symbol', source: sourceId,
+                    layout: {
+                        'text-field': ['coalesce', ['get', 'registration'], ['get', 'callsign'], ['get', 'icao24']],
+                        'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'], 'text-size': 11, 'text-offset': [0, 1.5], 'text-anchor': 'top',
+                    },
+                    paint: { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1, 'text-opacity': ['case', ['get', 'stale'], 0.5, 1], },
+                });
+            }
+        };
+
         const handleClick = (e: any) => {
             if (!e.features?.length) return;
             const props = e.features[0].properties;
             const html = `<div style="padding: 8px;"><h3 style="margin: 0 0 8px 0; font-weight: bold;">${props?.registration || props?.callsign || props?.icao24}</h3><div style="font-size: 12px;"><div><strong>ICAO24:</strong> ${props?.icao24}</div>${props?.operator ? `<div><strong>Operator:</strong> ${props.operator}</div>` : ''}<div><strong>Altitude:</strong> ${Math.round(props?.altitude_m || 0)}m</div><div><strong>Speed:</strong> ${Math.round((props?.ground_speed_mps || 0) * 3.6)} km/h</div><div><strong>Source:</strong> ${props?.source}</div><div><strong>Age:</strong> ${props?.age_s}s</div></div></div>`;
             new maplibregl.Popup().setLngLat(e.lngLat).setHTML(html).addTo(map);
         };
+
+        addAircraftLayers();
         map.on('click', pointsLayerId, handleClick);
+
+        const handleStyle = () => addAircraftLayers();
+        map.on('styledata', handleStyle);
+
         return () => {
             map.off('click', pointsLayerId, handleClick);
+            map.off('styledata', handleStyle);
             if (map.getLayer(labelsLayerId)) map.removeLayer(labelsLayerId);
             if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
             if (map.getSource(sourceId)) map.removeSource(sourceId);
         };
-    }, [map, isLoaded, aircraftData, aircraftEnabled]);
+    }, [map, isLoaded, aircraftEnabled]);
+
+    // Update aircraft data
+    useEffect(() => {
+        if (!map || !aircraftData) return;
+        const source = map.getSource('emergency-aircraft-source') as maplibregl.GeoJSONSource;
+        if (source) source.setData(aircraftData as any);
+    }, [map, aircraftData]);
 
     // --- EFFECT: Alerts Source & Layer Management ---
     useEffect(() => {
@@ -258,23 +280,25 @@ export function EmergencyPanel() {
             }
 
             // 2. Polygonal Fills (Lowest)
-            map.addLayer({
-                id: polygonLayerId,
-                type: 'fill',
-                source: sourceId,
-                filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
-                paint: {
-                    'fill-color': [
-                        'match',
-                        ['coalesce', ['get', 'severity_rank'], 4],
-                        1, '#ef4444',
-                        2, '#f97316',
-                        3, '#eab308',
-                        '#3b82f6'
-                    ],
-                    'fill-opacity': 0.15
-                }
-            } as any, map.getLayer('emergency-aircraft-points') ? 'emergency-aircraft-points' : undefined);
+            if (!map.getLayer(polygonLayerId)) {
+                map.addLayer({
+                    id: polygonLayerId,
+                    type: 'fill',
+                    source: sourceId,
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['$type'], 'Polygon'], ['==', ['$type'], 'MultiPolygon']]],
+                    paint: {
+                        'fill-color': [
+                            'match',
+                            ['coalesce', ['get', 'severity_rank'], 4],
+                            1, '#ef4444',
+                            2, '#f97316',
+                            3, '#eab308',
+                            '#3b82f6'
+                        ],
+                        'fill-opacity': 0.15
+                    }
+                } as any, map.getLayer('emergency-aircraft-points') ? 'emergency-aircraft-points' : undefined);
+            }
 
             // 3. Polygonal Outlines
             if (!map.getLayer(polygonOutlineLayerId)) {
@@ -282,7 +306,7 @@ export function EmergencyPanel() {
                     id: polygonOutlineLayerId,
                     type: 'line',
                     source: sourceId,
-                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['$type'], 'Polygon'], ['==', ['$type'], 'MultiPolygon']]],
                     paint: {
                         'line-color': [
                             'match',

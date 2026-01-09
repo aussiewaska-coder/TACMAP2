@@ -108,25 +108,23 @@ export function PoliceAlertsPanel() {
         };
     }, [reports]);
 
-    // Heatmap Layer Management
+    // --- EFFECT: Heatmap Layer Management ---
     useEffect(() => {
         if (!map || !isLoaded || !enabled) return;
 
         const heatmapSourceId = 'police-heatmap-source';
         const heatmapLayerId = 'police-heatmap-layer';
 
-        if (heatmapMode) {
-            // Add heatmap source if it doesn't exist
+        const addHeatmapLayers = () => {
+            if (!map || !heatmapMode) return;
+
             if (!map.getSource(heatmapSourceId)) {
                 map.addSource(heatmapSourceId, {
                     type: 'geojson',
                     data: geoJsonData as any
                 });
-            } else {
-                (map.getSource(heatmapSourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
             }
 
-            // Add heatmap layer if it doesn't exist
             if (!map.getLayer(heatmapLayerId)) {
                 map.addLayer({
                     id: heatmapLayerId,
@@ -134,82 +132,48 @@ export function PoliceAlertsPanel() {
                     source: heatmapSourceId,
                     maxzoom: 18,
                     paint: {
-                        // Weight by recency/relevance rather than just quantity
-                        'heatmap-weight': [
-                            'interpolate',
-                            ['linear'],
-                            ['get', 'weight'],
-                            0, 0,
-                            0.5, 1,   // Moderate weight contribution
-                            1, 2      // Heavy weight for brand new reports
-                        ],
-                        // Reduced intensity to prevent city washout
-                        'heatmap-intensity': [
-                            'interpolate',
-                            ['linear'],
-                            ['zoom'],
-                            0, 0.5,
-                            9, 1,
-                            15, 1.5,
-                            18, 2
-                        ],
-                        // Explicit Police Theme: Blue (Base) -> Purple -> Red (Peak)
+                        'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 0.5, 1, 1, 2],
+                        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 9, 1, 15, 1.5, 18, 2],
                         'heatmap-color': [
-                            'interpolate',
-                            ['linear'],
-                            ['heatmap-density'],
-                            0, 'rgba(0, 0, 0, 0)',           // Transparent
-                            0.1, 'rgba(0, 191, 255, 0.3)',   // Deep Sky Blue (Low activity)
-                            0.3, 'rgba(0, 0, 255, 0.4)',     // Pure Blue (Standard presence)
-                            0.5, 'rgba(0, 0, 200, 0.5)',     // Deep Blue (Moderate)
-                            0.7, 'rgba(75, 0, 130, 0.6)',    // Indigo (High)
-                            0.85, 'rgba(139, 0, 139, 0.7)',  // Dark Magenta (Heavy)
-                            0.92, 'rgba(255, 0, 0, 0.8)',    // Red begins (Very Heavy)
-                            1, 'rgba(255, 50, 50, 0.95)'     // Bright Red (Peak only)
+                            'interpolate', ['linear'], ['heatmap-density'],
+                            0, 'rgba(0, 0, 0, 0)',
+                            0.1, 'rgba(0, 191, 255, 0.3)',
+                            0.3, 'rgba(0, 0, 255, 0.4)',
+                            0.5, 'rgba(0, 0, 200, 0.5)',
+                            0.7, 'rgba(75, 0, 130, 0.6)',
+                            0.85, 'rgba(139, 0, 139, 0.7)',
+                            0.92, 'rgba(255, 0, 0, 0.8)',
+                            1, 'rgba(255, 50, 50, 0.95)'
                         ],
-                        // Enhanced radius for smooth, diffuse blur effect
-                        'heatmap-radius': [
-                            'interpolate',
-                            ['linear'],
-                            ['zoom'],
-                            0, 5,
-                            5, 15,
-                            10, 30,
-                            15, 45,
-                            18, 60
-                        ],
-                        'heatmap-opacity': [
-                            'interpolate',
-                            ['linear'],
-                            ['zoom'],
-                            0, 0.7,
-                            18, 0.6
-                        ]
+                        'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 5, 5, 15, 10, 30, 15, 45, 18, 60],
+                        'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 0, 0.7, 18, 0.6]
                     }
                 });
             }
-
             map.setLayoutProperty(heatmapLayerId, 'visibility', 'visible');
-        } else {
-            if (map.getLayer(heatmapLayerId)) {
-                map.setLayoutProperty(heatmapLayerId, 'visibility', 'none');
-            }
-        }
-
-        return () => {
-            if (map.getLayer(heatmapLayerId)) {
-                map.removeLayer(heatmapLayerId);
-            }
-            if (map.getSource(heatmapSourceId)) {
-                map.removeSource(heatmapSourceId);
-            }
         };
 
-    }, [map, isLoaded, geoJsonData, enabled, heatmapMode]);
+        addHeatmapLayers();
+        const handleStyle = () => addHeatmapLayers();
+        map.on('styledata', handleStyle);
 
-    // Map Layer Management
+        return () => {
+            map.off('styledata', handleStyle);
+            if (map.getLayer(heatmapLayerId)) map.removeLayer(heatmapLayerId);
+            if (map.getSource(heatmapSourceId)) map.removeSource(heatmapSourceId);
+        };
+    }, [map, isLoaded, enabled, heatmapMode]);
+
+    // Update heatmap data
     useEffect(() => {
-        if (!map || !isLoaded) return;
+        if (!map || !geoJsonData) return;
+        const source = map.getSource('police-heatmap-source') as maplibregl.GeoJSONSource;
+        if (source) source.setData(geoJsonData as any);
+    }, [map, geoJsonData]);
+
+    // --- EFFECT: Cluster & Marker Layer Management ---
+    useEffect(() => {
+        if (!map || !isLoaded || !enabled) return;
 
         const sourceId = 'police-reports-source';
         const layerClusters = 'police-clusters';
@@ -217,124 +181,97 @@ export function PoliceAlertsPanel() {
         const layerUnclustered = 'police-unclustered-point';
         const layerUnclusteredHalo = 'police-unclustered-halo';
 
-        // Add Source with Clustering
-        if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, {
-                type: 'geojson',
-                data: geoJsonData as any,
-                cluster: true,
-                clusterMaxZoom: 14,
-                clusterRadius: 80
-            });
-        } else {
-            (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
-        }
+        const addClusterLayers = () => {
+            if (!map) return;
 
-        // 1. Clusters Layer (Circles)
-        if (!map.getLayer(layerClusters)) {
-            map.addLayer({
-                id: layerClusters,
-                type: 'circle',
-                source: sourceId,
-                filter: ['has', 'point_count'],
-                paint: {
-                    'circle-color': [
-                        'step',
-                        ['get', 'point_count'],
-                        '#51bbd6',
-                        10,
-                        '#f1f075',
-                        50,
-                        '#f28cb1'
-                    ],
-                    'circle-radius': [
-                        'step',
-                        ['get', 'point_count'],
-                        20,
-                        100,
-                        30,
-                        750,
-                        40
-                    ]
-                },
-                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
-            });
-        }
-
-        // 2. Cluster Count (Text)
-        if (!map.getLayer(layerClusterCount)) {
-            map.addLayer({
-                id: layerClusterCount,
-                type: 'symbol',
-                source: sourceId,
-                filter: ['has', 'point_count'],
-                layout: {
-                    'text-field': '{point_count_abbreviated}',
-                    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-                    'text-size': 12,
-                    'visibility': (enabled && !heatmapMode) ? 'visible' : 'none'
-                }
-            });
-        }
-
-        // 3. Unclustered Point Halo
-        if (!map.getLayer(layerUnclusteredHalo)) {
-            map.addLayer({
-                id: layerUnclusteredHalo,
-                type: 'circle',
-                source: sourceId,
-                filter: ['!', ['has', 'point_count']],
-                paint: {
-                    'circle-radius': 8,
-                    'circle-color': '#EF4444',
-                    'circle-opacity': 0.4,
-                    'circle-stroke-width': 1,
-                    'circle-stroke-color': '#FFFFFF'
-                },
-                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
-            });
-        }
-
-        // 4. Unclustered Point Icon
-        if (!map.getLayer(layerUnclustered)) {
-            map.addLayer({
-                id: layerUnclustered,
-                type: 'circle',
-                source: sourceId,
-                filter: ['!', ['has', 'point_count']],
-                paint: {
-                    'circle-radius': 5,
-                    'circle-color': '#B91C1C',
-                    'circle-stroke-width': 1,
-                    'circle-stroke-color': '#FFFFFF'
-                },
-                layout: { visibility: (enabled && !heatmapMode) ? 'visible' : 'none' }
-            });
-        }
-
-        // Toggle Visibility
-        const layers = [layerClusters, layerClusterCount, layerUnclustered, layerUnclusteredHalo];
-        const markersVisible = enabled && (!heatmapMode || showMarkersOverlay) ? 'visible' : 'none';
-
-        layers.forEach(id => {
-            if (map.getLayer(id)) {
-                map.setLayoutProperty(id, 'visibility', markersVisible);
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: (geoJsonData as any) || { type: 'FeatureCollection', features: [] },
+                    cluster: true,
+                    clusterMaxZoom: 14,
+                    clusterRadius: 80
+                });
             }
-        });
 
-        // Click on cluster -> Zoom
+            const visibility = (enabled && (!heatmapMode || showMarkersOverlay)) ? 'visible' : 'none';
+
+            if (!map.getLayer(layerClusters)) {
+                map.addLayer({
+                    id: layerClusters,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['has', 'point_count'],
+                    paint: {
+                        'circle-color': ['step', ['get', 'point_count'], '#51bbd6', 10, '#f1f075', 50, '#f28cb1'],
+                        'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 750, 40]
+                    },
+                    layout: { visibility }
+                });
+            }
+
+            if (!map.getLayer(layerClusterCount)) {
+                map.addLayer({
+                    id: layerClusterCount,
+                    type: 'symbol',
+                    source: sourceId,
+                    filter: ['has', 'point_count'],
+                    layout: {
+                        'text-field': '{point_count_abbreviated}',
+                        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                        'text-size': 12,
+                        'visibility': visibility
+                    }
+                });
+            }
+
+            if (!map.getLayer(layerUnclusteredHalo)) {
+                map.addLayer({
+                    id: layerUnclusteredHalo,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['!', ['has', 'point_count']],
+                    paint: {
+                        'circle-radius': 8,
+                        'circle-color': '#EF4444',
+                        'circle-opacity': 0.4,
+                        'circle-stroke-width': 1,
+                        'circle-stroke-color': '#FFFFFF'
+                    },
+                    layout: { visibility }
+                });
+            }
+
+            if (!map.getLayer(layerUnclustered)) {
+                map.addLayer({
+                    id: layerUnclustered,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['!', ['has', 'point_count']],
+                    paint: {
+                        'circle-radius': 5,
+                        'circle-color': '#B91C1C',
+                        'circle-stroke-width': 1,
+                        'circle-stroke-color': '#FFFFFF'
+                    },
+                    layout: { visibility }
+                });
+            }
+
+            // Sync visibility if layers exist
+            [layerClusters, layerClusterCount, layerUnclustered, layerUnclusteredHalo].forEach(id => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', visibility);
+            });
+        };
+
         const handleClusterClick = async (e: any) => {
             const features = map.queryRenderedFeatures(e.point, { layers: [layerClusters] });
             if (!features.length) return;
             const clusterId = features[0].properties.cluster_id;
             const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
-
             try {
                 const zoom = await source.getClusterExpansionZoom(clusterId);
-                map.easeTo({
-                    center: (features[0].geometry as any).coordinates,
-                    zoom: zoom
-                });
+                map.easeTo({ center: (features[0].geometry as any).coordinates, zoom: zoom });
             } catch (err) {
                 console.warn('Failed to get cluster expansion zoom', err);
             }
@@ -343,18 +280,33 @@ export function PoliceAlertsPanel() {
         const handleMouseEnter = () => map.getCanvas().style.cursor = 'pointer';
         const handleMouseLeave = () => map.getCanvas().style.cursor = '';
 
+        addClusterLayers();
         map.on('click', layerClusters, handleClusterClick);
         map.on('mouseenter', layerClusters, handleMouseEnter);
         map.on('mouseleave', layerClusters, handleMouseLeave);
 
-        // Cleanup
+        const handleStyle = () => addClusterLayers();
+        map.on('styledata', handleStyle);
+
         return () => {
             map.off('click', layerClusters, handleClusterClick);
             map.off('mouseenter', layerClusters, handleMouseEnter);
             map.off('mouseleave', layerClusters, handleMouseLeave);
+            map.off('styledata', handleStyle);
+            if (map.getLayer(layerClusterCount)) map.removeLayer(layerClusterCount);
+            if (map.getLayer(layerClusters)) map.removeLayer(layerClusters);
+            if (map.getLayer(layerUnclustered)) map.removeLayer(layerUnclustered);
+            if (map.getLayer(layerUnclusteredHalo)) map.removeLayer(layerUnclusteredHalo);
+            if (map.getSource(sourceId)) map.removeSource(sourceId);
         };
+    }, [map, isLoaded, enabled, heatmapMode, showMarkersOverlay]);
 
-    }, [map, isLoaded, geoJsonData, enabled, heatmapMode, showMarkersOverlay]);
+    // Update cluster data
+    useEffect(() => {
+        if (!map || !geoJsonData) return;
+        const source = map.getSource('police-reports-source') as maplibregl.GeoJSONSource;
+        if (source) source.setData(geoJsonData as any);
+    }, [map, geoJsonData]);
 
     // Get breakdown by type
     const typeBreakdown = useMemo(() => {
