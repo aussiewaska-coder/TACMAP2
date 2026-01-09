@@ -94,6 +94,63 @@ export const appRouter = router({
           });
         }
       }),
+
+    heatmap: publicProcedure
+      .input(z.object({
+        hoursAgo: z.number().optional().default(336), // 14 days default
+        minLat: z.number().optional(),
+        maxLat: z.number().optional(),
+        minLon: z.number().optional(),
+        maxLon: z.number().optional(),
+      }))
+      .query(async ({ input }) => {
+        const minTimestamp = new Date(Date.now() - (input.hoursAgo || 336) * 60 * 60 * 1000);
+
+        try {
+          const reports = await getPoliceReports(minTimestamp);
+
+          // Filter by viewport if provided
+          let filtered = reports;
+          if (input.minLat && input.maxLat && input.minLon && input.maxLon) {
+            filtered = reports.filter((r: any) =>
+              r.latitude >= input.minLat! &&
+              r.latitude <= input.maxLat! &&
+              r.longitude >= input.minLon! &&
+              r.longitude <= input.maxLon!
+            );
+          }
+
+          // Aggregate by rounded lat/lon (0.01 degree precision ~1km)
+          const buckets = new Map<string, number>();
+          filtered.forEach((r: any) => {
+            const lat = Math.round(r.latitude * 100) / 100;
+            const lon = Math.round(r.longitude * 100) / 100;
+            const key = `${lat},${lon}`;
+            buckets.set(key, (buckets.get(key) || 0) + 1);
+          });
+
+          // Convert to [lat, lon, count] format
+          const data: [number, number, number][] = [];
+          buckets.forEach((count, key) => {
+            const [lat, lon] = key.split(',').map(Number);
+            data.push([lat, lon, count]);
+          });
+
+          return {
+            count: data.length,
+            data: data,
+            cameras: [], // Not implemented yet
+            camera_summary: { high: 0, medium: 0, low: 0 }
+          };
+        } catch (error) {
+          console.error("Failed to fetch heatmap data:", error);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Failed to fetch heatmap data",
+            cause: error
+          });
+        }
+      }),
   }),
 
   waze: router({

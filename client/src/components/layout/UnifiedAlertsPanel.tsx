@@ -13,6 +13,7 @@ import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
 import { useEmergencyAlerts } from '@/hooks/useEmergencyAlerts';
 import { useUnifiedAlerts } from '@/hooks/useUnifiedAlerts';
+import { useHeatmap } from '@/hooks/useHeatmap';
 import maplibregl from 'maplibre-gl';
 
 type AlertMode = 'emergency' | 'police';
@@ -41,12 +42,10 @@ export function UnifiedAlertsPanel() {
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
 
-    // Auto-toggle markers when heatmap changes (but allow manual override)
+    // Auto-hide markers when heatmap is enabled (old system behavior)
     useEffect(() => {
         if (showHeatmap) {
             setShowMarkers(false);
-        } else {
-            setShowMarkers(true);
         }
     }, [showHeatmap]);
 
@@ -342,11 +341,16 @@ export function UnifiedAlertsPanel() {
         enabled,
         alertSource: alertMode,
         data: currentData ?? null,
-        showHeatmap,
         showMarkers,
         layerPrefix: `unified-${alertMode}`,
         clusterRadius: 60,
         clusterMaxZoom: 14
+    });
+
+    // NEW: Use the old heatmap system (police only for now)
+    const { heatmapCount, isLoading: heatmapLoading } = useHeatmap({
+        enabled: showHeatmap && alertMode === 'police',
+        hoursAgo
     });
 
     // Stats
@@ -419,13 +423,14 @@ export function UnifiedAlertsPanel() {
                                 variant={showHeatmap ? "default" : "outline"}
                                 size="sm"
                                 className="w-full"
+                                disabled={alertMode !== 'police'}
                                 onClick={() => {
                                     const newState = !showHeatmap;
                                     setShowHeatmap(newState);
                                     if (newState) {
-                                        toast.success("[✓] heatmap.enabled", {
-                                            description: `[INFO] Rendering ${alertCount} alerts as thermal density map`,
-                                            duration: 3000
+                                        toast.loading("[...] heatmap.loading", {
+                                            description: "[INFO] Fetching density data...",
+                                            id: 'heatmap-toggle'
                                         });
                                     } else {
                                         toast.info("[i] heatmap.disabled", {
@@ -436,7 +441,8 @@ export function UnifiedAlertsPanel() {
                                 }}
                             >
                                 <Flame className={`w-4 h-4 mr-2 ${showHeatmap ? 'animate-pulse' : ''}`} />
-                                {showHeatmap ? 'Heatmap Active' : 'Show Heatmap'}
+                                {showHeatmap ? `Heatmap (${heatmapCount} hotspots)` : 'Show Heatmap'}
+                                {alertMode !== 'police' && ' (Police Only)'}
                             </Button>
 
                             {showHeatmap && (

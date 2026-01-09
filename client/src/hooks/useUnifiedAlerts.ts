@@ -10,7 +10,6 @@ export interface UseUnifiedAlertsOptions {
     enabled: boolean;
     alertSource: AlertSource;
     data: any | null;
-    showHeatmap?: boolean;
     showMarkers?: boolean;
     layerPrefix: string;
     clusterRadius?: number;
@@ -18,7 +17,7 @@ export interface UseUnifiedAlertsOptions {
 }
 
 export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
-    const { enabled, alertSource, data, showMarkers = true, showHeatmap = false, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
+    const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
 
@@ -73,7 +72,6 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         }
 
         const sourceId = `${layerPrefix}-source`;
-        const heatmapLayerId = `${layerPrefix}-heatmap`;
         const clusterLayerId = `${layerPrefix}-clusters`;
         const clusterCountLayerId = `${layerPrefix}-cluster-count`;
         const layerId = `${layerPrefix}-dots`;
@@ -95,54 +93,6 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         } else {
             (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
             console.log(`✅ Source updated: ${sourceId}`);
-        }
-
-        // Add HEATMAP layer - Classic thermal gradient (from waze-police-reporter)
-        if (!map.getLayer(heatmapLayerId)) {
-            map.addLayer({
-                id: heatmapLayerId,
-                type: 'heatmap',
-                source: sourceId,
-                filter: ['==', ['geometry-type'], 'Point'],
-                paint: {
-                    // Uniform weight (no time decay)
-                    'heatmap-weight': 1,
-                    // Moderate intensity scaling with zoom
-                    'heatmap-intensity': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0, 1,
-                        18, 3
-                    ],
-                    // Classic thermal gradient: blue -> cyan -> green -> yellow -> orange -> red
-                    // With 0.8 alpha for transparency
-                    'heatmap-color': [
-                        'interpolate',
-                        ['linear'],
-                        ['heatmap-density'],
-                        0, 'rgba(0, 0, 255, 0)',        // Transparent blue
-                        0.2, 'rgba(0, 255, 255, 0.8)',  // Cyan
-                        0.4, 'rgba(0, 255, 0, 0.8)',    // Green
-                        0.6, 'rgba(255, 255, 0, 0.8)',  // Yellow
-                        0.8, 'rgba(255, 128, 0, 0.8)',  // Orange
-                        1, 'rgba(255, 0, 0, 0.8)'       // Red
-                    ],
-                    // Larger radius for smooth blending and glow effect
-                    'heatmap-radius': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        0, 50,
-                        10, 80,
-                        18, 120
-                    ],
-                    // Lower opacity to see through to map
-                    'heatmap-opacity': 0.7
-                },
-                layout: { visibility: showHeatmap ? 'visible' : 'none' }
-            });
-            console.log(`✅ Heatmap layer added: ${heatmapLayerId}`);
         }
 
         // Add CLUSTER CIRCLE layer - consistent small size
@@ -240,11 +190,6 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         }
 
         // Update visibility for all layers
-        if (map.getLayer(heatmapLayerId)) {
-            const visibility = showHeatmap ? 'visible' : 'none';
-            map.setLayoutProperty(heatmapLayerId, 'visibility', visibility);
-            console.log(`🔥 Heatmap visibility: ${visibility} | ${geoJsonData.features.length} features | Source: ${sourceId}`);
-        }
         if (map.getLayer(clusterLayerId)) {
             map.setLayoutProperty(clusterLayerId, 'visibility', showMarkers ? 'visible' : 'none');
         }
@@ -339,9 +284,6 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 map.off('mouseleave', clusterLayerId, setCursor(''));
                 map.removeLayer(clusterLayerId);
             }
-            if (map.getLayer(heatmapLayerId)) {
-                map.removeLayer(heatmapLayerId);
-            }
             if (map.getLayer(layerId)) {
                 map.off('click', layerId, handleClick);
                 map.off('mouseenter', layerId, setCursor('pointer'));
@@ -361,7 +303,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 map.removeSource(sourceId);
             }
         };
-    }, [map, isLoaded, enabled, geoJsonData, showMarkers, showHeatmap, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
+    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
 
     return {
         alertCount: geoJsonData.features.length
