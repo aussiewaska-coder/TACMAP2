@@ -21,6 +21,20 @@ const easePitch = (current: number, target: number, delta: number, rate: number)
     return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
 };
 
+// Smooth easing for zoom (rate = zoom levels per second)
+const easeZoom = (current: number, target: number, delta: number, rate: number): number => {
+    const diff = target - current;
+    const maxChange = rate * delta * 0.001;
+    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+};
+
+// Smooth easing for speed (rate = km/h change per second)
+const easeSpeed = (current: number, target: number, delta: number, rate: number): number => {
+    const diff = target - current;
+    const maxChange = rate * delta * 0.001;
+    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+};
+
 export function FlightButton() {
     const mode = useFlightMode();
     const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -40,7 +54,7 @@ export function FlightButton() {
         store.setMode('off');
     };
 
-    // PAN MODE - moves forward, NO zoom control
+    // PAN MODE - moves forward, controls zoom via easing
     const startPan = () => {
         const map = useMapStore.getState().map;
         if (!map) {
@@ -54,6 +68,8 @@ export function FlightButton() {
         let lastTime = 0;
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
+        let currentZoom = map.getZoom();
+        let currentSpeed = useFlightStore.getState().speed;
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
@@ -82,19 +98,34 @@ export function FlightButton() {
                     currentPitch = currentMap.getPitch();
                 }
 
+                // Zoom easing - targetAltitude stores the target zoom level
+                if (store.targetAltitude !== null) {
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 6);
+                } else {
+                    currentZoom = currentMap.getZoom();
+                }
+
+                // Speed easing - ease toward targetSpeed, update store
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 500);
+                    store.setSpeed(currentSpeed);
+                } else {
+                    currentSpeed = store.speed;
+                }
+
                 // Move forward based on speed
-                const speed = store.speed;
                 const bearingRad = (currentHeading * Math.PI) / 180;
-                const speedFactor = (speed / 250) * 0.000001;
+                const speedFactor = (currentSpeed / 250) * 0.000001;
                 const moveDist = speedFactor * delta;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
-                // Never touch zoom - let user/altitude buttons control it
+                // Apply all values including zoom
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
-                    pitch: currentPitch
+                    pitch: currentPitch,
+                    zoom: currentZoom
                 });
             }
 
@@ -108,7 +139,7 @@ export function FlightButton() {
         toast.info('Flight: Pan mode');
     };
 
-    // SIGHTSEEING MODE - wanders around, NO zoom control
+    // SIGHTSEEING MODE - wanders around, controls zoom via easing
     const startSightseeing = () => {
         const map = useMapStore.getState().map;
         if (!map) {
@@ -129,6 +160,8 @@ export function FlightButton() {
         let waypoint = { lng: map.getCenter().lng, lat: map.getCenter().lat };
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
+        let currentZoom = map.getZoom();
+        let currentSpeed = useFlightStore.getState().speed;
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
@@ -168,19 +201,34 @@ export function FlightButton() {
                     currentPitch = currentMap.getPitch();
                 }
 
+                // Zoom easing - targetAltitude stores the target zoom level
+                if (store.targetAltitude !== null) {
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 6);
+                } else {
+                    currentZoom = currentMap.getZoom();
+                }
+
+                // Speed easing - ease toward targetSpeed, update store
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 500);
+                    store.setSpeed(currentSpeed);
+                } else {
+                    currentSpeed = store.speed;
+                }
+
                 // Move toward waypoint
-                const speed = store.speed;
                 const moveAngle = Math.atan2(dy, dx);
-                const speedFactor = speed / 250;
+                const speedFactor = currentSpeed / 250;
                 const moveSpeed = 0.0000012 * delta * speedFactor;
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
-                // Never touch zoom - let user/altitude buttons control it
+                // Apply all values including zoom
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
-                    pitch: currentPitch
+                    pitch: currentPitch,
+                    zoom: currentZoom
                 });
             }
 

@@ -552,21 +552,15 @@ export function FlightDashboard() {
                                 <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
                             </div>
 
-                            {/* ALTITUDE - DIRECT zoom control */}
+                            {/* ALTITUDE - Animation loop handles zoom easing */}
                             <AltitudeButtons
                                 currentZoom={telemetry.zoom}
                                 onAltitudeChange={(zoom, defaultSpeed) => {
-                                    const map = useMapStore.getState().map;
-                                    if (!map) return;
-
-                                    // Set speed to default for this altitude
-                                    useFlightStore.getState().setSpeed(defaultSpeed);
-
-                                    // Use flyTo for smooth zoom transition - animation loop keeps running
-                                    map.flyTo({
-                                        zoom: zoom,
-                                        duration: 1000,
-                                    });
+                                    const store = useFlightStore.getState();
+                                    // Set target altitude (zoom level) - animation loop will ease to it
+                                    store.setTargetAltitude(zoom);
+                                    // Set speed preset for this altitude
+                                    store.setSpeed(defaultSpeed);
                                 }}
                             />
 
