@@ -1,4 +1,4 @@
-import { X, Plane, RotateCw, Satellite, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Plane, RotateCw, Satellite, Building2, ChevronLeft, ChevronRight, Crosshair, LocateFixed, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
@@ -45,6 +45,32 @@ const easeSpeed = (current: number, target: number, delta: number, smoothing: nu
     if (Math.abs(diff) < 1) return target;
     const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
     return current + diff * ease;
+};
+
+const toRadians = (deg: number) => (deg * Math.PI) / 180;
+const toDegrees = (rad: number) => (rad * 180) / Math.PI;
+
+const getOrbitPosition = (center: [number, number], radiusKm: number, angleDeg: number) => {
+    const [centerLng, centerLat] = center;
+    const angleRad = toRadians(angleDeg);
+    const latScale = 111;
+    const lngScale = 111 * Math.max(0.2, Math.cos(toRadians(centerLat)));
+
+    const dxKm = Math.cos(angleRad) * radiusKm;
+    const dyKm = Math.sin(angleRad) * radiusKm;
+
+    const lat = Math.max(-85, Math.min(85, centerLat + (dyKm / latScale)));
+    const lng = centerLng + (dxKm / lngScale);
+
+    return { lat, lng };
+};
+
+const getBearingToCenter = (from: [number, number], to: [number, number]) => {
+    const [fromLng, fromLat] = from;
+    const [toLng, toLat] = to;
+    const dx = toLng - fromLng;
+    const dy = toLat - fromLat;
+    return (toDegrees(Math.atan2(dx, dy)) + 360) % 360;
 };
 
 // Altitude Buttons - DIRECTLY controls map zoom via flyTo
@@ -488,43 +514,23 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
 
 // Orbit mode indicator - shows current heading and orbit angle
 function OrbitIndicator({ heading }: { heading: number }) {
-    const orbitAngle = useFlightStore((s) => s.orbitAngle);
     const clockwise = useFlightStore((s) => s.orbitClockwise);
 
     return (
         <div className="flex flex-col items-center gap-1 select-none">
             <div className="text-orange-400/50 text-[10px] font-mono font-bold tracking-wider">ORBIT</div>
 
-            {/* Animated orbit ring */}
             <div className="relative w-24 h-24">
-                {/* Outer ring */}
                 <div className="absolute inset-0 rounded-full bg-black/80 border-2 border-orange-500/40 shadow-lg shadow-orange-500/10" />
-
-                {/* Orbit path ring */}
                 <div className="absolute inset-2 rounded-full border border-dashed border-orange-400/30" />
-
-                {/* Center point indicator */}
                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-3 h-3 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50 animate-pulse" />
+                    <Crosshair className="w-8 h-8 text-orange-300/90 drop-shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
                 </div>
-
-                {/* Camera position on orbit (rotating dot) */}
-                <div
-                    className="absolute inset-0 flex items-center justify-center"
-                    style={{ transform: `rotate(${orbitAngle}deg)` }}
-                >
-                    <div className="absolute w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50"
-                        style={{ transform: 'translateX(32px)' }}
-                    />
-                </div>
-
-                {/* Direction arrow */}
                 <div className="absolute bottom-1 right-1">
                     <RotateCw className={`w-4 h-4 text-orange-400/50 ${clockwise ? '' : 'scale-x-[-1]'}`} />
                 </div>
             </div>
 
-            {/* Heading readout */}
             <div className="text-orange-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-orange-500/30">
                 {Math.round(heading).toString().padStart(3, '0')}°
             </div>
@@ -533,18 +539,29 @@ function OrbitIndicator({ heading }: { heading: number }) {
 }
 
 // Orbit mode controls - direction toggle and radius display
-function OrbitControls() {
+function OrbitControls({
+    lookAtCenter,
+    paused,
+    onToggleLook,
+    onTogglePause,
+    onSetCenter,
+}: {
+    lookAtCenter: boolean;
+    paused: boolean;
+    onToggleLook: () => void;
+    onTogglePause: () => void;
+    onSetCenter: () => void;
+}) {
     const clockwise = useFlightStore((s) => s.orbitClockwise);
     const radius = useFlightStore((s) => s.orbitRadius);
     const setClockwise = useFlightStore((s) => s.setOrbitClockwise);
     const setRadius = useFlightStore((s) => s.setOrbitRadius);
 
-    // Convert radius to approximate km (at equator)
-    const radiusKm = (radius * 111).toFixed(1);
+    const radiusKm = radius.toFixed(1);
 
     return (
         <div className="flex flex-col items-center gap-1">
-            {/* Direction toggle */}
+            {/* Direction + center */}
             <div className="flex items-center gap-2">
                 <button
                     onClick={() => setClockwise(!clockwise)}
@@ -553,12 +570,19 @@ function OrbitControls() {
                     <RotateCw className={`w-3 h-3 ${clockwise ? '' : 'scale-x-[-1]'}`} />
                     {clockwise ? 'CW' : 'CCW'}
                 </button>
+                <button
+                    onClick={onSetCenter}
+                    className="px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center gap-1"
+                >
+                    <LocateFixed className="w-3 h-3" />
+                    CENTER
+                </button>
             </div>
 
             {/* Radius display and quick adjust */}
             <div className="flex items-center gap-1">
                 <button
-                    onClick={() => setRadius(Math.max(0.005, radius * 0.7))}
+                    onClick={() => setRadius(Math.max(0.5, radius * 0.7))}
                     className="w-5 h-5 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
                 >
                     -
@@ -567,10 +591,31 @@ function OrbitControls() {
                     {radiusKm}km
                 </div>
                 <button
-                    onClick={() => setRadius(Math.min(0.5, radius * 1.4))}
+                    onClick={() => setRadius(Math.min(100, radius * 1.4))}
                     className="w-5 h-5 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
                 >
                     +
+                </button>
+            </div>
+
+            {/* Look mode + pause */}
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={onToggleLook}
+                    className={`px-2 py-1 rounded text-[10px] font-mono font-bold border ${
+                        lookAtCenter
+                            ? 'bg-orange-500/20 text-orange-200 border-orange-400/60'
+                            : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20'
+                    }`}
+                >
+                    {lookAtCenter ? 'LOOK-IN' : 'TANGENT'}
+                </button>
+                <button
+                    onClick={onTogglePause}
+                    className="px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center gap-1"
+                >
+                    {paused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                    {paused ? 'RESUME' : 'PAUSE'}
                 </button>
             </div>
         </div>
@@ -596,6 +641,11 @@ export function FlightDashboard() {
     const targetPitch = useFlightStore((s) => s.targetPitch);
     const satelliteEnabled = useFlightStore((s) => s.satelliteEnabled);
     const buildings3dEnabled = useFlightStore((s) => s.buildings3dEnabled);
+    const orbitCenter = useFlightStore((s) => s.orbitCenter);
+    const orbitRadius = useFlightStore((s) => s.orbitRadius);
+    const orbitClockwise = useFlightStore((s) => s.orbitClockwise);
+    const [orbitLookAtCenter, setOrbitLookAtCenter] = useState(true);
+    const [orbitPaused, setOrbitPaused] = useState(false);
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -709,6 +759,103 @@ export function FlightDashboard() {
         };
     }, [dashboardOpen, mode]);
 
+    useEffect(() => {
+        if (!dashboardOpen || mode !== 'orbit') return;
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        let lastTime = 0;
+        let currentAngle = useFlightStore.getState().orbitAngle;
+        let currentPitch = map.getPitch();
+        let currentZoom = map.getZoom();
+        let currentSpeed = useFlightStore.getState().speed;
+
+        const animate = (time: number) => {
+            const currentMap = useMapStore.getState().map;
+            const store = useFlightStore.getState();
+
+            if (!currentMap || store.mode !== 'orbit') {
+                useFlightStore.getState().setAnimationId(null);
+                return;
+            }
+
+            if (lastTime) {
+                const delta = Math.min(time - lastTime, 50);
+                const center = store.orbitCenter;
+                if (!center) return;
+
+                const radiusKm = Math.max(0.5, store.orbitRadius);
+                const clockwise = store.orbitClockwise;
+
+                if (store.targetPitch !== null) {
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
+                }
+                if (store.targetAltitude !== null) {
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
+                }
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
+                    store.setSpeed(currentSpeed);
+                } else {
+                    currentSpeed = store.speed;
+                }
+
+                const effectiveSpeed = orbitPaused ? 0 : currentSpeed;
+                const circumference = 2 * Math.PI * radiusKm;
+                const degreesPerSecond = circumference > 0 ? (effectiveSpeed / 3600) / circumference * 360 : 0;
+                const angleIncrement = degreesPerSecond * (delta / 1000) * (clockwise ? 1 : -1);
+
+                currentAngle = (currentAngle + angleIncrement + 360) % 360;
+                store.setOrbitAngle(currentAngle);
+
+                const position = getOrbitPosition(center, radiusKm, currentAngle);
+                const heading = orbitLookAtCenter
+                    ? getBearingToCenter([position.lng, position.lat], center)
+                    : (90 - (currentAngle + (clockwise ? -90 : 90)) + 360) % 360;
+
+                currentMap.jumpTo({
+                    center: [position.lng, position.lat],
+                    bearing: heading,
+                    pitch: currentPitch,
+                    zoom: currentZoom
+                });
+            }
+
+            lastTime = time;
+            const id = requestAnimationFrame(animate);
+            useFlightStore.getState().setAnimationId(id);
+        };
+
+        const id = requestAnimationFrame(animate);
+        useFlightStore.getState().setAnimationId(id);
+
+        return () => {
+            const store = useFlightStore.getState();
+            if (store.animationId) cancelAnimationFrame(store.animationId);
+            store.setAnimationId(null);
+        };
+    }, [dashboardOpen, mode, orbitLookAtCenter, orbitPaused]);
+
+    useEffect(() => {
+        if (!dashboardOpen || mode !== 'orbit') return;
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        const stopOnInteract = () => {
+            stopFlight();
+        };
+
+        map.on('dragstart', stopOnInteract);
+        map.on('wheel', stopOnInteract);
+        map.on('touchstart', stopOnInteract);
+
+        return () => {
+            map.off('dragstart', stopOnInteract);
+            map.off('wheel', stopOnInteract);
+            map.off('touchstart', stopOnInteract);
+        };
+    }, [dashboardOpen, mode]);
+
     // Derive altitude from zoom (two-way: zoom IS altitude)
     // zoom 18 = 500m, zoom 0 = ~130km
     const altitude = Math.round(500 * Math.pow(2, 18 - telemetry.zoom));
@@ -739,7 +886,7 @@ export function FlightDashboard() {
         store.setMode('off');
     };
 
-    const startOrbit = (center?: [number, number], skipTransition = false) => {
+    const startOrbit = (center?: [number, number]) => {
         const map = useMapStore.getState().map;
         if (!map) {
             toast.error('Map not ready');
@@ -750,11 +897,10 @@ export function FlightDashboard() {
 
         const proj = map.getProjection();
         const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
-
         const store = useFlightStore.getState();
+
         store.setPrevProjection(currentProj);
         map.setProjection({ type: 'globe' });
-
         map.setFog({
             range: [2, 20],
             color: '#ffffff',
@@ -764,108 +910,24 @@ export function FlightDashboard() {
             'star-intensity': 0.2
         });
 
-        const orbitCenter: [number, number] = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
-        const radius = store.orbitRadius;
-        const startAngle = store.orbitAngle;
+        const orbitCenter = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
 
-        const startAngleRad = (startAngle * Math.PI) / 180;
-        const startLng = orbitCenter[0] + radius * Math.cos(startAngleRad);
-        const startLat = Math.max(-85, Math.min(85, orbitCenter[1] + radius * Math.sin(startAngleRad)));
-        const startHeading = (270 - startAngle + 360) % 360;
+        const currentPos: [number, number] = [map.getCenter().lng, map.getCenter().lat];
+        const dx = (currentPos[0] - orbitCenter[0]) * Math.cos(toRadians(orbitCenter[1])) * 111;
+        const dy = (currentPos[1] - orbitCenter[1]) * 111;
+        const derivedRadius = Math.max(0.5, Math.sqrt(dx * dx + dy * dy));
+        const derivedAngle = (toDegrees(Math.atan2(dy, dx)) + 360) % 360;
 
         store.setOrbitCenter(orbitCenter);
+        store.setOrbitRadius(derivedRadius);
+        store.setOrbitAngle(derivedAngle);
         store.setMode('orbit');
-        store.setTargetAltitude(13);
-        store.setSpeed(280);
-        store.setTargetSpeed(280);
-        store.setTargetPitch(60);
 
-        if (!skipTransition) {
-            map.flyTo({
-                center: [startLng, startLat],
-                bearing: startHeading,
-                pitch: 60,
-                zoom: 13,
-                duration: 1500,
-                essential: true
-            });
-        }
+        store.setTargetAltitude(map.getZoom());
+        store.setTargetPitch(map.getPitch());
+        store.setTargetSpeed(store.speed);
 
-        const startDelay = skipTransition ? 0 : 1600;
-        const timeoutId = window.setTimeout(() => {
-            useFlightStore.getState().setTransitionTimeoutId(null);
-            if (useFlightStore.getState().mode !== 'orbit') return;
-
-            let lastTime = 0;
-            let currentAngle = store.orbitAngle;
-            let currentPitch = 60;
-            let currentZoom = 13;
-            let currentSpeed = 280;
-
-            const animate = (time: number) => {
-                const currentMap = useMapStore.getState().map;
-                const store = useFlightStore.getState();
-
-                if (!currentMap || store.mode !== 'orbit') {
-                    useFlightStore.getState().setAnimationId(null);
-                    return;
-                }
-
-                if (lastTime) {
-                    const delta = Math.min(time - lastTime, 50);
-                    const center = store.orbitCenter;
-                    if (!center) return;
-
-                    const radius = store.orbitRadius;
-                    const clockwise = store.orbitClockwise;
-
-                    if (store.targetPitch !== null) {
-                        currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
-                    }
-
-                    if (store.targetAltitude !== null) {
-                        currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
-                    }
-
-                    if (store.targetSpeed !== null) {
-                        currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
-                        store.setSpeed(currentSpeed);
-                    } else {
-                        currentSpeed = store.speed;
-                    }
-
-                    const radiusKm = radius * 111;
-                    const circumference = 2 * Math.PI * radiusKm;
-                    const degreesPerMs = (currentSpeed / 3600000) / circumference * 360;
-                    const angleIncrement = degreesPerMs * delta * (clockwise ? 1 : -1);
-
-                    currentAngle = (currentAngle + angleIncrement + 360) % 360;
-                    store.setOrbitAngle(currentAngle);
-
-                    const angleRad = (currentAngle * Math.PI) / 180;
-                    const cameraLng = center[0] + radius * Math.cos(angleRad);
-                    const cameraLat = Math.max(-85, Math.min(85, center[1] + radius * Math.sin(angleRad)));
-
-                    const headingToCenter = (270 - currentAngle + 360) % 360;
-
-                    currentMap.jumpTo({
-                        center: [cameraLng, cameraLat],
-                        bearing: headingToCenter,
-                        pitch: currentPitch,
-                        zoom: currentZoom
-                    });
-                }
-
-                lastTime = time;
-                const id = requestAnimationFrame(animate);
-                useFlightStore.getState().setAnimationId(id);
-            };
-
-            const id = requestAnimationFrame(animate);
-            useFlightStore.getState().setAnimationId(id);
-        }, startDelay);
-
-        store.setTransitionTimeoutId(timeoutId);
+        setOrbitPaused(false);
     };
 
     const handleClose = () => {
@@ -873,6 +935,15 @@ export function FlightDashboard() {
             stopFlight();
         }
         closeDashboard();
+    };
+
+    const handleSetOrbitCenter = () => {
+        const map = useMapStore.getState().map;
+        if (!map) return;
+        const center = map.getCenter();
+        const store = useFlightStore.getState();
+        store.setOrbitCenter([center.lng, center.lat]);
+        store.setOrbitAngle(0);
     };
 
     // Apply heading change - set target for smooth easing
@@ -1202,9 +1273,17 @@ export function FlightDashboard() {
 
                                 {/* Orbit controls - only show in orbit mode */}
                                 {mode === 'orbit' ? (
-                                    <OrbitControls />
+                                    <OrbitControls
+                                        lookAtCenter={orbitLookAtCenter}
+                                        paused={orbitPaused}
+                                        onToggleLook={() => setOrbitLookAtCenter((v) => !v)}
+                                        onTogglePause={() => setOrbitPaused((v) => !v)}
+                                        onSetCenter={handleSetOrbitCenter}
+                                    />
                                 ) : (
-                                    <div className="text-orange-400/30 text-[8px] font-mono">CENTERED ON MAP</div>
+                                    <div className="text-orange-400/30 text-[8px] font-mono">
+                                        {orbitCenter ? 'CENTER LOCKED' : 'CENTERED ON MAP'}
+                                    </div>
                                 )}
                             </div>
 

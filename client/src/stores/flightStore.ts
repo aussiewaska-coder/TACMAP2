@@ -19,7 +19,7 @@ interface FlightState {
 
     // Orbit mode state
     orbitCenter: [number, number] | null; // [lng, lat] center point
-    orbitRadius: number; // in degrees (approx ~111km per degree at equator)
+    orbitRadius: number; // in kilometers
     orbitAngle: number; // current position on circle (0-360)
     orbitClockwise: boolean; // direction of orbit
 
@@ -60,7 +60,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     targetPitch: null,
     targetSpeed: null,
     orbitCenter: null,
-    orbitRadius: 0.02, // ~2.2km at equator - good default
+    orbitRadius: 3, // km
     orbitAngle: 0,
     orbitClockwise: true,
     satelliteEnabled: false,
