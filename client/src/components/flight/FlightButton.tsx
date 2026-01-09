@@ -79,10 +79,11 @@ export function FlightButton() {
         store.setTargetPitch(70);       // 70° tilt
         // Don't set targetHeading - keep current map direction
 
+        // Store initial values - these are the SOURCE OF TRUTH, never read from map again
         let lastTime = 0;
         let currentHeading = map.getBearing();  // Retain current direction
-        let currentPitch = map.getPitch();
-        let currentZoom = map.getZoom();
+        let currentPitch = 70;                  // Force to target pitch
+        let currentZoom = 13;                   // Force to target zoom - DON'T read from map
         let currentSpeed = 375;
 
         const animate = (time: number) => {
@@ -174,12 +175,13 @@ export function FlightButton() {
         store.setTargetSpeed(375);      // Set target so easing works
         store.setTargetPitch(70);       // 70° tilt
 
+        // Store initial values - these are the SOURCE OF TRUTH, never read from map again
         let lastTime = 0;
         let autoTargetBearing = map.getBearing();
         let waypoint = { lng: map.getCenter().lng, lat: map.getCenter().lat };
         let currentHeading = map.getBearing();
-        let currentPitch = map.getPitch();
-        let currentZoom = map.getZoom();
+        let currentPitch = 70;          // Force to target pitch
+        let currentZoom = 13;           // Force to target zoom - DON'T read from map
         let currentSpeed = 375;
 
         const animate = (time: number) => {
