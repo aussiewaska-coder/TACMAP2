@@ -100,7 +100,7 @@ export function FlightButton() {
 
                 // Zoom easing - targetAltitude stores the target zoom level
                 if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 6);
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 3);
                 } else {
                     currentZoom = currentMap.getZoom();
                 }
@@ -203,7 +203,7 @@ export function FlightButton() {
 
                 // Zoom easing - targetAltitude stores the target zoom level
                 if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 6);
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 3);
                 } else {
                     currentZoom = currentMap.getZoom();
                 }
