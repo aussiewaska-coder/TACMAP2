@@ -70,8 +70,8 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
                 if (seenHex.has(hex)) continue;
                 seenHex.add(hex);
 
-                // Only include if it was in our requested list
-                if (!icaoSet.has(hex)) continue;
+                // CHANGED: Show ALL aircraft from API, not just registry aircraft
+                // This proves the API is working and shows actual air traffic
                 if (ac.lat === undefined || ac.lon === undefined) continue;
 
                 // v2 API provides 'seen' field (seconds since last update)
