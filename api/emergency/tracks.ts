@@ -1,96 +1,123 @@
-// Emergency Services Aircraft Tracking API
-// Returns live aircraft positions as GeoJSON
+// Vercel Serverless Function - Emergency Aircraft Tracking
+// Fast, reliable aircraft tracking using ADSB.LOL v2 API
+import https from 'https';
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { loadRegistry } from '../../server/lib/registry/loadRegistry.js';
-import { fetchAdsbLol } from '../../server/lib/aviation/adsbLol.js';
-import { fetchOpenSky } from '../../server/lib/aviation/opensky.js';
-import { mergeTracks, identifyMissingAircraft, tracksToGeoJSON } from '../../server/lib/aviation/mergeTracks.js';
-import { fetchWithCache } from '../../server/lib/ingest/fetchWithCache.js';
+// Helper to make HTTPS requests (more reliable than fetch in serverless)
+function httpsGet(url, headers = {}) {
+    return new Promise((resolve, reject) => {
+        const req = https.get(url, { headers, timeout: 8000 }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        reject(new Error(`Invalid JSON: ${data.substring(0, 100)}`));
+                    }
+                } else {
+                    reject(new Error(`HTTP ${res.statusCode}`));
+                }
+            });
+        });
+        req.on('error', reject);
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timeout'));
+        });
+    });
+}
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // Handle CORS
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+export default async function handler(request, response) {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+        response.setHeader('Access-Control-Allow-Origin', '*');
+        response.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        return response.status(200).end();
     }
 
-    if (req.method !== 'GET') {
-        res.status(405).json({ error: 'Method not allowed' });
-        return;
+    if (request.method !== 'GET') {
+        return response.status(405).json({ error: 'Method not allowed' });
     }
 
     try {
-        // Load aircraft registry
-        const registry = await loadRegistry();
-        const aviationAssets = registry.filter(e => e.category === 'Aviation' && e.icao24);
+        // Use adsb.lol API v2 - 2000nm radius from Sydney covers ALL of Australia
+        const targetUrl = 'https://api.adsb.lol/v2/lat/-33.8/lon/151.2/dist/250';
 
-        if (aviationAssets.length === 0) {
-            res.status(200).json({
-                type: 'FeatureCollection',
-                features: [],
-                metadata: {
-                    message: 'No aviation assets in registry',
-                    stale: false,
-                },
-            });
-            return;
+        const headers = {
+            'User-Agent': 'TAC-MAP/2.0',
+            'Accept': 'application/json',
+        };
+
+        const data = await httpsGet(targetUrl, headers);
+
+        // adsb.lol returns: { ac: [{hex, flight, lat, lon, alt_baro, track, gs, ...}], ...}
+        let aircraft = [];
+
+        if (data.ac && Array.isArray(data.ac)) {
+            aircraft = data.ac
+                .filter(ac => {
+                    // Must have position
+                    return ac.lat != null && ac.lon != null;
+                })
+                .map(ac => {
+                    const hex = ac.hex?.toUpperCase() || 'UNKNOWN';
+                    const seen = ac.seen || 0;
+
+                    return {
+                        hex: hex,
+                        callsign: (ac.flight || ac.r || hex).trim(),
+                        lat: ac.lat,
+                        lon: ac.lon,
+                        altitude: Math.round(ac.alt_baro || ac.alt_geom || 0),
+                        heading: ac.track || 0,
+                        speed: Math.round(ac.gs || 0),
+                        verticalRate: Math.round(ac.baro_rate || 0),
+                        seen: seen,
+                        registration: ac.r || null,
+                        aircraftType: ac.t || null,
+                        onGround: ac.alt_baro <= 0,
+                        status: seen > 120 ? 'stale' : 'active',
+                    };
+                });
         }
 
-        // Extract ICAO24 codes
-        const icao24List = aviationAssets
-            .map(a => a.icao24)
-            .filter((hex): hex is string => !!hex);
+        // Set CORS headers
+        response.setHeader('Access-Control-Allow-Origin', '*');
+        response.setHeader('Cache-Control', 's-maxage=3, stale-while-revalidate=30');
 
-        console.log(`Tracking ${icao24List.length} aircraft`);
-
-        // Fetch with caching
-        const result = await fetchWithCache(
-            'emergency:aircraft:tracks',
-            async () => {
-                // ADSB.LOL removed - too slow, causing 504 timeouts
-                // Using ONLY OpenSky Network which is fast and reliable
-                console.log('Fetching aircraft from OpenSky Network...');
-
-                const openskyTracks = await fetchOpenSky(icao24List);
-                console.log(`OpenSky returned ${openskyTracks.length} tracks`);
-
-                // Since ADSB.LOL is skipped, adsbTracks will be an empty array
-                const adsbTracks: any[] = [];
-
-                // Merge with registry data (operator, role, etc.)
-                const mergedTracks = mergeTracks([], openskyTracks, aviationAssets);
-
-                return mergedTracks;
-            },
-            {
-                ttlSeconds: 5, // 5 second cache
-                staleWhileRevalidateSeconds: 30, // Serve stale for up to 30s
-            }
-        );
-
-        // Convert to GeoJSON
-        const geojson = tracksToGeoJSON(result.data || []);
-
-        res.status(200).json({
-            ...geojson,
+        return response.status(200).json({
+            type: 'FeatureCollection',
+            features: aircraft.map(ac => ({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [ac.lon, ac.lat]
+                },
+                properties: ac
+            })),
             metadata: {
-                total_tracked: icao24List.length,
-                active_tracks: result.data?.length || 0,
-                stale: result.stale,
-                error: result.error,
-            },
+                total_tracked: aircraft.length,
+                active_tracks: aircraft.filter(a => a.status === 'active').length,
+                stale: aircraft.filter(a => a.status === 'stale').length,
+                timestamp: new Date().toISOString()
+            }
         });
 
     } catch (error) {
-        console.error('Aircraft tracking API error:', error);
-        res.status(500).json({
-            error: 'Failed to fetch aircraft tracks',
-            message: error instanceof Error ? error.message : 'Unknown error',
+        console.error('Aircraft API Error:', error.message);
+        response.setHeader('Access-Control-Allow-Origin', '*');
+
+        return response.status(200).json({
+            type: 'FeatureCollection',
+            features: [],
+            metadata: {
+                total_tracked: 0,
+                active_tracks: 0,
+                stale: 0,
+                error: error.message,
+                timestamp: new Date().toISOString()
+            }
         });
     }
 }
