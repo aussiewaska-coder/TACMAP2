@@ -1,10 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
 import { toast } from 'sonner';
+import type { MapMouseEvent } from 'maplibre-gl';
 
 // Smooth easing for heading (handles wrap-around at 360°) - exponential ease for smooth start/stop
 const easeHeading = (current: number, target: number, delta: number, smoothing: number): number => {
@@ -151,6 +152,172 @@ export function FlightButton() {
         useFlightStore.getState().setAnimationId(id);
         toast.info('Flight: Pan mode');
     };
+
+    // ORBIT MODE - circles around a center point
+    const startOrbit = (center?: [number, number]) => {
+        const map = useMapStore.getState().map;
+        if (!map) {
+            toast.error('Map not ready');
+            return;
+        }
+
+        stopFlight();
+
+        const store = useFlightStore.getState();
+
+        // Use provided center, existing orbit center, or screen center
+        const orbitCenter: [number, number] = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
+
+        store.setOrbitCenter(orbitCenter);
+        store.setMode('orbit');
+        store.setTargetAltitude(13);    // 3K feet = zoom 13
+        store.setSpeed(280);
+        store.setTargetSpeed(280);
+        store.setTargetPitch(60);       // 60° tilt for good orbit view
+
+        let lastTime = 0;
+        let currentAngle = store.orbitAngle; // Resume from where we left off
+        let currentPitch = 60;
+        let currentZoom = 13;
+        let currentSpeed = 280;
+
+        const animate = (time: number) => {
+            const currentMap = useMapStore.getState().map;
+            const store = useFlightStore.getState();
+
+            if (!currentMap || store.mode !== 'orbit') {
+                useFlightStore.getState().setAnimationId(null);
+                return;
+            }
+
+            if (lastTime) {
+                const delta = Math.min(time - lastTime, 50);
+                const center = store.orbitCenter;
+                if (!center) return;
+
+                // Read dynamic values from store (can be changed during flight)
+                const radius = store.orbitRadius;
+                const clockwise = store.orbitClockwise;
+
+                // Pitch easing
+                if (store.targetPitch !== null) {
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
+                }
+
+                // Zoom easing
+                if (store.targetAltitude !== null) {
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
+                }
+
+                // Speed easing
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
+                    store.setSpeed(currentSpeed);
+                } else {
+                    currentSpeed = store.speed;
+                }
+
+                // Calculate angular velocity based on speed and radius
+                // Speed in km/h, radius in degrees (~111km per degree at equator)
+                const radiusKm = radius * 111; // Approximate km
+                const circumference = 2 * Math.PI * radiusKm;
+                const degreesPerMs = (currentSpeed / 3600000) / circumference * 360; // degrees per ms
+                const angleIncrement = degreesPerMs * delta * (clockwise ? 1 : -1);
+
+                currentAngle = (currentAngle + angleIncrement + 360) % 360;
+                store.setOrbitAngle(currentAngle);
+
+                // Calculate camera position on the orbit circle
+                // Math coords: 0° = east, 90° = north (counter-clockwise from east)
+                const angleRad = (currentAngle * Math.PI) / 180;
+                const cameraLng = center[0] + radius * Math.cos(angleRad);
+                const cameraLat = Math.max(-85, Math.min(85, center[1] + radius * Math.sin(angleRad)));
+
+                // Heading always faces toward center point (cinematic orbit)
+                // From angle position, look 180° opposite direction toward center
+                // Math angle to compass bearing: bearing = 90° - angle (east=0° in math, but 90° in compass)
+                // Plus 180° to face inward = (270° - angle)
+                const headingToCenter = (270 - currentAngle + 360) % 360;
+
+                currentMap.jumpTo({
+                    center: [cameraLng, cameraLat],
+                    bearing: headingToCenter,
+                    pitch: currentPitch,
+                    zoom: currentZoom
+                });
+            }
+
+            lastTime = time;
+            const id = requestAnimationFrame(animate);
+            useFlightStore.getState().setAnimationId(id);
+        };
+
+        const id = requestAnimationFrame(animate);
+        useFlightStore.getState().setAnimationId(id);
+        toast.info('Flight: Orbit mode');
+    };
+
+    // Expose startOrbit globally so dashboard can trigger it
+    (window as { startOrbit?: typeof startOrbit }).startOrbit = startOrbit;
+
+    // Store startOrbit in a ref so useEffect can access latest version
+    const startOrbitRef = useRef(startOrbit);
+    startOrbitRef.current = startOrbit;
+
+    // Handle map interactions when flight mode is active
+    useEffect(() => {
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        // Only set up handlers when flight is active
+        if (mode === 'off') {
+            map.doubleClickZoom.enable();
+            return;
+        }
+
+        // Double-click sets orbit center
+        const handleDblClick = (e: MapMouseEvent) => {
+            e.preventDefault();
+
+            const lngLat = e.lngLat;
+            const clickedCenter: [number, number] = [lngLat.lng, lngLat.lat];
+
+            // Stop current flight
+            stopFlight();
+
+            // First fly to the location, then start orbiting
+            map.flyTo({
+                center: clickedCenter,
+                zoom: 13,
+                pitch: 60,
+                duration: 2000,
+                essential: true
+            });
+
+            // After fly animation, start orbit
+            setTimeout(() => {
+                startOrbitRef.current(clickedCenter);
+            }, 2100);
+
+            toast.info('Flying to orbit point...');
+        };
+
+        // Stop flight on user map interactions (drag, wheel, touch)
+        const handleDragStart = () => {
+            stopFlight();
+            toast.info('Flight stopped');
+        };
+
+        // Disable default double-click zoom when flight is active
+        map.doubleClickZoom.disable();
+        map.on('dblclick', handleDblClick);
+        map.on('dragstart', handleDragStart);
+
+        return () => {
+            map.off('dblclick', handleDblClick);
+            map.off('dragstart', handleDragStart);
+        };
+    }, [mode]);
 
     // SIGHTSEEING MODE - wanders around, controls zoom via easing
     const startSightseeing = () => {
@@ -325,6 +492,7 @@ export function FlightButton() {
                 ${mode === 'pan' ? 'bg-blue-600 text-white' : ''}
                 ${mode === 'sightseeing' ? 'bg-purple-600 text-white animate-pulse' : ''}
                 ${mode === 'manual' ? 'bg-green-600 text-white' : ''}
+                ${mode === 'orbit' ? 'bg-orange-600 text-white animate-pulse' : ''}
                 ${mode === 'off' ? 'bg-white/90 backdrop-blur-xl text-gray-800 hover:bg-white border border-white/50' : ''}
             `}
             style={{ zIndex: Z_INDEX.CONTROLS }}

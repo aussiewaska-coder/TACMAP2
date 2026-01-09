@@ -1,4 +1,4 @@
-import { X, Plane, Globe } from 'lucide-react';
+import { X, Plane, Globe, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
@@ -422,6 +422,97 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
     );
 }
 
+// Orbit mode indicator - shows current heading and orbit angle
+function OrbitIndicator({ heading }: { heading: number }) {
+    const orbitAngle = useFlightStore((s) => s.orbitAngle);
+    const clockwise = useFlightStore((s) => s.orbitClockwise);
+
+    return (
+        <div className="flex flex-col items-center gap-1 select-none">
+            <div className="text-orange-400/50 text-[10px] font-mono font-bold tracking-wider">ORBIT</div>
+
+            {/* Animated orbit ring */}
+            <div className="relative w-24 h-24">
+                {/* Outer ring */}
+                <div className="absolute inset-0 rounded-full bg-black/80 border-2 border-orange-500/40 shadow-lg shadow-orange-500/10" />
+
+                {/* Orbit path ring */}
+                <div className="absolute inset-2 rounded-full border border-dashed border-orange-400/30" />
+
+                {/* Center point indicator */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-3 h-3 rounded-full bg-orange-500 shadow-lg shadow-orange-500/50 animate-pulse" />
+                </div>
+
+                {/* Camera position on orbit (rotating dot) */}
+                <div
+                    className="absolute inset-0 flex items-center justify-center"
+                    style={{ transform: `rotate(${orbitAngle}deg)` }}
+                >
+                    <div className="absolute w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50"
+                        style={{ transform: 'translateX(32px)' }}
+                    />
+                </div>
+
+                {/* Direction arrow */}
+                <div className="absolute bottom-1 right-1">
+                    <RotateCw className={`w-4 h-4 text-orange-400/50 ${clockwise ? '' : 'scale-x-[-1]'}`} />
+                </div>
+            </div>
+
+            {/* Heading readout */}
+            <div className="text-orange-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-orange-500/30">
+                {Math.round(heading).toString().padStart(3, '0')}°
+            </div>
+        </div>
+    );
+}
+
+// Orbit mode controls - direction toggle and radius display
+function OrbitControls() {
+    const clockwise = useFlightStore((s) => s.orbitClockwise);
+    const radius = useFlightStore((s) => s.orbitRadius);
+    const setClockwise = useFlightStore((s) => s.setOrbitClockwise);
+    const setRadius = useFlightStore((s) => s.setOrbitRadius);
+
+    // Convert radius to approximate km (at equator)
+    const radiusKm = (radius * 111).toFixed(1);
+
+    return (
+        <div className="flex flex-col items-center gap-1">
+            {/* Direction toggle */}
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setClockwise(!clockwise)}
+                    className="px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center gap-1"
+                >
+                    <RotateCw className={`w-3 h-3 ${clockwise ? '' : 'scale-x-[-1]'}`} />
+                    {clockwise ? 'CW' : 'CCW'}
+                </button>
+            </div>
+
+            {/* Radius display and quick adjust */}
+            <div className="flex items-center gap-1">
+                <button
+                    onClick={() => setRadius(Math.max(0.005, radius * 0.7))}
+                    className="w-5 h-5 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
+                >
+                    -
+                </button>
+                <div className="text-orange-400/50 text-[9px] font-mono px-1">
+                    {radiusKm}km
+                </div>
+                <button
+                    onClick={() => setRadius(Math.min(0.5, radius * 1.4))}
+                    className="w-5 h-5 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
+                >
+                    +
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export function FlightDashboard() {
     const mode = useFlightMode();
     const speed = useFlightSpeed(); // From store
@@ -530,6 +621,7 @@ export function FlightDashboard() {
                                 ${mode === 'pan' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : ''}
                                 ${mode === 'sightseeing' ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : ''}
                                 ${mode === 'manual' ? 'bg-green-500/20 text-green-400 border-green-500/50' : ''}
+                                ${mode === 'orbit' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : ''}
                             `}>
                                 {mode.toUpperCase()}
                             </div>
@@ -591,9 +683,46 @@ export function FlightDashboard() {
                                 ]}
                             />
 
-                            {/* HEADING - Center compass */}
-                            <div className="flex flex-col items-center">
-                                <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
+                            {/* HEADING - Center compass + ORBIT controls */}
+                            <div className="flex flex-col items-center gap-2">
+                                {/* Show compass for non-orbit modes, orbit indicator for orbit mode */}
+                                {mode !== 'orbit' ? (
+                                    <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
+                                ) : (
+                                    <OrbitIndicator heading={heading} />
+                                )}
+
+                                {/* ORBIT Button */}
+                                <button
+                                    onClick={() => {
+                                        const startOrbit = (window as { startOrbit?: (center?: [number, number]) => void }).startOrbit;
+                                        if (startOrbit) {
+                                            // Use screen center as orbit point
+                                            const map = useMapStore.getState().map;
+                                            if (map) {
+                                                const center = map.getCenter();
+                                                startOrbit([center.lng, center.lat]);
+                                            }
+                                        }
+                                    }}
+                                    className={`
+                                        px-4 py-1.5 rounded font-mono text-xs font-bold transition-all border flex items-center gap-2
+                                        ${mode === 'orbit'
+                                            ? 'bg-orange-500 text-black border-orange-400 shadow-lg shadow-orange-500/50'
+                                            : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 hover:text-orange-300 cursor-pointer'
+                                        }
+                                    `}
+                                >
+                                    <RotateCw className="w-3 h-3" />
+                                    ORBIT
+                                </button>
+
+                                {/* Orbit controls - only show in orbit mode */}
+                                {mode === 'orbit' ? (
+                                    <OrbitControls />
+                                ) : (
+                                    <div className="text-orange-400/30 text-[8px] font-mono">DBL-CLICK MAP TO SET</div>
+                                )}
                             </div>
 
                             {/* ALTITUDE - Animation loop handles zoom easing */}

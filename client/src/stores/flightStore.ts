@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 
+type FlightMode = 'off' | 'pan' | 'sightseeing' | 'manual' | 'orbit';
+
 interface FlightState {
     dashboardOpen: boolean;
-    mode: 'off' | 'pan' | 'sightseeing' | 'manual';
+    mode: FlightMode;
     animationId: number | null;
     prevProjection: string | null;
     speed: number; // km/h (current smoothed value)
@@ -14,9 +16,15 @@ interface FlightState {
     targetPitch: number | null; // 0-85 degrees, null = no override
     targetSpeed: number | null; // km/h, null = no override
 
+    // Orbit mode state
+    orbitCenter: [number, number] | null; // [lng, lat] center point
+    orbitRadius: number; // in degrees (approx ~111km per degree at equator)
+    orbitAngle: number; // current position on circle (0-360)
+    orbitClockwise: boolean; // direction of orbit
+
     openDashboard: () => void;
     closeDashboard: () => void;
-    setMode: (mode: 'off' | 'pan' | 'sightseeing' | 'manual') => void;
+    setMode: (mode: FlightMode) => void;
     setAnimationId: (id: number | null) => void;
     setPrevProjection: (proj: string | null) => void;
     setSpeed: (speed: number) => void;
@@ -25,6 +33,10 @@ interface FlightState {
     setTargetAltitude: (altitude: number | null) => void;
     setTargetPitch: (pitch: number | null) => void;
     setTargetSpeed: (speed: number | null) => void;
+    setOrbitCenter: (center: [number, number] | null) => void;
+    setOrbitRadius: (radius: number) => void;
+    setOrbitAngle: (angle: number) => void;
+    setOrbitClockwise: (clockwise: boolean) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -38,6 +50,10 @@ export const useFlightStore = create<FlightState>((set) => ({
     targetAltitude: null,
     targetPitch: null,
     targetSpeed: null,
+    orbitCenter: null,
+    orbitRadius: 0.02, // ~2.2km at equator - good default
+    orbitAngle: 0,
+    orbitClockwise: true,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
@@ -50,6 +66,10 @@ export const useFlightStore = create<FlightState>((set) => ({
     setTargetAltitude: (altitude) => set({ targetAltitude: altitude }),
     setTargetPitch: (pitch) => set({ targetPitch: pitch }),
     setTargetSpeed: (speed) => set({ targetSpeed: speed }),
+    setOrbitCenter: (center) => set({ orbitCenter: center }),
+    setOrbitRadius: (radius) => set({ orbitRadius: radius }),
+    setOrbitAngle: (angle) => set({ orbitAngle: angle }),
+    setOrbitClockwise: (clockwise) => set({ orbitClockwise: clockwise }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow
