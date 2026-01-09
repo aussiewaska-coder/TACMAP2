@@ -5,20 +5,7 @@ import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightSt
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
-// DEBUG: Global zoom function
-if (typeof window !== 'undefined') {
-    (window as any).testZoom = (z: number) => {
-        const map = useMapStore.getState().map;
-        if (map) {
-            map.setZoom(z);
-            console.log('ZOOM SET TO', z);
-        } else {
-            console.log('NO MAP');
-        }
-    };
-}
-
-// Altitude preset buttons - DIRECT zoom control
+// Altitude preset buttons with default speeds
 const ALTITUDE_PRESETS = [
     { ft: 50000, zoom: 5, label: '50K', speed: 1500 },
     { ft: 20000, zoom: 8, label: '20K', speed: 1000 },
@@ -27,8 +14,8 @@ const ALTITUDE_PRESETS = [
     { ft: 500, zoom: 16, label: '500', speed: 25 },
 ];
 
-// Altitude Buttons - DIRECTLY controls map zoom
-function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
+// Altitude Buttons - DIRECTLY controls map zoom via flyTo
+function AltitudeButtons({ currentZoom, onAltitudeChange }: { currentZoom: number; onAltitudeChange: (zoom: number, speed: number) => void }) {
     // Find closest preset to current zoom
     const closestPreset = ALTITUDE_PRESETS.reduce((prev, curr) =>
         Math.abs(curr.zoom - currentZoom) < Math.abs(prev.zoom - currentZoom) ? curr : prev
@@ -50,21 +37,7 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                const map = useMapStore.getState().map;
-                                if (map) {
-                                    // Stop flight, zoom, restart
-                                    const store = useFlightStore.getState();
-                                    const wasMode = store.mode;
-                                    if (store.animationId) {
-                                        cancelAnimationFrame(store.animationId);
-                                        store.setAnimationId(null);
-                                    }
-
-                                    // Instant zoom
-                                    map.setZoom(preset.zoom);
-
-                                    // DON'T change speed - user controls that separately
-                                }
+                                onAltitudeChange(preset.zoom, preset.speed);
                             }}
                             className={`
                                 px-3 py-1 rounded font-mono text-xs font-bold transition-all border cursor-pointer
@@ -580,7 +553,22 @@ export function FlightDashboard() {
                             </div>
 
                             {/* ALTITUDE - DIRECT zoom control */}
-                            <AltitudeButtons currentZoom={telemetry.zoom} />
+                            <AltitudeButtons
+                                currentZoom={telemetry.zoom}
+                                onAltitudeChange={(zoom, defaultSpeed) => {
+                                    const map = useMapStore.getState().map;
+                                    if (!map) return;
+
+                                    // Set speed to default for this altitude
+                                    useFlightStore.getState().setSpeed(defaultSpeed);
+
+                                    // Use flyTo for smooth zoom transition - animation loop keeps running
+                                    map.flyTo({
+                                        zoom: zoom,
+                                        duration: 1000,
+                                    });
+                                }}
+                            />
 
                             {/* TILT / PITCH */}
                             <VerticalSlider
