@@ -87,7 +87,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Source updated: ${sourceId}`);
         }
 
-        // Add HEATMAP layer
+        // Add HEATMAP layer - MUCH larger radius for proper blending
         if (!map.getLayer(heatmapLayerId)) {
             map.addLayer({
                 id: heatmapLayerId,
@@ -95,50 +95,41 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 source: sourceId,
                 filter: ['==', ['geometry-type'], 'Point'],
                 paint: {
-                    // Increase weight as diameter increases
-                    'heatmap-weight': [
-                        'interpolate',
-                        ['linear'],
-                        ['get', 'point_count'],
-                        0, 0,
-                        6, 1
-                    ],
-                    // Increase intensity as zoom level increases
+                    // Uniform weight for all points (1.0)
+                    'heatmap-weight': 1,
+                    // High intensity across all zoom levels
                     'heatmap-intensity': [
                         'interpolate',
                         ['linear'],
                         ['zoom'],
-                        0, 1,
-                        14, 3
+                        0, 2,
+                        9, 3,
+                        14, 5
                     ],
-                    // Color ramp: blue -> cyan -> lime -> yellow -> red
+                    // Color ramp: transparent -> purple -> red -> orange -> yellow
                     'heatmap-color': [
                         'interpolate',
                         ['linear'],
                         ['heatmap-density'],
-                        0, 'rgba(0, 0, 255, 0)',
-                        0.2, 'rgb(0, 255, 255)',
-                        0.4, 'rgb(0, 255, 0)',
-                        0.6, 'rgb(255, 255, 0)',
-                        0.8, 'rgb(255, 165, 0)',
-                        1, 'rgb(255, 0, 0)'
+                        0, 'rgba(0, 0, 0, 0)',
+                        0.1, 'rgb(128, 0, 255)',
+                        0.3, 'rgb(255, 0, 0)',
+                        0.5, 'rgb(255, 100, 0)',
+                        0.7, 'rgb(255, 200, 0)',
+                        1, 'rgb(255, 255, 0)'
                     ],
-                    // Increase radius as zoom increases
+                    // Much larger radius for smooth blending
                     'heatmap-radius': [
                         'interpolate',
                         ['linear'],
                         ['zoom'],
-                        0, 2,
-                        14, 20
+                        0, 60,
+                        5, 80,
+                        10, 100,
+                        14, 120
                     ],
-                    // Decrease opacity as zoom increases
-                    'heatmap-opacity': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        7, 0.9,
-                        14, 0.5
-                    ]
+                    // Full opacity
+                    'heatmap-opacity': 0.85
                 },
                 layout: { visibility: showHeatmap ? 'visible' : 'none' }
             });
