@@ -50,16 +50,14 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                console.log('=== ALTITUDE BUTTON CLICKED ===');
-                                console.log('Target zoom:', preset.zoom);
                                 const map = useMapStore.getState().map;
-                                console.log('Map exists:', !!map);
                                 if (map) {
-                                    const beforeZoom = map.getZoom();
-                                    console.log('Before zoom:', beforeZoom);
-                                    map.setZoom(preset.zoom);
-                                    const afterZoom = map.getZoom();
-                                    console.log('After zoom:', afterZoom);
+                                    // Smooth zoom with easing
+                                    map.easeTo({
+                                        zoom: preset.zoom,
+                                        duration: 800,
+                                        easing: (t) => 1 - Math.pow(1 - t, 3) // ease out cubic
+                                    });
                                     useFlightStore.getState().setSpeed(preset.speed);
                                 }
                             }}
