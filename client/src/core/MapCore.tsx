@@ -106,6 +106,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 bearing: MAP_CONFIG.DEFAULT_BEARING,
                 minZoom: MAP_CONFIG.MIN_ZOOM,
                 maxZoom: MAP_CONFIG.MAX_ZOOM,
+                maxPitch: 85, // Allow steep tilt for flight mode
                 attributionControl: false,
             });
 

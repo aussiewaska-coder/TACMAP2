@@ -115,7 +115,7 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                const speedFactor = (store.speed / 250) * 0.00001;
+                const speedFactor = (store.speed / 250) * 0.000001; // Reduced 10x for realistic speed
                 const center = currentMap.getCenter();
 
                 // Smooth heading toward target (45° per second turn rate)
@@ -259,7 +259,7 @@ export function FlightButton() {
 
                 // Move toward waypoint
                 const moveAngle = Math.atan2(dy, dx);
-                const moveSpeed = 0.000012 * delta * speedFactor;
+                const moveSpeed = 0.0000012 * delta * speedFactor; // Reduced 10x for realistic speed
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
