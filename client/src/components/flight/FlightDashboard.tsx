@@ -149,10 +149,30 @@ function VerticalSlider({
     );
 }
 
-// Glassmorphic Ball Compass Component
-function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingChange: (h: number) => void }) {
+// Glassmorphic Ball Compass Component with target indicator and snap-to-cardinal
+function BallCompass({ heading, targetHeading, onHeadingChange }: {
+    heading: number;
+    targetHeading: number | null;
+    onHeadingChange: (h: number) => void;
+}) {
     const compassRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
+    const lastTapTime = useRef(0);
+
+    // Snap to nearest cardinal direction (N=0, E=90, S=180, W=270)
+    const snapToCardinal = (angle: number): number => {
+        const cardinals = [0, 90, 180, 270, 360];
+        let closest = 0;
+        let minDiff = 360;
+        for (const c of cardinals) {
+            const diff = Math.abs(((angle - c + 180) % 360) - 180);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closest = c % 360;
+            }
+        }
+        return closest;
+    };
 
     const getAngleFromEvent = useCallback((e: MouseEvent | TouchEvent) => {
         if (!compassRef.current) return heading;
@@ -169,10 +189,22 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
 
     const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
+
+        // Double-tap detection for snap-to-cardinal
+        const now = Date.now();
+        if (now - lastTapTime.current < 300) {
+            // Double tap - snap to nearest cardinal
+            const snapped = snapToCardinal(targetHeading ?? heading);
+            onHeadingChange(snapped);
+            lastTapTime.current = 0;
+            return;
+        }
+        lastTapTime.current = now;
+
         isDragging.current = true;
         const nativeEvent = 'touches' in e ? e.nativeEvent : e.nativeEvent;
         onHeadingChange(getAngleFromEvent(nativeEvent as MouseEvent | TouchEvent));
-    }, [getAngleFromEvent, onHeadingChange]);
+    }, [getAngleFromEvent, onHeadingChange, heading, targetHeading]);
 
     useEffect(() => {
         const handleMove = (e: MouseEvent | TouchEvent) => {
@@ -198,6 +230,9 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
         };
     }, [getAngleFromEvent, onHeadingChange]);
 
+    // Show target indicator if different from current
+    const showTarget = targetHeading !== null && Math.abs(((targetHeading - heading + 180) % 360) - 180) > 2;
+
     return (
         <div className="flex flex-col items-center gap-1 select-none">
             {/* Label */}
@@ -215,9 +250,9 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
                 {/* Inner dark sphere */}
                 <div className="absolute inset-1 rounded-full bg-gradient-to-br from-slate-900 to-black border border-green-500/20 shadow-inner" />
 
-                {/* Compass rose - rotates with heading */}
+                {/* Compass rose - rotates with CURRENT heading */}
                 <div
-                    className="absolute inset-2 rounded-full"
+                    className="absolute inset-2 rounded-full transition-transform duration-75"
                     style={{ transform: `rotate(${-heading}deg)` }}
                 >
                     {/* Cardinal directions */}
@@ -245,6 +280,16 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
                     ))}
                 </div>
 
+                {/* TARGET heading indicator (ghost chevron) - shows where you're turning to */}
+                {showTarget && (
+                    <div
+                        className="absolute inset-0 flex items-center justify-center pointer-events-none transition-transform duration-100"
+                        style={{ transform: `rotate(${(targetHeading ?? 0) - heading}deg)` }}
+                    >
+                        <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[8px] border-l-transparent border-r-transparent border-b-amber-400/60 -translate-y-4 animate-pulse" />
+                    </div>
+                )}
+
                 {/* Fixed aircraft indicator (pointing up = current heading) */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[10px] border-l-transparent border-r-transparent border-b-green-400 -translate-y-3 drop-shadow-[0_0_3px_rgba(74,222,128,0.5)]" />
@@ -256,10 +301,20 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
                 </div>
             </div>
 
-            {/* Heading readout */}
-            <div className="text-green-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-green-500/30">
-                {Math.round(heading).toString().padStart(3, '0')}°
+            {/* Heading readout - show target if turning */}
+            <div className="flex items-center gap-1">
+                <div className="text-green-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-green-500/30">
+                    {Math.round(heading).toString().padStart(3, '0')}°
+                </div>
+                {showTarget && (
+                    <div className="text-amber-400/70 font-mono text-xs">
+                        → {Math.round(targetHeading ?? 0).toString().padStart(3, '0')}°
+                    </div>
+                )}
             </div>
+
+            {/* Hint */}
+            <div className="text-green-400/30 text-[8px] font-mono">2x TAP TO SNAP</div>
         </div>
     );
 }
@@ -267,6 +322,8 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
 export function FlightDashboard() {
     const mode = useFlightMode();
     const speed = useFlightSpeed(); // From store
+    const targetHeading = useFlightStore((s) => s.targetHeading);
+    const targetAltitude = useFlightStore((s) => s.targetAltitude);
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -320,23 +377,14 @@ export function FlightDashboard() {
         store.setMode('off');
     };
 
-    // Apply heading change - just change map bearing
+    // Apply heading change - set target for smooth easing
     const applyHeading = (newHeading: number) => {
-        const map = useMapStore.getState().map;
-        if (map) {
-            map.setBearing(newHeading); // Instant, no animation fighting
-        }
+        useFlightStore.getState().setTargetHeading(newHeading);
     };
 
-    // Apply altitude change - just change map zoom
+    // Apply altitude change - set target for smooth easing
     const applyAltitude = (newAlt: number) => {
-        // Convert altitude to zoom: higher altitude = lower zoom
-        // 1000m = zoom 15, 50000m = zoom 3
-        const zoom = 18 - (Math.log(newAlt / 500) / Math.log(2));
-        const map = useMapStore.getState().map;
-        if (map) {
-            map.setZoom(Math.max(1, Math.min(18, zoom))); // Instant, no animation fighting
-        }
+        useFlightStore.getState().setTargetAltitude(newAlt);
     };
 
     // Update speed in store
@@ -424,7 +472,7 @@ export function FlightDashboard() {
 
                             {/* HEADING - Center compass */}
                             <div className="flex flex-col items-center">
-                                <BallCompass heading={heading} onHeadingChange={applyHeading} />
+                                <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
                             </div>
 
                             {/* ALTITUDE - Right side */}

@@ -8,6 +8,10 @@ interface FlightState {
     speed: number; // km/h
     userZooming: boolean; // Track when user is actively zooming (double-click, pinch, wheel)
 
+    // Target values for smooth easing
+    targetHeading: number | null; // null = no override, use current
+    targetAltitude: number | null; // in meters, null = no override
+
     openDashboard: () => void;
     closeDashboard: () => void;
     setMode: (mode: 'off' | 'pan' | 'sightseeing' | 'manual') => void;
@@ -15,6 +19,8 @@ interface FlightState {
     setPrevProjection: (proj: string | null) => void;
     setSpeed: (speed: number) => void;
     setUserZooming: (zooming: boolean) => void;
+    setTargetHeading: (heading: number | null) => void;
+    setTargetAltitude: (altitude: number | null) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -24,14 +30,18 @@ export const useFlightStore = create<FlightState>((set) => ({
     prevProjection: null,
     speed: 250,
     userZooming: false,
+    targetHeading: null,
+    targetAltitude: null,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
-    setMode: (mode) => set({ mode }),
+    setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null }),
     setAnimationId: (id) => set({ animationId: id }),
     setPrevProjection: (proj) => set({ prevProjection: proj }),
     setSpeed: (speed) => set({ speed }),
     setUserZooming: (zooming) => set({ userZooming: zooming }),
+    setTargetHeading: (heading) => set({ targetHeading: heading }),
+    setTargetAltitude: (altitude) => set({ targetAltitude: altitude }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow

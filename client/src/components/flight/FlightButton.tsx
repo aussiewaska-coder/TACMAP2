@@ -6,6 +6,35 @@ import { useFlightStore, useFlightMode } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
 import { toast } from 'sonner';
 
+// Convert altitude (meters) to map zoom level
+const altitudeToZoom = (alt: number): number => {
+    // 500m = zoom 18, 50000m = zoom ~3
+    return Math.max(1, Math.min(18, 18 - Math.log2(alt / 500)));
+};
+
+// Convert zoom to altitude (meters)
+const zoomToAltitude = (zoom: number): number => {
+    return 500 * Math.pow(2, 18 - zoom);
+};
+
+// Smooth easing for heading (handles wrap-around at 360°)
+const easeHeading = (current: number, target: number, delta: number, rate: number): number => {
+    // Calculate shortest angular distance
+    let diff = ((target - current + 540) % 360) - 180;
+    // Aircraft turn rate: ~3° per second at cruise, scaled by delta
+    const maxTurn = rate * delta * 0.001; // rate degrees per second
+    const turn = Math.sign(diff) * Math.min(Math.abs(diff), maxTurn);
+    return (current + turn + 360) % 360;
+};
+
+// Smooth easing for altitude (realistic climb/descent rate)
+const easeAltitude = (current: number, target: number, delta: number, rate: number): number => {
+    const diff = target - current;
+    // Climb/descent rate: ~500m per second at max, scaled by delta
+    const maxChange = rate * delta * 0.001; // rate meters per second
+    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+};
+
 export function FlightButton() {
     const mode = useFlightMode();
     const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,22 +66,26 @@ export function FlightButton() {
         useFlightStore.getState().setMode('pan');
 
         let lastTime = 0;
-        let lockedZoom = map.getZoom(); // Initial locked altitude - ONLY changes on user zoom
+        // Current smoothed values (what we actually apply to the map)
+        let currentAltitude = zoomToAltitude(map.getZoom());
+        let currentHeading = map.getBearing();
 
-        // Track user zoom interactions - update lockedZoom ONLY when user finishes zooming
+        // Track user zoom interactions - update current altitude when user finishes zooming
         const onZoomEnd = () => {
             const m = useMapStore.getState().map;
-            if (m) lockedZoom = m.getZoom();
+            if (m) {
+                currentAltitude = zoomToAltitude(m.getZoom());
+                // Clear target so we maintain user's choice
+                useFlightStore.getState().setTargetAltitude(null);
+            }
         };
         map.on('zoomend', onZoomEnd);
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
-            const currentMode = useFlightStore.getState().mode;
-            const speed = useFlightStore.getState().speed;
+            const store = useFlightStore.getState();
 
-            if (!currentMap || currentMode !== 'pan') {
-                // Cleanup listener
+            if (!currentMap || store.mode !== 'pan') {
                 currentMap?.off('zoomend', onZoomEnd);
                 useFlightStore.getState().setAnimationId(null);
                 return;
@@ -60,17 +93,32 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                const speedFactor = (speed / 250) * 0.00001;
+                const speedFactor = (store.speed / 250) * 0.00001;
                 const center = currentMap.getCenter();
-                const bearing = currentMap.getBearing();
 
-                const bearingRad = (bearing * Math.PI) / 180;
+                // Smooth heading toward target (45° per second turn rate)
+                if (store.targetHeading !== null) {
+                    currentHeading = easeHeading(currentHeading, store.targetHeading, delta, 45);
+                } else {
+                    currentHeading = currentMap.getBearing(); // Follow map if no target
+                }
+
+                // Smooth altitude toward target (2000m per second climb/descent)
+                if (store.targetAltitude !== null) {
+                    currentAltitude = easeAltitude(currentAltitude, store.targetAltitude, delta, 2000);
+                }
+
+                // Move in the direction of CURRENT (smoothed) heading
+                const bearingRad = (currentHeading * Math.PI) / 180;
                 const moveDist = speedFactor * delta;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
-                // ALWAYS force the locked zoom - never let terrain affect altitude
-                currentMap.jumpTo({ center: [newLng, newLat], zoom: lockedZoom });
+                currentMap.jumpTo({
+                    center: [newLng, newLat],
+                    bearing: currentHeading,
+                    zoom: altitudeToZoom(currentAltitude)
+                });
             }
 
             lastTime = time;
@@ -100,24 +148,26 @@ export function FlightButton() {
         useFlightStore.getState().setMode('sightseeing');
 
         let lastTime = 0;
-        let targetBearing = map.getBearing();
+        let autoTargetBearing = map.getBearing();
         let waypoint = { lng: map.getCenter().lng, lat: map.getCenter().lat };
-        let lockedZoom = map.getZoom(); // Initial locked altitude - ONLY changes on user zoom
+        let currentAltitude = zoomToAltitude(map.getZoom());
+        let currentHeading = map.getBearing();
 
-        // Track user zoom interactions - update lockedZoom ONLY when user finishes zooming
+        // Track user zoom interactions
         const onZoomEnd = () => {
             const m = useMapStore.getState().map;
-            if (m) lockedZoom = m.getZoom();
+            if (m) {
+                currentAltitude = zoomToAltitude(m.getZoom());
+                useFlightStore.getState().setTargetAltitude(null);
+            }
         };
         map.on('zoomend', onZoomEnd);
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
-            const currentMode = useFlightStore.getState().mode;
-            const speed = useFlightStore.getState().speed;
+            const store = useFlightStore.getState();
 
-            if (!currentMap || currentMode !== 'sightseeing') {
-                // Cleanup listener
+            if (!currentMap || store.mode !== 'sightseeing') {
                 currentMap?.off('zoomend', onZoomEnd);
                 useFlightStore.getState().setAnimationId(null);
                 return;
@@ -126,24 +176,30 @@ export function FlightButton() {
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
                 const center = currentMap.getCenter();
-                const bearing = currentMap.getBearing();
-
-                // Speed factor based on throttle (250 baseline)
-                const speedFactor = speed / 250;
+                const speedFactor = store.speed / 250;
 
                 // Distance to waypoint
                 const dx = waypoint.lng - center.lng;
                 const dy = waypoint.lat - center.lat;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                // Generate new waypoint when close (no zoom changes - altitude locked)
+                // Generate new waypoint when close
                 if (dist < 0.02) {
                     const angle = Math.random() * 6.28;
                     waypoint = {
                         lng: ((center.lng + Math.cos(angle) * 0.15 + 180) % 360) - 180,
                         lat: Math.max(-85, Math.min(85, center.lat + Math.sin(angle) * 0.15))
                     };
-                    targetBearing = (targetBearing + Math.random() * 90 - 45 + 360) % 360;
+                    autoTargetBearing = (autoTargetBearing + Math.random() * 90 - 45 + 360) % 360;
+                }
+
+                // Use store target heading if set by user, otherwise use auto waypoint heading
+                const targetHeading = store.targetHeading !== null ? store.targetHeading : autoTargetBearing;
+                currentHeading = easeHeading(currentHeading, targetHeading, delta, 30); // Slower turn in sightseeing
+
+                // Smooth altitude toward target
+                if (store.targetAltitude !== null) {
+                    currentAltitude = easeAltitude(currentAltitude, store.targetAltitude, delta, 2000);
                 }
 
                 // Move toward waypoint
@@ -152,12 +208,11 @@ export function FlightButton() {
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
-                // Smooth bearing
-                const bearingDiff = ((targetBearing - bearing + 540) % 360) - 180;
-                const newBearing = bearing + Math.sign(bearingDiff) * Math.min(Math.abs(bearingDiff), 0.03 * delta);
-
-                // ALWAYS force locked zoom - never let terrain affect altitude
-                currentMap.jumpTo({ center: [newLng, newLat], bearing: newBearing, zoom: lockedZoom });
+                currentMap.jumpTo({
+                    center: [newLng, newLat],
+                    bearing: currentHeading,
+                    zoom: altitudeToZoom(currentAltitude)
+                });
             }
 
             lastTime = time;
