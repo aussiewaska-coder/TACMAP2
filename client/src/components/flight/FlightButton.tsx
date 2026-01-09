@@ -74,7 +74,8 @@ export function FlightButton() {
         const store = useFlightStore.getState();
         store.setMode('pan');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
-        store.setSpeed(375);            // Default speed for 3K
+        store.setSpeed(375);            // Set actual speed
+        store.setTargetSpeed(375);      // Set target so easing works
         store.setTargetPitch(70);       // 70° tilt
         // Don't set targetHeading - keep current map direction
 
@@ -169,7 +170,8 @@ export function FlightButton() {
         map.setProjection({ type: 'globe' });
         store.setMode('sightseeing');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
-        store.setSpeed(375);            // Default speed for 3K
+        store.setSpeed(375);            // Set actual speed
+        store.setTargetSpeed(375);      // Set target so easing works
         store.setTargetPitch(70);       // 70° tilt
 
         let lastTime = 0;
