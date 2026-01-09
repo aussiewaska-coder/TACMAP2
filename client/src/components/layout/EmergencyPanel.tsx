@@ -15,6 +15,7 @@ const HAZARD_TYPES = [
     { id: 'fire', label: 'Fire', icon: Flame, color: 'text-red-500', bg: 'bg-red-500/10' },
     { id: 'flood', label: 'Flood/Storm', icon: Waves, color: 'text-blue-500', bg: 'bg-blue-500/10' },
     { id: 'road', label: 'Roads', icon: Construction, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+    { id: 'aviation', label: 'Aviation', icon: Plane, color: 'text-green-500', bg: 'bg-green-500/10' },
     { id: 'space', label: 'Space', icon: Satellite, color: 'text-purple-500', bg: 'bg-purple-500/10' },
     { id: 'general', label: 'Alerts', icon: AlertTriangle, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
 ];
@@ -38,20 +39,26 @@ export function EmergencyPanel() {
         if (!rawAlertsData) return null;
 
         const filteredFeatures = rawAlertsData.features.filter(f => {
-            const sub = (f.properties.hazard_type || '').toLowerCase();
-            const cat = (f.properties.category || '').toLowerCase();
+            const props = f.properties;
+            const sub = (props.hazard_type || '').toLowerCase();
+            const sub2 = (props.subcategory || '').toLowerCase();
+            const cat = (props.category || '').toLowerCase();
+            const tags = (props.tags || []).map((t: string) => t.toLowerCase());
 
-            if (activeFilters.includes('fire') && (sub.includes('fire') || cat.includes('fire'))) return true;
-            if (activeFilters.includes('flood') && (sub.includes('flood') || sub.includes('storm') || sub.includes('rain') || sub.includes('tsunami'))) return true;
-            if (activeFilters.includes('road') && (sub.includes('road') || sub.includes('traffic') || sub.includes('closure'))) return true;
-            if (activeFilters.includes('space') && (sub.includes('space') || sub.includes('sws'))) return true;
-            if (activeFilters.includes('general') && !['fire', 'flood', 'road', 'space'].some(key => {
-                if (key === 'fire' && (sub.includes('fire') || cat.includes('fire'))) return true;
-                if (key === 'flood' && (sub.includes('flood') || sub.includes('storm'))) return true;
-                if (key === 'road' && (sub.includes('road'))) return true;
-                if (key === 'space' && (sub.includes('space'))) return true;
-                return false;
-            })) return true;
+            const isFire = sub.includes('fire') || cat.includes('fire') || sub2.includes('fire') || tags.includes('fire');
+            const isFlood = sub.includes('flood') || sub.includes('storm') || sub.includes('rain') || sub.includes('tsunami') || cat.includes('weather') || sub2.includes('storm');
+            const isRoad = sub.includes('road') || sub.includes('traffic') || sub.includes('closure') || cat.includes('transport') || sub2.includes('road');
+            const isSpace = sub.includes('space') || sub.includes('sws') || cat.includes('space');
+            const isAviation = cat.includes('aviation') || sub.includes('aircraft') || sub2.includes('aircraft');
+
+            if (activeFilters.includes('fire') && isFire) return true;
+            if (activeFilters.includes('flood') && isFlood) return true;
+            if (activeFilters.includes('road') && isRoad) return true;
+            if (activeFilters.includes('space') && isSpace) return true;
+            if (activeFilters.includes('aviation') && isAviation) return true;
+
+            // General filter - show items that don't fit into other categories
+            if (activeFilters.includes('general') && !isFire && !isFlood && !isRoad && !isSpace && !isAviation) return true;
 
             return false;
         });
@@ -72,7 +79,7 @@ export function EmergencyPanel() {
         );
     };
 
-    // ... (Aircraft effect remains same) ...
+    // --- EFFECT: Aircraft Layer ---
     useEffect(() => {
         if (!map || !isLoaded || !aircraftEnabled || !aircraftData) return;
         const sourceId = 'emergency-aircraft-source';
@@ -81,7 +88,8 @@ export function EmergencyPanel() {
         if (!map.getSource(sourceId)) {
             map.addSource(sourceId, { type: 'geojson', data: aircraftData as any });
         } else {
-            (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(aircraftData as any);
+            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            if (source) source.setData(aircraftData as any);
         }
         if (!map.getLayer(pointsLayerId)) {
             map.addLayer({
@@ -99,7 +107,7 @@ export function EmergencyPanel() {
                 id: labelsLayerId, type: 'symbol', source: sourceId,
                 layout: {
                     'text-field': ['coalesce', ['get', 'registration'], ['get', 'callsign'], ['get', 'icao24']],
-                    'text-font': ['Open Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.5], 'text-anchor': 'top',
+                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'], 'text-size': 11, 'text-offset': [0, 1.5], 'text-anchor': 'top',
                 },
                 paint: { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1, 'text-opacity': ['case', ['get', 'stale'], 0.5, 1], },
             });
@@ -119,7 +127,7 @@ export function EmergencyPanel() {
         };
     }, [map, isLoaded, aircraftData, aircraftEnabled]);
 
-    // Add alerts layer to map with icon filtering logic
+    // --- EFFECT: Alerts Layer ---
     useEffect(() => {
         if (!map || !isLoaded || !alertsEnabled || !alertsData) return;
 
@@ -134,10 +142,11 @@ export function EmergencyPanel() {
                 data: alertsData as any,
             });
         } else {
-            (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(alertsData as any);
+            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            if (source) source.setData(alertsData as any);
         }
 
-        // Add alerts base layer (colored halos)
+        // 1. Point Halo (Severity Colored)
         if (!map.getLayer(layerId)) {
             map.addLayer({
                 id: layerId,
@@ -146,13 +155,13 @@ export function EmergencyPanel() {
                 paint: {
                     'circle-radius': [
                         'interpolate', ['linear'], ['zoom'],
-                        3, 6,
-                        10, 14,
-                        15, 20
+                        3, 8,
+                        10, 16,
+                        15, 24
                     ],
                     'circle-color': [
                         'match',
-                        ['get', 'severity_rank'],
+                        ['coalesce', ['get', 'severity_rank'], 4],
                         1, '#dc2626', // Emergency - Red
                         2, '#f59e0b', // Watch & Act - Orange
                         3, '#eab308', // Advice - Yellow
@@ -160,12 +169,12 @@ export function EmergencyPanel() {
                     ],
                     'circle-stroke-width': 2,
                     'circle-stroke-color': '#ffffff',
-                    'circle-opacity': 0.6,
+                    'circle-opacity': 0.7,
                 },
             });
         }
 
-        // Add Alert Icons Symbol Layer
+        // 2. Icon Label (Emoji/Symbol)
         if (!map.getLayer(iconLayerId)) {
             map.addLayer({
                 id: iconLayerId,
@@ -175,25 +184,26 @@ export function EmergencyPanel() {
                     'text-field': [
                         'case',
                         ['match', ['get', 'category'], ['Aviation'], true, false], '✈️',
-                        ['match', ['get', 'hazard_type'], ['Bushfire'], true, ['Fire'], true, false], '🔥',
-                        ['match', ['get', 'hazard_type'], ['Flood'], true, ['Storm'], true, false], '🌊',
-                        ['match', ['get', 'hazard_type'], ['Weather'], true, ['Severe Weather'], true, false], '⛈️',
-                        ['match', ['get', 'hazard_type'], ['Road'], true, ['Traffic'], true, false, ['Road conditions & closures'], true], '🚧',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Bushfire'], true, ['Fire'], true, false], '🔥',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Flood'], true, ['Storm'], true, false], '🌊',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Weather'], true, ['Severe Weather'], true, false], '⛈️',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Road'], true, ['Traffic'], true, false, ['Road conditions & closures'], true], '🚧',
                         '⚠️'
                     ],
                     'text-size': [
                         'interpolate', ['linear'], ['zoom'],
                         3, 10,
                         10, 14,
-                        15, 18
+                        15, 20
                     ],
                     'text-allow-overlap': true,
                     'text-ignore-placement': true,
+                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
                 },
                 paint: {
                     'text-color': '#ffffff',
                     'text-halo-color': '#000000',
-                    'text-halo-width': 1.5,
+                    'text-halo-width': 2,
                 }
             });
         }
@@ -202,21 +212,26 @@ export function EmergencyPanel() {
             if (!e.features?.length) return;
             const props = e.features[0].properties;
             const html = `
-                <div style="padding: 12px; max-width: 320px; background: #0f172a; color: white; border-radius: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <span style="font-size: 20px;">${props?.hazard_type?.includes('Fire') ? '🔥' : (props?.hazard_type?.includes('Flood') ? '🌊' : '⚠️')}</span>
-                        <h3 style="margin: 0; font-weight: bold; font-size: 14px; color: ${getSeverityColor(props?.severity_rank)};">
-                            ${props?.title}
-                        </h3>
-                    </div>
-                    <div style="font-size: 12px; line-height: 1.4;">
-                        <div style="opacity: 0.8; margin-bottom: 8px;">${props?.description?.substring(0, 300)}${props?.description?.length > 300 ? '...' : ''}</div>
-                        <div style="display: grid; grid-template-cols: 1fr 1fr; gap: 4px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
-                            <div><strong>Severity:</strong> ${props?.severity}</div>
-                            <div><strong>State:</strong> ${props?.state}</div>
+                <div style="padding: 12px; max-width: 320px; background: #0f172a; color: white; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <span style="font-size: 24px;">${props?.hazard_type?.toLowerCase()?.includes('fire') ? '🔥' : (props?.hazard_type?.toLowerCase()?.includes('flood') ? '🌊' : '⚠️')}</span>
+                        <div>
+                            <h3 style="margin: 0; font-weight: bold; font-size: 14px; color: ${getSeverityColor(props?.severity_rank)}; line-height: 1.2;">
+                                ${props?.title}
+                            </h3>
+                            <div style="font-size: 10px; opacity: 0.6; margin-top: 2px;">${props?.source_id}</div>
                         </div>
-                        ${props?.url ? `<div style="margin-top: 10px;"><a href="${props.url}" target="_blank" style="display: block; background: #3b82f6; color: white; text-align: center; padding: 6px; border-radius: 4px; text-decoration: none;">VIEW OFFICIAL NOTICE</a></div>` : ''}
-                        <div style="margin-top: 8px; font-size: 10px; opacity: 0.5;">
+                    </div>
+                    <div style="font-size: 12px; line-height: 1.5;">
+                        <div style="opacity: 0.9; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; max-height: 200px; overflow-y: auto;">
+                            ${props?.description || 'No detailed description available.'}
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: rgba(0,0,0,0.2); padding: 8px; rounded: 8px;">
+                            <div><span style="opacity: 0.5; font-size: 10px; display: block;">Severity</span> <span style="font-weight: bold; color: ${getSeverityColor(props?.severity_rank)};">${props?.severity}</span></div>
+                            <div><span style="opacity: 0.5; font-size: 10px; display: block;">Region</span> <span style="font-weight: bold;">${props?.state}</span></div>
+                        </div>
+                        ${props?.url ? `<div style="margin-top: 15px;"><a href="${props.url}" target="_blank" style="display: block; background: #3b82f6; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px; transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);">VIEW OFFICIAL NOTICE</a></div>` : ''}
+                        <div style="margin-top: 12px; font-size: 10px; opacity: 0.4; text-align: left; font-style: italic;">
                             Issued: ${new Date(props?.issued_at).toLocaleString()}
                         </div>
                     </div>

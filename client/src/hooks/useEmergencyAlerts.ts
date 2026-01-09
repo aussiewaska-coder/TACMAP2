@@ -9,7 +9,9 @@ interface AlertFeature {
         id: string;
         source_id: string;
         category: string;
+        subcategory: string;
         hazard_type: string;
+        tags: string[];
         severity: string;
         severity_rank: number;
         title: string;
@@ -19,6 +21,7 @@ interface AlertFeature {
         expires_at?: string;
         url?: string;
         confidence: string;
+        state: string;
         age_s: number;
     };
 }
