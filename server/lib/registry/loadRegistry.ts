@@ -5,21 +5,33 @@ import { getDb } from '../../db.js';
 import { emergencyRegistry } from '../../../drizzle/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 
+// In-memory cache to prevent repeated database queries
+let cachedRegistry: RegistryEntry[] | null = null;
+let cacheTimestamp: number = 0;
+const CACHE_TTL = 60000; // 1 minute
+
 /**
- * Load the registry from the database
+ * Load the registry from the database (with caching)
  */
 export async function loadRegistry(): Promise<RegistryEntry[]> {
+    // Return cached data if still valid
+    const now = Date.now();
+    if (cachedRegistry && (now - cacheTimestamp) < CACHE_TTL) {
+        return cachedRegistry;
+    }
+
     try {
         const db = await getDb();
         if (!db) {
             console.error('Database not available');
-            return [];
+            return cachedRegistry || []; // Return stale cache if DB unavailable
         }
 
         const results = await db.select().from(emergencyRegistry);
 
+
         // Convert database records to RegistryEntry format
-        return results.map(row => ({
+        const entries = results.map(row => ({
             source_id: row.sourceId,
             category: row.category as any,
             subcategory: row.subcategory || '',
@@ -38,9 +50,15 @@ export async function loadRegistry(): Promise<RegistryEntry[]> {
             operator: row.operator || undefined,
             role: row.role || undefined,
         }));
+
+        // Update cache
+        cachedRegistry = entries;
+        cacheTimestamp = Date.now();
+
+        return entries;
     } catch (error) {
         console.error('Failed to load registry from database:', error);
-        return [];
+        return cachedRegistry || []; // Return stale cache on error
     }
 }
 
