@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
 import { Settings, MapPin, Pencil, RotateCw, Navigation, Plane } from "lucide-react";
 import MapSettingsModal from "@/components/MapSettingsModal";
-import { FlightSimulatorButton } from "@/components/FlightSimulatorButton";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -28,6 +27,10 @@ export default function MapPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showCities, setShowCities] = useState(false);
   const [terrainExaggeration, setTerrainExaggeration] = useState(1.5);
+  const [flightMode, setFlightMode] = useState<'off' | 'pan' | 'sightseeing'>('off');
+  const flightRef = useRef<number | null>(null);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousProjectionRef = useRef<string | null>(null);
   
   // Fetch map settings
   const { data: settings } = trpc.mapSettings.get.useQuery();
@@ -304,6 +307,96 @@ export default function MapPage() {
     toast.info("Draw mode - Coming soon");
   };
 
+  // Flight simulator functions
+  const stopFlight = () => {
+    if (flightRef.current) {
+      cancelAnimationFrame(flightRef.current);
+      flightRef.current = null;
+    }
+    if (previousProjectionRef.current && mapRef.current) {
+      mapRef.current.setProjection({ type: previousProjectionRef.current as 'mercator' | 'globe' });
+      previousProjectionRef.current = null;
+    }
+    setFlightMode('off');
+  };
+
+  const startPanNorth = () => {
+    if (!mapRef.current) return;
+    stopFlight();
+    setFlightMode('pan');
+    let lastTime = 0;
+    const animate = (time: number) => {
+      if (!mapRef.current) return;
+      if (lastTime) {
+        const delta = time - lastTime;
+        const center = mapRef.current.getCenter();
+        const newLat = Math.min(85, center.lat + 0.00008 * delta);
+        mapRef.current.setCenter([center.lng, newLat]);
+      }
+      lastTime = time;
+      flightRef.current = requestAnimationFrame(animate);
+    };
+    flightRef.current = requestAnimationFrame(animate);
+    toast.info('Flight: Pan north');
+  };
+
+  const startSightseeing = () => {
+    if (!mapRef.current) return;
+    stopFlight();
+    const proj = mapRef.current.getProjection();
+    previousProjectionRef.current = proj?.type || 'mercator';
+    mapRef.current.setProjection({ type: 'globe' });
+    setFlightMode('sightseeing');
+    let lastTime = 0;
+    let targetBearing = mapRef.current.getBearing();
+    let waypoint = { lng: mapRef.current.getCenter().lng, lat: mapRef.current.getCenter().lat };
+    const animate = (time: number) => {
+      if (!mapRef.current) return;
+      if (lastTime) {
+        const delta = Math.min(time - lastTime, 50);
+        const center = mapRef.current.getCenter();
+        const dx = waypoint.lng - center.lng;
+        const dy = waypoint.lat - center.lat;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 0.02) {
+          const angle = Math.random() * 2 * Math.PI;
+          waypoint = {
+            lng: ((center.lng + Math.cos(angle) * 0.15 + 180) % 360) - 180,
+            lat: Math.max(-85, Math.min(85, center.lat + Math.sin(angle) * 0.15))
+          };
+          targetBearing = (targetBearing + Math.random() * 90 - 45 + 360) % 360;
+        }
+        const moveAngle = Math.atan2(dy, dx);
+        const bearing = mapRef.current.getBearing();
+        const bearingDiff = ((targetBearing - bearing + 540) % 360) - 180;
+        mapRef.current.jumpTo({
+          center: [center.lng + Math.cos(moveAngle) * 0.00012 * delta, Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * 0.00012 * delta))],
+          bearing: bearing + Math.sign(bearingDiff) * Math.min(Math.abs(bearingDiff), 0.03 * delta)
+        });
+      }
+      lastTime = time;
+      flightRef.current = requestAnimationFrame(animate);
+    };
+    flightRef.current = requestAnimationFrame(animate);
+    toast.info('Flight: Sightseeing (globe)');
+  };
+
+  const handleFlightMouseDown = () => {
+    pressTimerRef.current = setTimeout(() => {
+      startSightseeing();
+      pressTimerRef.current = null;
+    }, 500);
+  };
+
+  const handleFlightMouseUp = () => {
+    if (pressTimerRef.current) {
+      clearTimeout(pressTimerRef.current);
+      pressTimerRef.current = null;
+      if (flightMode === 'off') startPanNorth();
+      else stopFlight();
+    }
+  };
+
   return (
     <DndContext>
       <div className="relative w-full h-screen">
@@ -379,11 +472,15 @@ export default function MapPage() {
         <div className="fixed bottom-20 right-4 z-[100] flex flex-col gap-3 md:bottom-4">
           {/* Flight Simulator Button */}
           <Button
-            variant="outline"
+            variant={flightMode !== 'off' ? 'default' : 'outline'}
             size="icon"
-            onClick={() => toast.info('Flight mode coming soon')}
-            title="Flight Simulator"
-            className="bg-white text-gray-800 hover:bg-gray-100 shadow-xl w-14 h-14 md:w-12 md:h-12"
+            onMouseDown={handleFlightMouseDown}
+            onMouseUp={handleFlightMouseUp}
+            onMouseLeave={() => { if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; } }}
+            onTouchStart={handleFlightMouseDown}
+            onTouchEnd={handleFlightMouseUp}
+            title="Flight (click: pan, hold: sightseeing)"
+            className={`shadow-xl w-14 h-14 md:w-12 md:h-12 select-none ${flightMode === 'pan' ? 'bg-blue-600 text-white' : flightMode === 'sightseeing' ? 'bg-purple-600 text-white animate-pulse' : 'bg-white text-gray-800 hover:bg-gray-100'}`}
           >
             <Plane className="w-6 h-6" />
           </Button>
