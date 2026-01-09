@@ -52,36 +52,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const result = await fetchWithCache(
             'emergency:aircraft:tracks',
             async () => {
-                // Primary: fetch from adsb.lol with 3s timeout to prevent 504s
-                console.log('Fetching regional aircraft from adsb.lol...');
+                // ADSB.LOL removed - too slow, causing 504 timeouts
+                // Using ONLY OpenSky Network which is fast and reliable
+                console.log('Fetching aircraft from OpenSky Network...');
 
-                let adsbTracks: any[] = [];
-                try {
-                    // Race ADSB query against 3s timeout
-                    adsbTracks = await Promise.race([
-                        fetchAdsbLol(icao24List),
-                        new Promise<any[]>((_, reject) =>
-                            setTimeout(() => reject(new Error('ADSB timeout')), 3000)
-                        )
-                    ]);
-                    console.log(`adsb.lol returned ${adsbTracks.length} active tracks for registry`);
-                } catch (err) {
-                    console.warn('ADSB.LOL timed out or failed, using OpenSky only:', err);
-                    adsbTracks = [];
-                }
+                const openskyTracks = await fetchOpenSky(icao24List);
+                console.log(`OpenSky returned ${openskyTracks.length} tracks`);
 
-                // Identify missing/stale aircraft
-                const missing = identifyMissingAircraft(icao24List, adsbTracks, 15);
+                // Since ADSB.LOL is skipped, adsbTracks will be an empty array
+                const adsbTracks: any[] = [];
 
-                let openskyTracks: any[] = [];
-                if (missing.length > 0) {
-                    console.log(`${missing.length} aircraft missing from adsb.lol, querying OpenSky (Regional BBox)...`);
-                    openskyTracks = await fetchOpenSky(missing);
-                    console.log(`OpenSky returned ${openskyTracks.length} fallback tracks`);
-                }
-
-                // Merge tracks with precedence
-                const mergedTracks = mergeTracks(adsbTracks, openskyTracks, aviationAssets);
+                // Merge with registry data (operator, role, etc.)
+                const mergedTracks = mergeTracks([], openskyTracks, aviationAssets);
 
                 return mergedTracks;
             },
