@@ -1,8 +1,6 @@
 // Layout components index
 
 export { MapLayout } from './MapLayout';
-export { MobileControls } from './MobileControls';
-export { DesktopControls } from './DesktopControls';
 export { UnifiedSidebar } from './UnifiedSidebar';
 export { StatusIndicator } from './StatusIndicator';
 export { BottomSheet } from './BottomSheet';
