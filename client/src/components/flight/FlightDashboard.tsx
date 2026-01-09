@@ -1,4 +1,4 @@
-import { X, Plane, Globe, RotateCw } from 'lucide-react';
+import { X, Plane, Globe, RotateCw, Satellite } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
@@ -513,12 +513,18 @@ function OrbitControls() {
     );
 }
 
+// Satellite layer source and ID constants
+const SATELLITE_SOURCE_ID = 'flight-satellite-source';
+const SATELLITE_LAYER_ID = 'flight-satellite-layer';
+const SATELLITE_TILES_URL = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg';
+
 export function FlightDashboard() {
     const mode = useFlightMode();
     const speed = useFlightSpeed(); // From store
     const targetHeading = useFlightStore((s) => s.targetHeading);
     const targetAltitude = useFlightStore((s) => s.targetAltitude);
     const targetPitch = useFlightStore((s) => s.targetPitch);
+    const satelliteEnabled = useFlightStore((s) => s.satelliteEnabled);
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -596,6 +602,49 @@ export function FlightDashboard() {
         useFlightStore.getState().setTargetPitch(newPitch);
     };
 
+    // Toggle satellite layer on map
+    const toggleSatellite = () => {
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        const newEnabled = !satelliteEnabled;
+        useFlightStore.getState().setSatelliteEnabled(newEnabled);
+
+        if (newEnabled) {
+            // Add satellite source if not exists
+            if (!map.getSource(SATELLITE_SOURCE_ID)) {
+                map.addSource(SATELLITE_SOURCE_ID, {
+                    type: 'raster',
+                    tiles: [SATELLITE_TILES_URL],
+                    tileSize: 256
+                });
+            }
+
+            // Add satellite layer if not exists
+            if (!map.getLayer(SATELLITE_LAYER_ID)) {
+                // Find the first non-fill, non-background layer to insert before
+                const layers = map.getStyle()?.layers || [];
+                const firstOverlayLayer = layers.find(layer =>
+                    layer.type !== 'fill' && layer.type !== 'background' && layer.type !== 'hillshade'
+                );
+
+                map.addLayer({
+                    id: SATELLITE_LAYER_ID,
+                    type: 'raster',
+                    source: SATELLITE_SOURCE_ID,
+                    paint: { 'raster-opacity': 1 }
+                }, firstOverlayLayer?.id);
+            } else {
+                map.setLayoutProperty(SATELLITE_LAYER_ID, 'visibility', 'visible');
+            }
+        } else {
+            // Hide satellite layer
+            if (map.getLayer(SATELLITE_LAYER_ID)) {
+                map.setLayoutProperty(SATELLITE_LAYER_ID, 'visibility', 'none');
+            }
+        }
+    };
+
     // Update speed directly (from throttle slider) - also sets target for easing
     const setSpeed = (newSpeed: number) => {
         useFlightStore.getState().setTargetSpeed(newSpeed);
@@ -617,7 +666,7 @@ export function FlightDashboard() {
                             <Plane className="w-5 h-5 text-green-400" />
                             <span className="text-green-400 font-mono font-bold tracking-widest text-sm">FLT CMD</span>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                             <div className={`
                                 px-2 py-0.5 rounded text-[10px] font-mono font-bold border
                                 ${mode === 'pan' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : ''}
@@ -627,6 +676,20 @@ export function FlightDashboard() {
                             `}>
                                 {mode.toUpperCase()}
                             </div>
+                            {/* Satellite toggle */}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={toggleSatellite}
+                                title={satelliteEnabled ? 'Disable satellite view' : 'Enable satellite view'}
+                                className={`h-7 w-7 rounded border transition-all ${
+                                    satelliteEnabled
+                                        ? 'bg-cyan-500/30 text-cyan-300 border-cyan-400/50 shadow-lg shadow-cyan-500/20'
+                                        : 'text-cyan-400/50 hover:bg-cyan-500/20 hover:text-cyan-300 border-cyan-500/30'
+                                }`}
+                            >
+                                <Satellite className="w-4 h-4" />
+                            </Button>
                             <Button
                                 variant="ghost"
                                 size="icon"

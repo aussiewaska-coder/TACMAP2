@@ -23,6 +23,9 @@ interface FlightState {
     orbitAngle: number; // current position on circle (0-360)
     orbitClockwise: boolean; // direction of orbit
 
+    // Satellite view
+    satelliteEnabled: boolean;
+
     openDashboard: () => void;
     closeDashboard: () => void;
     setMode: (mode: FlightMode) => void;
@@ -39,6 +42,7 @@ interface FlightState {
     setOrbitRadius: (radius: number) => void;
     setOrbitAngle: (angle: number) => void;
     setOrbitClockwise: (clockwise: boolean) => void;
+    setSatelliteEnabled: (enabled: boolean) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -57,6 +61,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     orbitRadius: 0.02, // ~2.2km at equator - good default
     orbitAngle: 0,
     orbitClockwise: true,
+    satelliteEnabled: false,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
@@ -74,6 +79,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     setOrbitRadius: (radius) => set({ orbitRadius: radius }),
     setOrbitAngle: (angle) => set({ orbitAngle: angle }),
     setOrbitClockwise: (clockwise) => set({ orbitClockwise: clockwise }),
+    setSatelliteEnabled: (enabled) => set({ satelliteEnabled: enabled }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow
