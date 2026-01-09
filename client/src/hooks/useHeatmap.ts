@@ -1,7 +1,7 @@
 // Heatmap Hook - Port from waze-police-reporter
 // Fetches aggregated heatmap data and renders using MapLibre
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
 import maplibregl from 'maplibre-gl';
@@ -27,6 +27,7 @@ export function useHeatmap(options: UseHeatmapOptions) {
   const map = useMapStore((state) => state.map);
   const isLoaded = useMapStore((state) => state.isLoaded);
   const sessionData = useRef<Map<string, number>>(new Map());
+  const [renderTrigger, setRenderTrigger] = useState(0);
 
   // Fetch heatmap data from server
   const { data: heatmapData, isLoading } = trpc.police.heatmap.useQuery(
@@ -68,11 +69,15 @@ export function useHeatmap(options: UseHeatmapOptions) {
     });
 
     console.log(`🔥 Heatmap session: +${newPoints} points (${sessionData.current.size} total)`);
+
+    // Trigger re-render to update map
+    setRenderTrigger(prev => prev + 1);
   }, [heatmapData, enabled]);
 
   // Render heatmap using MapLibre
   useEffect(() => {
     if (!map || !isLoaded || !enabled || sessionData.current.size === 0) {
+      console.log(`❌ Not rendering heatmap: map=${!!map}, loaded=${isLoaded}, enabled=${enabled}, size=${sessionData.current.size}`);
       return;
     }
 
@@ -145,7 +150,7 @@ export function useHeatmap(options: UseHeatmapOptions) {
         map.removeSource(HEATMAP_SOURCE_ID);
       }
     };
-  }, [map, isLoaded, enabled, sessionData.current.size]);
+  }, [map, isLoaded, enabled, renderTrigger]);
 
   // Clear session data when disabled
   useEffect(() => {
