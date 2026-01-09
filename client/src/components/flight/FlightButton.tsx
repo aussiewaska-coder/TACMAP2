@@ -49,17 +49,17 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                // Convert speed (km/h) to degrees per ms
-                // At equator: 1 degree ≈ 111 km
-                // speed km/h = speed/111 degrees/hour = speed/111/3600000 degrees/ms
-                const degreesPerMs = (speed / 111) / 3600000;
+                // Speed factor: 500 km/h baseline = 0.0001 degrees per ms visual speed
+                // This gives smooth visible movement without being crazy fast
+                const speedFactor = (speed / 500) * 0.0001;
                 const center = currentMap.getCenter();
                 const bearing = currentMap.getBearing();
 
                 // Move in the direction of bearing
                 const bearingRad = (bearing * Math.PI) / 180;
-                const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * degreesPerMs * delta * 50000));
-                const newLng = center.lng + Math.sin(bearingRad) * degreesPerMs * delta * 50000;
+                const moveDist = speedFactor * delta;
+                const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
+                const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
                 currentMap.setCenter([newLng, newLat]);
             }
