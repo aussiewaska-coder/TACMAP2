@@ -52,10 +52,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const result = await fetchWithCache(
             'emergency:aircraft:tracks',
             async () => {
-                // Primary: fetch from adsb.lol (Regional Bulk)
+                // Primary: fetch from adsb.lol with 3s timeout to prevent 504s
                 console.log('Fetching regional aircraft from adsb.lol...');
-                const adsbTracks = await fetchAdsbLol(icao24List);
-                console.log(`adsb.lol returned ${adsbTracks.length} active tracks for registry`);
+
+                let adsbTracks: any[] = [];
+                try {
+                    // Race ADSB query against 3s timeout
+                    adsbTracks = await Promise.race([
+                        fetchAdsbLol(icao24List),
+                        new Promise<any[]>((_, reject) =>
+                            setTimeout(() => reject(new Error('ADSB timeout')), 3000)
+                        )
+                    ]);
+                    console.log(`adsb.lol returned ${adsbTracks.length} active tracks for registry`);
+                } catch (err) {
+                    console.warn('ADSB.LOL timed out or failed, using OpenSky only:', err);
+                    adsbTracks = [];
+                }
 
                 // Identify missing/stale aircraft
                 const missing = identifyMissingAircraft(icao24List, adsbTracks, 15);
