@@ -49,9 +49,9 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                // Speed factor: 500 km/h baseline = 0.0001 degrees per ms visual speed
+                // Speed factor: 250 km/h baseline = 0.0001 degrees per ms visual speed
                 // This gives smooth visible movement without being crazy fast
-                const speedFactor = (speed / 500) * 0.0001;
+                const speedFactor = (speed / 250) * 0.0001;
                 const center = currentMap.getCenter();
                 const bearing = currentMap.getBearing();
 
@@ -111,8 +111,8 @@ export function FlightButton() {
                 const zoom = currentMap.getZoom();
                 const bearing = currentMap.getBearing();
 
-                // Speed factor based on throttle
-                const speedFactor = speed / 500;
+                // Speed factor based on throttle (250 baseline)
+                const speedFactor = speed / 250;
 
                 // Distance to waypoint
                 const dx = waypoint.lng - center.lng;

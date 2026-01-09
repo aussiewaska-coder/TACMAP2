@@ -20,7 +20,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     mode: 'off',
     animationId: null,
     prevProjection: null,
-    speed: 500,
+    speed: 250,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),

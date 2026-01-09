@@ -15,11 +15,34 @@ export function FlightDashboard() {
         zoom: 0,
     });
 
-    // Local controls state (heading/altitude are local, speed is in store)
-    const [heading, setHeading] = useState(0); // degrees
-    const [altitude, setAltitude] = useState(10000); // meters (affects zoom)
+    // Local controls state - initialized from map
+    const [heading, setHeading] = useState(0);
+    const [altitude, setAltitude] = useState(10000);
+    const [initialized, setInitialized] = useState(false);
 
-    // Update telemetry from map
+    // Initialize controls from current map state when dashboard opens
+    useEffect(() => {
+        if (mode === 'off') {
+            setInitialized(false);
+            return;
+        }
+
+        const map = useMapStore.getState().map;
+        if (!map || initialized) return;
+
+        // Sync heading with current bearing
+        setHeading(Math.round((map.getBearing() + 360) % 360));
+
+        // Sync altitude with current zoom
+        // zoom 18 = 500m, zoom 1 = 50000m (inverse log scale)
+        const zoom = map.getZoom();
+        const alt = Math.round(500 * Math.pow(2, 18 - zoom));
+        setAltitude(Math.max(1000, Math.min(50000, alt)));
+
+        setInitialized(true);
+    }, [mode, initialized]);
+
+    // Update telemetry from map (live)
     useEffect(() => {
         if (mode === 'off') return;
 
@@ -28,25 +51,25 @@ export function FlightDashboard() {
             if (!map) return;
 
             const center = map.getCenter();
+            const currentBearing = map.getBearing();
+            const currentZoom = map.getZoom();
+
             setTelemetry({
                 lat: center.lat,
                 lng: center.lng,
-                bearing: map.getBearing(),
-                zoom: map.getZoom(),
+                bearing: currentBearing,
+                zoom: currentZoom,
             });
+
+            // Keep heading synced with map bearing (live)
+            setHeading(Math.round((currentBearing + 360) % 360));
+
+            // Keep altitude synced with zoom (live)
+            const alt = Math.round(500 * Math.pow(2, 18 - currentZoom));
+            setAltitude(Math.max(1000, Math.min(50000, alt)));
         }, 100);
 
         return () => clearInterval(interval);
-    }, [mode]);
-
-    // Sync heading with map bearing when in manual mode
-    useEffect(() => {
-        if (mode === 'manual') {
-            const map = useMapStore.getState().map;
-            if (map) {
-                setHeading(Math.round(map.getBearing() + 360) % 360);
-            }
-        }
     }, [mode]);
 
     // Don't render if flight is off
@@ -162,9 +185,9 @@ export function FlightDashboard() {
                             </div>
                             <input
                                 type="range"
-                                min="100"
+                                min="25"
                                 max="2000"
-                                step="50"
+                                step="25"
                                 value={speed}
                                 onChange={(e) => setSpeed(Number(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
@@ -178,7 +201,7 @@ export function FlightDashboard() {
                                     [&::-webkit-slider-thumb]:shadow-cyan-500/50"
                             />
                             <div className="flex justify-between text-[10px] text-cyan-400/40 font-mono">
-                                <span>100</span>
+                                <span>25</span>
                                 <span>1000</span>
                                 <span>2000</span>
                             </div>
