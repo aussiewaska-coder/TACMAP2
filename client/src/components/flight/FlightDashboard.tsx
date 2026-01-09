@@ -186,8 +186,11 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
         const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-        const angle = Math.atan2(clientX - centerX, centerY - clientY) * (180 / Math.PI);
-        return (angle + 360) % 360;
+        // Calculate visual angle (where user clicked relative to compass center)
+        const visualAngle = Math.atan2(clientX - centerX, centerY - clientY) * (180 / Math.PI);
+        // Add current heading back since compass rose is rotated by -heading
+        // This way clicking on "E" gives 90° regardless of current heading
+        return (visualAngle + heading + 360) % 360;
     }, [heading]);
 
     const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
