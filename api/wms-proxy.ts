@@ -1,6 +1,17 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+const ALLOWED_WMS_HOSTS = [
+    'services.ga.gov.au',
+    'portal.geoserver.sa.gov.au',
+    'mapprod3.environment.nsw.gov.au',
+    'data.gov.au',
+    'maps.six.nsw.gov.au',
+    'gis.drm.vic.gov.au',
+    'sentinel.ga.gov.au',
+    'localhost',
+];
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Handle CORS preflight
     if (req.method === 'OPTIONS') {
@@ -19,6 +30,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     try {
+        const urlObj = new URL(url);
+        const isAllowed = ALLOWED_WMS_HOSTS.some(host =>
+            urlObj.hostname === host || urlObj.hostname.endsWith(`.${host}`)
+        );
+
+        if (!isAllowed) {
+            console.warn(`[Security] Blocked WMS proxy request to unauthorized host: ${urlObj.hostname}`);
+            res.status(403).send("Forbidden: Host not in whitelist");
+            return;
+        }
+
         // Reconstruct target URL
         // req.query in Vercel is parsed object, so we enable proper serialization
         // Note: req.query values can be string or string[], we need to handle that

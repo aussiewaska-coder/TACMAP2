@@ -45,10 +45,17 @@ export function UnifiedAlertsPanel() {
 
     // Auto-hide markers when heatmap is enabled (old system behavior)
     useEffect(() => {
-        if (showHeatmap) {
+        if (showHeatmap && alertMode === 'police') {
             setShowMarkers(false);
         }
-    }, [showHeatmap]);
+    }, [showHeatmap, alertMode]);
+
+    useEffect(() => {
+        if (alertMode === 'emergency') {
+            setShowHeatmap(false);
+            setShowMarkers(true);
+        }
+    }, [alertMode]);
 
     // Emergency filters
     const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map(h => h.id));

@@ -72,24 +72,24 @@ export default function AdminDashboard() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/">
-                <Button variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/">
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Home
-                </Button>
-              </Link>
+                </Link>
+              </Button>
               <div className="flex items-center gap-2">
                 <Shield className="w-6 h-6 text-indigo-600" />
                 <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/map">
-                <Button variant="default">
+              <Button asChild variant="default">
+                <Link href="/map">
                   <Map className="w-4 h-4 mr-2" />
                   View Map
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </div>
         </div>

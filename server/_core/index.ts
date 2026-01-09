@@ -37,6 +37,7 @@ const ALLOWED_WMS_HOSTS = [
   'data.gov.au',
   'maps.six.nsw.gov.au',
   'gis.drm.vic.gov.au',
+  'sentinel.ga.gov.au',
   'localhost', // For development
 ];
 

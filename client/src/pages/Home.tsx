@@ -13,17 +13,15 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-gray-800">MapLibre Australia</h1>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/emergency">
-              <Button variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/emergency">
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 Emergency
-              </Button>
-            </Link>
-            <Link href="/map">
-              <Button>
-                Enter Map
-              </Button>
-            </Link>
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/map">Enter Map</Link>
+            </Button>
           </div>
         </div>
       </header>
@@ -39,12 +37,12 @@ export default function Home() {
             Explore advanced mapping capabilities, plugins, and customization options.
           </p>
 
-          <Link href="/map">
-            <Button size="lg" className="text-lg px-8 py-6">
+          <Button asChild size="lg" className="text-lg px-8 py-6">
+            <Link href="/map">
               <Map className="w-6 h-6 mr-2" />
               Launch Map Application
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
 
         {/* Features Grid */}

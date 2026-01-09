@@ -78,134 +78,134 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         const layerId = `${layerPrefix}-dots`;
         const polygonLayerId = `${layerPrefix}-polygons`;
         const polygonOutlineLayerId = `${layerPrefix}-outline`;
+        const clusterEnabled = alertSource === 'police';
 
         console.log(`🎯 RENDERING ${layerPrefix}: ${geoJsonData.features.length} features`);
 
-        // Add source with clustering enabled
-        if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, {
-                type: 'geojson',
-                data: geoJsonData as any,
-                cluster: true,
-                clusterMaxZoom: clusterMaxZoom,
-                clusterRadius: clusterRadius
-            });
-            console.log(`✅ Source added: ${sourceId} (clustering enabled: radius=${clusterRadius}, maxZoom=${clusterMaxZoom})`);
-        } else {
-            (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
-            console.log(`✅ Source updated: ${sourceId}`);
-        }
+        const ensureSource = () => {
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: geoJsonData as any,
+                    cluster: clusterEnabled,
+                    clusterMaxZoom: clusterMaxZoom,
+                    clusterRadius: clusterRadius
+                });
+                console.log(`✅ Source added: ${sourceId} (clustering enabled: ${clusterEnabled})`);
+            } else {
+                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
+                console.log(`✅ Source updated: ${sourceId}`);
+            }
+        };
 
-        // Add CLUSTER CIRCLE layer - consistent small size
-        if (!map.getLayer(clusterLayerId)) {
-            map.addLayer({
-                id: clusterLayerId,
-                type: 'circle',
-                source: sourceId,
-                filter: ['has', 'point_count'],
-                paint: {
-                    'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
-                    'circle-radius': 12, // Fixed size for all clusters
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#FFFFFF',
-                    'circle-opacity': 0.9
-                },
-                layout: { visibility: showMarkers ? 'visible' : 'none' }
-            });
-            console.log(`✅ Cluster layer added: ${clusterLayerId}`);
-        }
-
-        // Add CLUSTER COUNT TEXT layer - smaller text
-        if (!map.getLayer(clusterCountLayerId)) {
-            map.addLayer({
-                id: clusterCountLayerId,
-                type: 'symbol',
-                source: sourceId,
-                filter: ['has', 'point_count'],
-                layout: {
-                    'text-field': '{point_count_abbreviated}',
-                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                    'text-size': 10,
-                    visibility: showMarkers ? 'visible' : 'none'
-                },
-                paint: {
-                    'text-color': '#FFFFFF'
+        const ensureLayers = () => {
+            if (clusterEnabled) {
+                if (!map.getLayer(clusterLayerId)) {
+                    map.addLayer({
+                        id: clusterLayerId,
+                        type: 'circle',
+                        source: sourceId,
+                        filter: ['has', 'point_count'],
+                        paint: {
+                            'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
+                            'circle-radius': 12,
+                            'circle-stroke-width': 2,
+                            'circle-stroke-color': '#FFFFFF',
+                            'circle-opacity': 0.9
+                        },
+                        layout: { visibility: showMarkers ? 'visible' : 'none' }
+                    });
+                    console.log(`✅ Cluster layer added: ${clusterLayerId}`);
                 }
-            });
-            console.log(`✅ Cluster count layer added: ${clusterCountLayerId}`);
-        }
 
-        // Add POLYGON layer (for fire perimeters)
-        if (alertSource === 'emergency' && !map.getLayer(polygonLayerId)) {
-            map.addLayer({
-                id: polygonLayerId,
-                type: 'fill',
-                source: sourceId,
-                filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
-                paint: {
-                    'fill-color': '#ef4444',
-                    'fill-opacity': 0.2
-                },
-                layout: { visibility: showMarkers ? 'visible' : 'none' }
-            });
-            console.log(`✅ Polygon layer added`);
-        }
+                if (!map.getLayer(clusterCountLayerId)) {
+                    map.addLayer({
+                        id: clusterCountLayerId,
+                        type: 'symbol',
+                        source: sourceId,
+                        filter: ['has', 'point_count'],
+                        layout: {
+                            'text-field': '{point_count_abbreviated}',
+                            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                            'text-size': 10,
+                            visibility: showMarkers ? 'visible' : 'none'
+                        },
+                        paint: {
+                            'text-color': '#FFFFFF'
+                        }
+                    });
+                    console.log(`✅ Cluster count layer added: ${clusterCountLayerId}`);
+                }
+            }
 
-        // Add POLYGON OUTLINE layer
-        if (alertSource === 'emergency' && !map.getLayer(polygonOutlineLayerId)) {
-            map.addLayer({
-                id: polygonOutlineLayerId,
-                type: 'line',
-                source: sourceId,
-                filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
-                paint: {
-                    'line-color': '#ef4444',
-                    'line-width': 2,
-                    'line-opacity': 0.8
-                },
-                layout: { visibility: showMarkers ? 'visible' : 'none' }
-            });
-            console.log(`✅ Polygon outline layer added`);
-        }
+            if (alertSource === 'emergency' && !map.getLayer(polygonLayerId)) {
+                map.addLayer({
+                    id: polygonLayerId,
+                    type: 'fill',
+                    source: sourceId,
+                    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
+                    paint: {
+                        'fill-color': '#ef4444',
+                        'fill-opacity': 0.2
+                    },
+                    layout: { visibility: showMarkers ? 'visible' : 'none' }
+                });
+                console.log(`✅ Polygon layer added`);
+            }
 
-        // Add UNCLUSTERED POINTS layer - consistent small size matching clusters
-        if (!map.getLayer(layerId)) {
-            map.addLayer({
-                id: layerId,
-                type: 'circle',
-                source: sourceId,
-                filter: ['all',
-                    ['==', ['geometry-type'], 'Point'],
-                    ['!', ['has', 'point_count']]
-                ],
-                paint: {
-                    'circle-radius': 12, // Same size as clusters
-                    'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
-                    'circle-stroke-width': 2, // Same stroke as clusters
-                    'circle-stroke-color': '#FFFFFF',
-                    'circle-opacity': 0.9
-                },
-                layout: { visibility: showMarkers ? 'visible' : 'none' }
-            });
-            console.log(`✅ Unclustered points layer added: ${layerId}`);
-        }
+            if (alertSource === 'emergency' && !map.getLayer(polygonOutlineLayerId)) {
+                map.addLayer({
+                    id: polygonOutlineLayerId,
+                    type: 'line',
+                    source: sourceId,
+                    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
+                    paint: {
+                        'line-color': '#ef4444',
+                        'line-width': 2,
+                        'line-opacity': 0.8
+                    },
+                    layout: { visibility: showMarkers ? 'visible' : 'none' }
+                });
+                console.log(`✅ Polygon outline layer added`);
+            }
 
-        // Update visibility for all layers
-        if (map.getLayer(clusterLayerId)) {
-            map.setLayoutProperty(clusterLayerId, 'visibility', showMarkers ? 'visible' : 'none');
-        }
-        if (map.getLayer(clusterCountLayerId)) {
-            map.setLayoutProperty(clusterCountLayerId, 'visibility', showMarkers ? 'visible' : 'none');
-        }
-        if (map.getLayer(layerId)) {
-            map.setLayoutProperty(layerId, 'visibility', showMarkers ? 'visible' : 'none');
-        }
-        if (map.getLayer(polygonLayerId)) {
-            map.setLayoutProperty(polygonLayerId, 'visibility', showMarkers ? 'visible' : 'none');
-        }
-        if (map.getLayer(polygonOutlineLayerId)) {
-            map.setLayoutProperty(polygonOutlineLayerId, 'visibility', showMarkers ? 'visible' : 'none');
-        }
+            if (!map.getLayer(layerId)) {
+                map.addLayer({
+                    id: layerId,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['all',
+                        ['==', ['geometry-type'], 'Point'],
+                        ['!', ['has', 'point_count']]
+                    ],
+                    paint: {
+                        'circle-radius': 12,
+                        'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#FFFFFF',
+                        'circle-opacity': 0.9
+                    },
+                    layout: { visibility: showMarkers ? 'visible' : 'none' }
+                });
+                console.log(`✅ Unclustered points layer added: ${layerId}`);
+            }
+
+            if (clusterEnabled && map.getLayer(clusterLayerId)) {
+                map.setLayoutProperty(clusterLayerId, 'visibility', showMarkers ? 'visible' : 'none');
+            }
+            if (clusterEnabled && map.getLayer(clusterCountLayerId)) {
+                map.setLayoutProperty(clusterCountLayerId, 'visibility', showMarkers ? 'visible' : 'none');
+            }
+            if (map.getLayer(layerId)) {
+                map.setLayoutProperty(layerId, 'visibility', showMarkers ? 'visible' : 'none');
+            }
+            if (map.getLayer(polygonLayerId)) {
+                map.setLayoutProperty(polygonLayerId, 'visibility', showMarkers ? 'visible' : 'none');
+            }
+            if (map.getLayer(polygonOutlineLayerId)) {
+                map.setLayoutProperty(polygonOutlineLayerId, 'visibility', showMarkers ? 'visible' : 'none');
+            }
+        };
 
         // CLUSTER CLICK HANDLER - Zoom into cluster
         const handleClusterClick = (e: any) => {
@@ -251,53 +251,103 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 .addTo(map);
         };
 
-        // Add event listeners for clusters
-        map.on('click', clusterLayerId, handleClusterClick);
-
-        // Add event listeners for individual points
-        map.on('click', layerId, handleClick);
-        if (alertSource === 'emergency') {
-            map.on('click', polygonLayerId, handleClick);
-        }
-
-        // Cursor handlers
-        const setCursor = (cursor: string) => () => {
-            if (map) map.getCanvas().style.cursor = cursor;
+        const handleClusterEnter = () => {
+            map.getCanvas().style.cursor = 'pointer';
+        };
+        const handleClusterLeave = () => {
+            map.getCanvas().style.cursor = '';
+        };
+        const handlePointEnter = () => {
+            map.getCanvas().style.cursor = 'pointer';
+        };
+        const handlePointLeave = () => {
+            map.getCanvas().style.cursor = '';
+        };
+        const handlePolygonEnter = () => {
+            map.getCanvas().style.cursor = 'pointer';
+        };
+        const handlePolygonLeave = () => {
+            map.getCanvas().style.cursor = '';
         };
 
-        map.on('mouseenter', clusterLayerId, setCursor('pointer'));
-        map.on('mouseleave', clusterLayerId, setCursor(''));
-        map.on('mouseenter', layerId, setCursor('pointer'));
-        map.on('mouseleave', layerId, setCursor(''));
-        if (alertSource === 'emergency') {
-            map.on('mouseenter', polygonLayerId, setCursor('pointer'));
-            map.on('mouseleave', polygonLayerId, setCursor(''));
-        }
+        const attachHandlers = () => {
+            if (clusterEnabled && map.getLayer(clusterLayerId)) {
+                map.off('click', clusterLayerId, handleClusterClick);
+                map.off('mouseenter', clusterLayerId, handleClusterEnter);
+                map.off('mouseleave', clusterLayerId, handleClusterLeave);
+                map.on('click', clusterLayerId, handleClusterClick);
+                map.on('mouseenter', clusterLayerId, handleClusterEnter);
+                map.on('mouseleave', clusterLayerId, handleClusterLeave);
+            }
+
+            if (map.getLayer(layerId)) {
+                map.off('click', layerId, handleClick);
+                map.off('mouseenter', layerId, handlePointEnter);
+                map.off('mouseleave', layerId, handlePointLeave);
+                map.on('click', layerId, handleClick);
+                map.on('mouseenter', layerId, handlePointEnter);
+                map.on('mouseleave', layerId, handlePointLeave);
+            }
+
+            if (alertSource === 'emergency' && map.getLayer(polygonLayerId)) {
+                map.off('click', polygonLayerId, handleClick);
+                map.off('mouseenter', polygonLayerId, handlePolygonEnter);
+                map.off('mouseleave', polygonLayerId, handlePolygonLeave);
+                map.on('click', polygonLayerId, handleClick);
+                map.on('mouseenter', polygonLayerId, handlePolygonEnter);
+                map.on('mouseleave', polygonLayerId, handlePolygonLeave);
+            }
+        };
+
+        const detachHandlers = () => {
+            if (clusterEnabled) {
+                map.off('click', clusterLayerId, handleClusterClick);
+                map.off('mouseenter', clusterLayerId, handleClusterEnter);
+                map.off('mouseleave', clusterLayerId, handleClusterLeave);
+            }
+            map.off('click', layerId, handleClick);
+            map.off('mouseenter', layerId, handlePointEnter);
+            map.off('mouseleave', layerId, handlePointLeave);
+            if (alertSource === 'emergency') {
+                map.off('click', polygonLayerId, handleClick);
+                map.off('mouseenter', polygonLayerId, handlePolygonEnter);
+                map.off('mouseleave', polygonLayerId, handlePolygonLeave);
+            }
+        };
+
+        const renderLayers = () => {
+            if (!isMapValid(map)) return;
+            ensureSource();
+            ensureLayers();
+            attachHandlers();
+        };
+
+        renderLayers();
+
+        const handleStyleData = () => {
+            if (!enabled || !isMapValid(map)) return;
+            renderLayers();
+        };
+
+        map.on('styledata', handleStyleData);
 
         // Cleanup
         return () => {
             // Check if map is still valid before cleanup
             if (!isMapValid(map)) return;
             try {
+                map.off('styledata', handleStyleData);
+                detachHandlers();
                 if (map.getLayer(clusterCountLayerId)) {
                     map.removeLayer(clusterCountLayerId);
                 }
                 if (map.getLayer(clusterLayerId)) {
-                    map.off('click', clusterLayerId, handleClusterClick);
-                    map.off('mouseenter', clusterLayerId, setCursor('pointer'));
-                    map.off('mouseleave', clusterLayerId, setCursor(''));
                     map.removeLayer(clusterLayerId);
                 }
                 if (map.getLayer(layerId)) {
-                    map.off('click', layerId, handleClick);
-                    map.off('mouseenter', layerId, setCursor('pointer'));
-                    map.off('mouseleave', layerId, setCursor(''));
                     map.removeLayer(layerId);
                 }
                 if (map.getLayer(polygonLayerId)) {
-                    map.off('click', polygonLayerId, handleClick);
-                    map.off('mouseenter', polygonLayerId, setCursor('pointer'));
-                    map.off('mouseleave', polygonLayerId, setCursor(''));
                     map.removeLayer(polygonLayerId);
                 }
                 if (map.getLayer(polygonOutlineLayerId)) {

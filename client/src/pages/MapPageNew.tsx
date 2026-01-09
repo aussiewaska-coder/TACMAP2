@@ -2,14 +2,13 @@
 // All functionality comes from the modular components
 
 import { MapLayout } from '@/components/layout';
-import { Toaster } from 'sonner';
 
 /**
  * Main map page component
  * 
  * This page is intentionally minimal. It just:
  * - Renders the MapLayout (which handles mobile/desktop)
- * - Provides toast notifications
+ * - Relies on the global toaster in App
  * 
  * All map functionality comes from:
  * - MapCore (base map)
@@ -20,7 +19,6 @@ export function MapPageNew() {
     return (
         <>
             <MapLayout />
-            <Toaster position="top-center" richColors />
         </>
     );
 }

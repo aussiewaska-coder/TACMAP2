@@ -2,6 +2,7 @@
 // Single source of truth for geolocation with smooth animations
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useMapStore } from '@/stores';
 import { useFlightStore } from '@/stores/flightStore';
 import maplibregl from 'maplibre-gl';
@@ -162,46 +163,57 @@ export function UserLocationLayer() {
     }, []);
 
     // Handle button interactions
-    const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [isLongPressing, setIsLongPressing] = useState(false);
+    const pointerDownRef = useRef(false);
+    const ignoreClickRef = useRef(false);
 
-    const handleMouseDown = useCallback(() => {
+    const triggerPrimaryAction = useCallback(() => {
+        if (trackingState === 'off') {
+            startTracking();
+        } else if (trackingState === 'active' && location.coords) {
+            flyToLocation(location.coords, false);
+            toast.info('Centered on location');
+        }
+    }, [trackingState, location.coords, startTracking, flyToLocation]);
+
+    const handlePointerDown = useCallback((event: ReactPointerEvent) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        pointerDownRef.current = true;
         setIsLongPressing(false);
         longPressTimerRef.current = setTimeout(() => {
             setIsLongPressing(true);
-            // Long press detected - disable tracking
             if (trackingState === 'active') {
                 stopTracking();
             }
-        }, 500); // 500ms for long press
+        }, 500);
     }, [trackingState, stopTracking]);
 
-    const handleMouseUp = useCallback(() => {
+    const handlePointerUp = useCallback(() => {
+        if (!pointerDownRef.current) return;
+        pointerDownRef.current = false;
         if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
             longPressTimerRef.current = null;
         }
 
-        // If not a long press, treat as click
         if (!isLongPressing) {
-            if (trackingState === 'off') {
-                // Start tracking
-                startTracking();
-            } else if (trackingState === 'active' && location.coords) {
-                // Zoom to current location
-                flyToLocation(location.coords, false);
-                toast.info('Centered on location');
-            }
+            ignoreClickRef.current = true;
+            triggerPrimaryAction();
+            setTimeout(() => {
+                ignoreClickRef.current = false;
+            }, 0);
         }
 
         setIsLongPressing(false);
-    }, [isLongPressing, trackingState, location.coords, startTracking, flyToLocation, stopTracking]);
+    }, [isLongPressing, triggerPrimaryAction]);
 
-    const handleMouseLeave = useCallback(() => {
+    const handlePointerLeave = useCallback(() => {
         if (longPressTimerRef.current) {
             clearTimeout(longPressTimerRef.current);
             longPressTimerRef.current = null;
         }
+        pointerDownRef.current = false;
         setIsLongPressing(false);
     }, []);
 
@@ -314,11 +326,14 @@ export function UserLocationLayer() {
     return (
         <Button
             size="icon"
-            onMouseDown={handleMouseDown}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseLeave}
-            onTouchStart={handleMouseDown}
-            onTouchEnd={handleMouseUp}
+            onPointerDown={handlePointerDown}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerLeave}
+            onPointerLeave={handlePointerLeave}
+            onClick={() => {
+                if (ignoreClickRef.current) return;
+                triggerPrimaryAction();
+            }}
             disabled={trackingState === 'pending' || permissionDenied}
             className={`
                 fixed bottom-24 right-4

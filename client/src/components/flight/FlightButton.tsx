@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
@@ -45,7 +46,8 @@ const easeSpeed = (current: number, target: number, delta: number, smoothing: nu
 export function FlightButton() {
     const mode = useFlightMode();
     const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const touchActiveRef = useRef(false);
+    const pointerDownRef = useRef(false);
+    const ignoreClickRef = useRef(false);
 
     const stopFlight = () => {
         const store = useFlightStore.getState();
@@ -533,10 +535,9 @@ export function FlightButton() {
         }
     };
 
-    const onPointerDown = (isTouch: boolean) => {
-        if (isTouch) touchActiveRef.current = true;
-        if (!isTouch && touchActiveRef.current) return;
-
+    const onPointerDown = (event: ReactPointerEvent) => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        pointerDownRef.current = true;
         clearPressTimer();
         pressTimerRef.current = setTimeout(() => {
             handleLongPress();
@@ -544,29 +545,36 @@ export function FlightButton() {
         }, 500);
     };
 
-    const onPointerUp = (isTouch: boolean) => {
-        if (!isTouch && touchActiveRef.current) return;
-        if (isTouch) touchActiveRef.current = false;
-
+    const onPointerUp = () => {
+        if (!pointerDownRef.current) return;
+        pointerDownRef.current = false;
         if (pressTimerRef.current) {
             clearPressTimer();
+            ignoreClickRef.current = true;
             handleClick();
+            setTimeout(() => {
+                ignoreClickRef.current = false;
+            }, 0);
         }
     };
 
     const onPointerLeave = () => {
         clearPressTimer();
+        pointerDownRef.current = false;
     };
 
     return (
         <Button
             variant={mode !== 'off' ? 'default' : 'outline'}
             size="icon"
-            onMouseDown={() => onPointerDown(false)}
-            onMouseUp={() => onPointerUp(false)}
-            onMouseLeave={onPointerLeave}
-            onTouchStart={() => onPointerDown(true)}
-            onTouchEnd={() => onPointerUp(true)}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerLeave}
+            onPointerLeave={onPointerLeave}
+            onClick={() => {
+                if (ignoreClickRef.current) return;
+                handleClick();
+            }}
             title="Click: pan mode | Hold: sightseeing"
             className={`
                 fixed bottom-6 right-4 w-14 h-14 rounded-2xl shadow-2xl select-none
