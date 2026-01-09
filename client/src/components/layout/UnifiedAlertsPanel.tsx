@@ -419,7 +419,21 @@ export function UnifiedAlertsPanel() {
                                 variant={showHeatmap ? "default" : "outline"}
                                 size="sm"
                                 className="w-full"
-                                onClick={() => setShowHeatmap(!showHeatmap)}
+                                onClick={() => {
+                                    const newState = !showHeatmap;
+                                    setShowHeatmap(newState);
+                                    if (newState) {
+                                        toast.success("[✓] heatmap.enabled", {
+                                            description: `[INFO] Rendering ${alertCount} alerts as thermal density map`,
+                                            duration: 3000
+                                        });
+                                    } else {
+                                        toast.info("[i] heatmap.disabled", {
+                                            description: "[INFO] Heatmap layer hidden",
+                                            duration: 2000
+                                        });
+                                    }
+                                }}
                             >
                                 <Flame className={`w-4 h-4 mr-2 ${showHeatmap ? 'animate-pulse' : ''}`} />
                                 {showHeatmap ? 'Heatmap Active' : 'Show Heatmap'}

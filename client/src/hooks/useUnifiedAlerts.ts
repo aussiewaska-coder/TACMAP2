@@ -25,12 +25,15 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
     // Convert to simple GeoJSON
     const geoJsonData = useMemo(() => {
         if (!data) {
+            console.warn('⚠️ No data provided to useUnifiedAlerts');
             return { type: 'FeatureCollection', features: [] };
         }
 
         // Emergency: data is already a FeatureCollection
         if (alertSource === 'emergency' && data.features) {
-            console.log(`✅ EMERGENCY: ${data.features.length} features`);
+            const pointCount = data.features.filter((f: any) => f.geometry.type === 'Point').length;
+            const polygonCount = data.features.length - pointCount;
+            console.log(`✅ EMERGENCY: ${data.features.length} features (${pointCount} points, ${polygonCount} polygons)`);
             return data;
         }
 
@@ -238,7 +241,9 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
 
         // Update visibility for all layers
         if (map.getLayer(heatmapLayerId)) {
-            map.setLayoutProperty(heatmapLayerId, 'visibility', showHeatmap ? 'visible' : 'none');
+            const visibility = showHeatmap ? 'visible' : 'none';
+            map.setLayoutProperty(heatmapLayerId, 'visibility', visibility);
+            console.log(`🔥 Heatmap visibility: ${visibility} | ${geoJsonData.features.length} features | Source: ${sourceId}`);
         }
         if (map.getLayer(clusterLayerId)) {
             map.setLayoutProperty(clusterLayerId, 'visibility', showMarkers ? 'visible' : 'none');
