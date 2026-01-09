@@ -37,7 +37,7 @@ export function UnifiedAlertsPanel() {
 
     // Mode toggle
     const [alertMode, setAlertMode] = useState<AlertMode>('emergency');
-    const [enabled, setEnabled] = useState(false);
+    const [enabled, setEnabled] = useState(true); // ✅ ENABLED BY DEFAULT
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
 

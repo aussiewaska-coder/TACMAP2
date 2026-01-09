@@ -261,41 +261,30 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 });
             }
 
-            // 6. Unclustered points (icons or circles)
-            if (alertSource === 'emergency') {
-                // Use icon layer for emergency
-                if (!map.getLayer(unclusteredLayerId)) {
-                    map.addLayer({
-                        id: unclusteredLayerId,
-                        type: 'symbol',
-                        source: sourceId,
-                        filter: ['!', ['has', 'point_count']],
-                        layout: {
-                            'icon-image': ['get', 'markerIcon'],
-                            'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.6, 10, 0.75, 15, 1.0],
-                            'icon-allow-overlap': true,
-                            'icon-ignore-placement': true,
-                            visibility: markerVisibility
-                        }
-                    });
-                }
-            } else {
-                // Use circle layer for police
-                if (!map.getLayer(unclusteredLayerId)) {
-                    map.addLayer({
-                        id: unclusteredLayerId,
-                        type: 'circle',
-                        source: sourceId,
-                        filter: ['!', ['has', 'point_count']],
-                        paint: {
-                            'circle-radius': 6,
-                            'circle-color': '#B91C1C',
-                            'circle-stroke-width': 2,
-                            'circle-stroke-color': '#FFFFFF'
-                        },
-                        layout: { visibility: markerVisibility }
-                    });
-                }
+            // 6. Unclustered points - SIMPLE CIRCLES
+            if (!map.getLayer(unclusteredLayerId)) {
+                map.addLayer({
+                    id: unclusteredLayerId,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['all', ['!', ['has', 'point_count']], ['==', ['geometry-type'], 'Point']],
+                    paint: {
+                        'circle-radius': alertSource === 'emergency' ? 8 : 6,
+                        'circle-color': alertSource === 'emergency'
+                            ? [
+                                'match',
+                                ['coalesce', ['get', 'severity_rank'], 4],
+                                1, '#ef4444', // Red - Critical
+                                2, '#f97316', // Orange - Severe
+                                3, '#eab308', // Yellow - Moderate
+                                '#3b82f6'     // Blue - Minor
+                            ]
+                            : '#dc2626', // Red for police
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#FFFFFF'
+                    },
+                    layout: { visibility: markerVisibility }
+                });
             }
 
             // Sync visibility
