@@ -123,12 +123,12 @@ export function useHeatmap(options: UseHeatmapOptions) {
             'interpolate',
             ['linear'],
             ['heatmap-density'],
-            0, 'rgba(0, 0, 255, 0)',
-            0.2, 'rgba(0, 255, 255, 0.8)',
-            0.4, 'rgba(0, 255, 0, 0.8)',
-            0.6, 'rgba(255, 255, 0, 0.8)',
-            0.8, 'rgba(255, 128, 0, 0.8)',
-            1, 'rgba(255, 0, 0, 0.8)'
+            0, 'rgba(0, 50, 0, 0)',
+            0.2, 'rgba(0, 100, 0, 0.6)',
+            0.4, 'rgba(0, 180, 0, 0.7)',
+            0.6, 'rgba(50, 220, 50, 0.8)',
+            0.8, 'rgba(100, 255, 100, 0.85)',
+            1, 'rgba(180, 255, 180, 0.9)'
           ],
           // CRITICAL: Radius must be large at low zoom for smooth blending
           // Decreases as you zoom in so individual hotspots become visible
