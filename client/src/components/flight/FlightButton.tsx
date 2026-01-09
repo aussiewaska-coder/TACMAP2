@@ -70,16 +70,16 @@ export function FlightButton() {
 
         stopFlight();
 
-        // Set default flight parameters: 3K altitude, 375 speed, 70° tilt, 0° heading
+        // Set default flight parameters: 3K altitude, 375 speed, 70° tilt, keep current heading
         const store = useFlightStore.getState();
         store.setMode('pan');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
         store.setSpeed(375);            // Default speed for 3K
         store.setTargetPitch(70);       // 70° tilt
-        store.setTargetHeading(0);      // North
+        // Don't set targetHeading - keep current map direction
 
         let lastTime = 0;
-        let currentHeading = map.getBearing();
+        let currentHeading = map.getBearing();  // Retain current direction
         let currentPitch = map.getPitch();
         let currentZoom = map.getZoom();
         let currentSpeed = 375;
