@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useMapStore } from '@/stores';
+import { useFlightStore } from '@/stores/flightStore';
 import maplibregl from 'maplibre-gl';
 import { Navigation, NavigationOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -74,12 +75,17 @@ export function UserLocationLayer() {
         const currentZoom = map.getZoom();
         const targetZoom = isFirst ? 16 : Math.max(currentZoom, 15);
 
+        // Add padding if flight dashboard is open (420px wide on right)
+        const flightMode = useFlightStore.getState().mode;
+        const padding = flightMode !== 'off' ? { right: 210, left: 0, top: 0, bottom: 0 } : undefined;
+
         map.flyTo({
             center: coords,
             zoom: targetZoom,
             pitch: 60,
             duration: isFirst ? 2000 : 1000,
-            essential: true
+            essential: true,
+            padding
         });
     }, [map]);
 
