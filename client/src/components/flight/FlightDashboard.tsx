@@ -1,7 +1,7 @@
 import { X, Plane, RotateCw, Satellite, Building2, ChevronLeft, ChevronRight, Crosshair, LocateFixed, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
-import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
+import { useFlightStore, useFlightSpeed } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
@@ -634,7 +634,7 @@ const BUILDINGS_LAYER_ID = 'flight-3d-buildings';
 export function FlightDashboard() {
     const dashboardOpen = useFlightStore((s) => s.dashboardOpen);
     const closeDashboard = useFlightStore((s) => s.closeDashboard);
-    const mode = useFlightMode();
+    const [flightMode, setFlightMode] = useState<'off' | 'manual' | 'orbit'>('off');
     const speed = useFlightSpeed(); // From store
     const targetHeading = useFlightStore((s) => s.targetHeading);
     const targetAltitude = useFlightStore((s) => s.targetAltitude);
@@ -647,6 +647,7 @@ export function FlightDashboard() {
     const [orbitLookAtCenter, setOrbitLookAtCenter] = useState(true);
     const [orbitPaused, setOrbitPaused] = useState(false);
     const [debugVisible, setDebugVisible] = useState(true);
+    const [lastAction, setLastAction] = useState('init');
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -657,7 +658,7 @@ export function FlightDashboard() {
 
     // Update telemetry from map (live) - this is the source of truth
     useEffect(() => {
-        if (!dashboardOpen && mode === 'off') return;
+        if (!dashboardOpen && flightMode === 'off') return;
 
         const interval = setInterval(() => {
             const map = useMapStore.getState().map;
@@ -674,24 +675,24 @@ export function FlightDashboard() {
         }, 50); // Faster updates for responsive sliders
 
         return () => clearInterval(interval);
-    }, [dashboardOpen, mode]);
+    }, [dashboardOpen, flightMode]);
 
     useEffect(() => {
         if (!dashboardOpen) return;
         const store = useFlightStore.getState();
-        if (store.mode !== 'off') return;
         const map = useMapStore.getState().map;
         if (!map) return;
 
-        store.setMode('manual');
-        store.setTargetHeading(map.getBearing());
-        store.setTargetPitch(map.getPitch());
-        store.setTargetAltitude(map.getZoom());
-        store.setTargetSpeed(store.speed);
-    }, [dashboardOpen]);
+        if (flightMode === 'off') {
+            store.setTargetHeading(map.getBearing());
+            store.setTargetPitch(map.getPitch());
+            store.setTargetAltitude(map.getZoom());
+            store.setTargetSpeed(store.speed);
+        }
+    }, [dashboardOpen, flightMode]);
 
     useEffect(() => {
-        if (!dashboardOpen || mode !== 'manual') return;
+        if (!dashboardOpen || flightMode !== 'manual') return;
         const map = useMapStore.getState().map;
         if (!map) return;
 
@@ -705,7 +706,7 @@ export function FlightDashboard() {
             const currentMap = useMapStore.getState().map;
             const store = useFlightStore.getState();
 
-            if (!currentMap || store.mode !== 'manual') {
+            if (!currentMap || flightMode !== 'manual') {
                 useFlightStore.getState().setAnimationId(null);
                 return;
             }
@@ -758,10 +759,10 @@ export function FlightDashboard() {
             if (store.animationId) cancelAnimationFrame(store.animationId);
             store.setAnimationId(null);
         };
-    }, [dashboardOpen, mode]);
+    }, [dashboardOpen, flightMode]);
 
     useEffect(() => {
-        if (!dashboardOpen || mode !== 'orbit') return;
+        if (!dashboardOpen || flightMode !== 'orbit') return;
         const map = useMapStore.getState().map;
         if (!map) return;
 
@@ -775,7 +776,7 @@ export function FlightDashboard() {
             const currentMap = useMapStore.getState().map;
             const store = useFlightStore.getState();
 
-            if (!currentMap || store.mode !== 'orbit') {
+            if (!currentMap || flightMode !== 'orbit') {
                 useFlightStore.getState().setAnimationId(null);
                 return;
             }
@@ -835,10 +836,10 @@ export function FlightDashboard() {
             if (store.animationId) cancelAnimationFrame(store.animationId);
             store.setAnimationId(null);
         };
-    }, [dashboardOpen, mode, orbitLookAtCenter, orbitPaused]);
+    }, [dashboardOpen, flightMode, orbitLookAtCenter, orbitPaused]);
 
     useEffect(() => {
-        if (!dashboardOpen || mode !== 'orbit') return;
+        if (!dashboardOpen || flightMode !== 'orbit') return;
         const map = useMapStore.getState().map;
         if (!map) return;
 
@@ -855,7 +856,7 @@ export function FlightDashboard() {
             map.off('wheel', stopOnInteract);
             map.off('touchstart', stopOnInteract);
         };
-    }, [dashboardOpen, mode]);
+    }, [dashboardOpen, flightMode]);
 
     // Derive altitude from zoom (two-way: zoom IS altitude)
     // zoom 18 = 500m, zoom 0 = ~130km
@@ -884,7 +885,11 @@ export function FlightDashboard() {
         store.setAnimationId(null);
         store.setTransitionTimeoutId(null);
         store.setPrevProjection(null);
-        store.setMode('off');
+        store.setTargetHeading(null);
+        store.setTargetAltitude(null);
+        store.setTargetPitch(null);
+        store.setTargetSpeed(null);
+        setFlightMode('off');
     };
 
     const startOrbit = (center?: [number, number]) => {
@@ -895,6 +900,7 @@ export function FlightDashboard() {
         }
 
         stopFlight();
+        setLastAction('orbit:start');
 
         const proj = map.getProjection();
         const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
@@ -922,7 +928,7 @@ export function FlightDashboard() {
         store.setOrbitCenter(orbitCenter);
         store.setOrbitRadius(derivedRadius);
         store.setOrbitAngle(derivedAngle);
-        store.setMode('orbit');
+        setFlightMode('orbit');
 
         store.setTargetAltitude(map.getZoom());
         store.setTargetPitch(map.getPitch());
@@ -932,7 +938,7 @@ export function FlightDashboard() {
     };
 
     const handleClose = () => {
-        if (mode !== 'off') {
+        if (flightMode !== 'off') {
             stopFlight();
         }
         closeDashboard();
@@ -950,8 +956,8 @@ export function FlightDashboard() {
     // Apply heading change - set target for smooth easing
     const applyHeading = (newHeading: number) => {
         const store = useFlightStore.getState();
-        if (store.mode !== 'orbit') {
-            store.setMode('manual');
+        if (flightMode !== 'orbit') {
+            setFlightMode('manual');
         }
         store.setTargetHeading(newHeading);
     };
@@ -959,8 +965,8 @@ export function FlightDashboard() {
     // Apply altitude change - set target altitude AND speed for smooth easing
     const applyAltitude = (newAlt: number, newSpeed: number) => {
         const store = useFlightStore.getState();
-        if (store.mode !== 'orbit') {
-            store.setMode('manual');
+        if (flightMode !== 'orbit') {
+            setFlightMode('manual');
         }
         store.setTargetAltitude(newAlt);
         store.setTargetSpeed(newSpeed);
@@ -970,8 +976,8 @@ export function FlightDashboard() {
     // Apply pitch/tilt change - set target for smooth easing
     const applyPitch = (newPitch: number) => {
         const store = useFlightStore.getState();
-        if (store.mode !== 'orbit') {
-            store.setMode('manual');
+        if (flightMode !== 'orbit') {
+            setFlightMode('manual');
         }
         store.setTargetPitch(newPitch);
     };
@@ -1123,8 +1129,8 @@ export function FlightDashboard() {
     // Update speed directly (from throttle slider) - also sets target for easing
     const setSpeed = (newSpeed: number) => {
         const store = useFlightStore.getState();
-        if (store.mode !== 'orbit') {
-            store.setMode('manual');
+        if (flightMode !== 'orbit') {
+            setFlightMode('manual');
         }
         store.setTargetSpeed(newSpeed);
         store.setSpeed(newSpeed);
@@ -1149,12 +1155,11 @@ export function FlightDashboard() {
                         <div className="flex items-center gap-2">
                             <div className={`
                                 px-2 py-0.5 rounded text-[10px] font-mono font-bold border
-                                ${mode === 'pan' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : ''}
-                                ${mode === 'sightseeing' ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : ''}
-                                ${mode === 'manual' ? 'bg-green-500/20 text-green-400 border-green-500/50' : ''}
-                                ${mode === 'orbit' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : ''}
+                                ${flightMode === 'manual' ? 'bg-green-500/20 text-green-400 border-green-500/50' : ''}
+                                ${flightMode === 'orbit' ? 'bg-orange-500/20 text-orange-400 border-orange-500/50' : ''}
+                                ${flightMode === 'off' ? 'bg-slate-500/20 text-slate-300 border-slate-500/50' : ''}
                             `}>
-                                {mode.toUpperCase()}
+                                {flightMode.toUpperCase()}
                             </div>
                             {/* Satellite toggle */}
                             <Button
@@ -1245,7 +1250,7 @@ export function FlightDashboard() {
                             {/* HEADING - Center compass + ORBIT controls */}
                             <div className="flex flex-col items-center gap-2">
                                 {/* Show compass for non-orbit modes, orbit indicator for orbit mode */}
-                                {mode !== 'orbit' ? (
+                                {flightMode !== 'orbit' ? (
                                     <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
                                 ) : (
                                     <OrbitIndicator heading={heading} />
@@ -1254,15 +1259,18 @@ export function FlightDashboard() {
                                 {/* ORBIT Button */}
                                 <button
                                     onClick={() => {
+                                        setLastAction('orbit:click');
                                         const map = useMapStore.getState().map;
                                         if (map) {
                                             const center = map.getCenter();
-                                            startOrbit([center.lng, center.lat], true);
+                                            startOrbit([center.lng, center.lat]);
                                         }
                                     }}
+                                    onPointerDown={() => setLastAction('orbit:pointerdown')}
                                     className={`
+                                        pointer-events-auto
                                         px-4 py-1.5 rounded font-mono text-xs font-bold transition-all border flex items-center gap-2
-                                        ${mode === 'orbit'
+                                        ${flightMode === 'orbit'
                                             ? 'bg-orange-500 text-black border-orange-400 shadow-lg shadow-orange-500/50'
                                             : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 hover:text-orange-300 cursor-pointer'
                                         }
@@ -1273,7 +1281,7 @@ export function FlightDashboard() {
                                 </button>
 
                                 {/* Orbit controls - only show in orbit mode */}
-                                {mode === 'orbit' ? (
+                                {flightMode === 'orbit' ? (
                                     <OrbitControls
                                         lookAtCenter={orbitLookAtCenter}
                                         paused={orbitPaused}
@@ -1293,8 +1301,8 @@ export function FlightDashboard() {
                                 currentZoom={telemetry.zoom}
                                 onAltitudeChange={(zoom, defaultSpeed) => {
                                     const store = useFlightStore.getState();
-                                    if (store.mode !== 'orbit') {
-                                        store.setMode('manual');
+                                    if (flightMode !== 'orbit') {
+                                        setFlightMode('manual');
                                     }
                                     // Set target altitude (zoom level) - animation loop will ease to it
                                     store.setTargetAltitude(zoom);
@@ -1351,7 +1359,8 @@ export function FlightDashboard() {
                                 HIDE
                             </button>
                         </div>
-                        <div>mode: {mode}</div>
+                        <div>mode: {flightMode}</div>
+                        <div>lastAction: {lastAction}</div>
                         <div>animationId: {useFlightStore.getState().animationId ?? 'null'}</div>
                         <div>orbitCenter: {orbitCenter ? `${orbitCenter[0].toFixed(4)}, ${orbitCenter[1].toFixed(4)}` : 'null'}</div>
                         <div>orbitRadiusKm: {orbitRadius.toFixed(2)}</div>

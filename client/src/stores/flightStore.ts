@@ -1,10 +1,7 @@
 import { create } from 'zustand';
 
-type FlightMode = 'off' | 'pan' | 'sightseeing' | 'manual' | 'orbit';
-
 interface FlightState {
     dashboardOpen: boolean;
-    mode: FlightMode;
     animationId: number | null;
     transitionTimeoutId: number | null; // For orbit transition setTimeout
     prevProjection: string | null;
@@ -29,7 +26,6 @@ interface FlightState {
 
     openDashboard: () => void;
     closeDashboard: () => void;
-    setMode: (mode: FlightMode) => void;
     setAnimationId: (id: number | null) => void;
     setTransitionTimeoutId: (id: number | null) => void;
     setPrevProjection: (proj: string | null) => void;
@@ -49,7 +45,6 @@ interface FlightState {
 
 export const useFlightStore = create<FlightState>((set) => ({
     dashboardOpen: false,
-    mode: 'off',
     animationId: null,
     transitionTimeoutId: null,
     prevProjection: null,
@@ -68,7 +63,6 @@ export const useFlightStore = create<FlightState>((set) => ({
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
-    setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null, targetPitch: null, targetSpeed: null }),
     setAnimationId: (id) => set({ animationId: id }),
     setTransitionTimeoutId: (id) => set({ transitionTimeoutId: id }),
     setPrevProjection: (proj) => set({ prevProjection: proj }),
@@ -88,5 +82,4 @@ export const useFlightStore = create<FlightState>((set) => ({
 
 // SIMPLE selectors - primitives don't need shallow
 export const useFlightDashboardOpen = () => useFlightStore((s) => s.dashboardOpen);
-export const useFlightMode = () => useFlightStore((s) => s.mode);
 export const useFlightSpeed = () => useFlightStore((s) => s.speed);

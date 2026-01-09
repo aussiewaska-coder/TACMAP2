@@ -77,8 +77,8 @@ export function UserLocationLayer() {
         const targetZoom = isFirst ? 16 : Math.max(currentZoom, 15);
 
         // Add padding if flight dashboard is open (420px wide on right)
-        const flightMode = useFlightStore.getState().mode;
-        const padding = flightMode !== 'off' ? { right: 210, left: 0, top: 0, bottom: 0 } : undefined;
+        const dashboardOpen = useFlightStore.getState().dashboardOpen;
+        const padding = dashboardOpen ? { right: 210, left: 0, top: 0, bottom: 0 } : undefined;
 
         map.flyTo({
             center: coords,
