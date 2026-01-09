@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export function FlightDashboard() {
     const mode = useFlightMode();
@@ -19,6 +19,7 @@ export function FlightDashboard() {
     const [heading, setHeading] = useState(0);
     const [altitude, setAltitude] = useState(10000);
     const [initialized, setInitialized] = useState(false);
+    const adjustingRef = useRef<NodeJS.Timeout | null>(null); // Pause sync while adjusting
 
     // Initialize controls from current map state when dashboard opens
     useEffect(() => {
@@ -61,12 +62,15 @@ export function FlightDashboard() {
                 zoom: currentZoom,
             });
 
-            // Keep heading synced with map bearing (live)
-            setHeading(Math.round((currentBearing + 360) % 360));
+            // Only sync controls if user is not actively adjusting
+            if (!adjustingRef.current) {
+                // Keep heading synced with map bearing (live)
+                setHeading(Math.round((currentBearing + 360) % 360));
 
-            // Keep altitude synced with zoom (live)
-            const alt = Math.round(500 * Math.pow(2, 18 - currentZoom));
-            setAltitude(Math.max(1000, Math.min(50000, alt)));
+                // Keep altitude synced with zoom (live)
+                const alt = Math.round(500 * Math.pow(2, 18 - currentZoom));
+                setAltitude(Math.max(1000, Math.min(50000, alt)));
+            }
         }, 100);
 
         return () => clearInterval(interval);
@@ -90,8 +94,17 @@ export function FlightDashboard() {
         store.setMode('off');
     };
 
+    // Pause sync temporarily when user adjusts controls
+    const pauseSync = () => {
+        if (adjustingRef.current) clearTimeout(adjustingRef.current);
+        adjustingRef.current = setTimeout(() => {
+            adjustingRef.current = null;
+        }, 500); // Resume sync after 500ms of no adjustment
+    };
+
     // Apply heading change
     const applyHeading = (newHeading: number) => {
+        pauseSync();
         setHeading(newHeading);
         const map = useMapStore.getState().map;
         if (map) {
@@ -101,6 +114,7 @@ export function FlightDashboard() {
 
     // Apply altitude change (affects zoom)
     const applyAltitude = (newAlt: number) => {
+        pauseSync();
         setAltitude(newAlt);
         // Convert altitude to zoom: higher altitude = lower zoom
         // 1000m = zoom 15, 50000m = zoom 3
