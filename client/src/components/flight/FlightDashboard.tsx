@@ -40,7 +40,7 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
         <div className="flex flex-col items-center gap-1 select-none">
             <div className="text-amber-400/50 text-[10px] font-mono font-bold tracking-wider">ALT</div>
             <div className="text-amber-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-500/30">
-                Z{currentZoom.toFixed(0)}
+                Z{currentZoom.toFixed(1)}
             </div>
             <div className="flex flex-col gap-1 mt-1">
                 {ALTITUDE_PRESETS.map((preset) => {
@@ -49,15 +49,24 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
                     return (
                         <button
                             key={preset.ft}
-                            onClick={() => {
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                console.log('=== ALTITUDE BUTTON CLICKED ===');
+                                console.log('Target zoom:', preset.zoom);
                                 const map = useMapStore.getState().map;
+                                console.log('Map exists:', !!map);
                                 if (map) {
+                                    const beforeZoom = map.getZoom();
+                                    console.log('Before zoom:', beforeZoom);
                                     map.setZoom(preset.zoom);
+                                    const afterZoom = map.getZoom();
+                                    console.log('After zoom:', afterZoom);
                                     useFlightStore.getState().setSpeed(preset.speed);
                                 }
                             }}
                             className={`
-                                px-3 py-1 rounded font-mono text-xs font-bold transition-all border
+                                px-3 py-1 rounded font-mono text-xs font-bold transition-all border cursor-pointer
                                 ${isActive
                                     ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/50'
                                     : isClosest
