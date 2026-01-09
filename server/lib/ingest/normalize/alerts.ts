@@ -17,6 +17,7 @@ export async function normalizeAlerts(
     try {
         switch (streamType) {
             case 'geojson':
+            case 'json':
                 return normalizeGeoJSON(data, sourceId, registryEntry);
 
             case 'rss':

@@ -27,6 +27,7 @@ export function EmergencyPanel() {
     const [aircraftEnabled, setAircraftEnabled] = useState(true);
     const [alertsEnabled, setAlertsEnabled] = useState(true);
     const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map(h => h.id));
+    const [opsMode, setOpsMode] = useState<'all' | 'warning' | 'ground_truth'>('all');
 
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
@@ -135,12 +136,21 @@ export function EmergencyPanel() {
             else if (isAviation) markerIcon = 'icon-aviation';
             else if (isSpace) markerIcon = 'icon-space';
 
-            const matchesFilter = (activeFilters.includes('fire') && isFire) ||
+            const isGroundTruth = tags.includes('fire_ground_truth') || tags.includes('operational') || tags.includes('ground_truth');
+            const isWarning = tags.includes('public_warning') || (!isGroundTruth);
+
+            const matchesOps = opsMode === 'all' ||
+                (opsMode === 'ground_truth' && isGroundTruth) ||
+                (opsMode === 'warning' && isWarning);
+
+            const matchesFilter = matchesOps && (
+                (activeFilters.includes('fire') && isFire) ||
                 (activeFilters.includes('flood') && isFlood) ||
                 (activeFilters.includes('road') && isRoad) ||
                 (activeFilters.includes('space') && isSpace) ||
                 (activeFilters.includes('aviation') && isAviation) ||
-                (activeFilters.includes('general') && !isFire && !isFlood && !isRoad && !isSpace && !isAviation);
+                (activeFilters.includes('general') && !isFire && !isFlood && !isRoad && !isSpace && !isAviation)
+            );
 
             if (!matchesFilter) return null;
 
@@ -475,29 +485,55 @@ export function EmergencyPanel() {
                 {alertsEnabled && (
                     <div className="space-y-4">
                         {/* Hazard Filter Pills */}
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-1">Filters</label>
-                            <div className="flex flex-wrap gap-2">
-                                {HAZARD_TYPES.map((type) => {
-                                    const Icon = type.icon;
-                                    const isActive = activeFilters.includes(type.id);
-                                    return (
-                                        <button
-                                            key={type.id}
-                                            onClick={() => toggleFilter(type.id)}
-                                            className={`
-                                                flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all
-                                                ${isActive
-                                                    ? `${type.activeBg} ${type.activeText} shadow-lg scale-105 ring-1 ring-white/20`
-                                                    : 'bg-white/5 text-white/40 hover:bg-white/10'
-                                                }
-                                            `}
-                                        >
-                                            <Icon className="w-3.5 h-3.5" />
-                                            {type.label}
-                                        </button>
-                                    );
-                                })}
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-1 mb-2 block">Operational Mode</label>
+                                <div className="grid grid-cols-3 gap-1 bg-black/40 p-1 rounded-xl border border-white/5">
+                                    <button
+                                        onClick={() => setOpsMode('all')}
+                                        className={`py-1 text-[10px] font-bold rounded-lg transition-all ${opsMode === 'all' ? 'bg-white/10 text-white shadow-inner' : 'text-white/30 hover:text-white/60'}`}
+                                    >
+                                        ALL
+                                    </button>
+                                    <button
+                                        onClick={() => setOpsMode('warning')}
+                                        className={`py-1 text-[10px] font-bold rounded-lg transition-all ${opsMode === 'warning' ? 'bg-blue-500/20 text-blue-400 shadow-inner' : 'text-white/30 hover:text-white/60'}`}
+                                    >
+                                        WARNINGS
+                                    </button>
+                                    <button
+                                        onClick={() => setOpsMode('ground_truth')}
+                                        className={`py-1 text-[10px] font-bold rounded-lg transition-all ${opsMode === 'ground_truth' ? 'bg-red-500/20 text-red-400 shadow-inner' : 'text-white/30 hover:text-white/60'}`}
+                                    >
+                                        GROUND
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-1 mb-2 block">Hazard Filters</label>
+                                <div className="flex flex-wrap gap-2">
+                                    {HAZARD_TYPES.map((type) => {
+                                        const Icon = type.icon;
+                                        const isActive = activeFilters.includes(type.id);
+                                        return (
+                                            <button
+                                                key={type.id}
+                                                onClick={() => toggleFilter(type.id)}
+                                                className={`
+                                                    flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all
+                                                    ${isActive
+                                                        ? `${type.activeBg} ${type.activeText} shadow-lg scale-105 ring-1 ring-white/20`
+                                                        : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                                    }
+                                                `}
+                                            >
+                                                <Icon className="w-3.5 h-3.5" />
+                                                {type.label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
 
@@ -509,6 +545,46 @@ export function EmergencyPanel() {
                             <div className="bg-black/20 p-2 rounded-xl border border-white/5 text-center">
                                 <p className="text-[10px] text-white/40 uppercase font-bold">Feeds</p>
                                 <p className="text-xl font-mono text-white/80">{alertsData?.metadata.sources_count || 0}</p>
+                            </div>
+                        </div>
+
+                        <div className="pt-3 border-t border-white/10">
+                            <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Live Situation Feed</h4>
+                            <div className="space-y-2 max-height-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                {alertsLoading ? (
+                                    <div className="text-[10px] text-white/30 animate-pulse text-center py-4 italic">Synchronizing feeds...</div>
+                                ) : alertsData?.features.length === 0 ? (
+                                    <div className="text-[10px] text-white/30 text-center py-4 italic">No active reports for current filters.</div>
+                                ) : (
+                                    alertsData?.features.slice(0, 5).map((feature: any) => (
+                                        <div
+                                            key={feature.properties.id}
+                                            onClick={() => {
+                                                if (map) {
+                                                    map.flyTo({
+                                                        center: (feature.geometry as any).coordinates,
+                                                        zoom: 12,
+                                                        duration: 1500
+                                                    });
+                                                }
+                                            }}
+                                            className="bg-black/40 p-2.5 rounded-xl border border-white/5 hover:border-white/20 transition-all cursor-pointer group"
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <Badge className={`text-[8px] h-4 ${getSeverityBadgeColor(feature.properties.severity_rank)}`}>
+                                                    {feature.properties.severity}
+                                                </Badge>
+                                                <span className="text-[8px] text-white/30">{feature.properties.state} • {Math.floor(feature.properties.age_s / 60)}m ago</span>
+                                            </div>
+                                            <h5 className="text-[11px] font-bold text-white/90 line-clamp-1 group-hover:text-white transition-colors">
+                                                {feature.properties.title}
+                                            </h5>
+                                            <p className="text-[9px] text-white/50 line-clamp-2 mt-1 leading-relaxed">
+                                                {feature.properties.description?.replace(/<[^>]*>?/gm, '').substring(0, 100)}...
+                                            </p>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
 
@@ -555,6 +631,15 @@ function getSeverityColor(rank?: number): string {
         case 2: return '#f59e0b'; // Orange
         case 3: return '#eab308'; // Yellow
         default: return '#3b82f6'; // Blue
+    }
+}
+
+function getSeverityBadgeColor(rank?: number): string {
+    switch (rank) {
+        case 1: return 'bg-red-500/20 text-red-500 border-red-500/30';
+        case 2: return 'bg-orange-500/20 text-orange-500 border-orange-500/30';
+        case 3: return 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30';
+        default: return 'bg-blue-500/20 text-blue-500 border-blue-500/30';
     }
 }
 
