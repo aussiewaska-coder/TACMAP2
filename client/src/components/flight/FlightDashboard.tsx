@@ -1,16 +1,19 @@
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
-import { useFlightStore, useFlightDashboardOpen, useFlightMode } from '@/stores/flightStore';
+import { useFlightStore, useFlightMode } from '@/stores/flightStore';
 
 export function FlightDashboard() {
-    const isOpen = useFlightDashboardOpen();
     const mode = useFlightMode();
 
-    if (!isOpen) return null;
+    // Show dashboard when flight is active
+    if (mode === 'off') return null;
 
-    const closeDashboard = () => {
-        useFlightStore.getState().closeDashboard();
+    const stopFlight = () => {
+        const store = useFlightStore.getState();
+        if (store.animationId) cancelAnimationFrame(store.animationId);
+        store.setAnimationId(null);
+        store.setMode('off');
     };
 
     return (
@@ -30,7 +33,7 @@ export function FlightDashboard() {
                 <Button
                     variant="ghost"
                     size="icon"
-                    onClick={closeDashboard}
+                    onClick={stopFlight}
                     className="text-cyan-400 hover:bg-cyan-500/20"
                 >
                     <X className="w-5 h-5" />
