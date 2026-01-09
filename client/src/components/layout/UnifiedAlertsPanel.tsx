@@ -41,10 +41,12 @@ export function UnifiedAlertsPanel() {
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
 
-    // Auto-disable markers when heatmap is enabled
+    // Auto-toggle markers when heatmap changes (but allow manual override)
     useEffect(() => {
         if (showHeatmap) {
             setShowMarkers(false);
+        } else {
+            setShowMarkers(true);
         }
     }, [showHeatmap]);
 

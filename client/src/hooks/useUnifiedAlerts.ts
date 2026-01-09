@@ -110,7 +110,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                     'heatmap-weight': [
                         'interpolate',
                         ['exponential', 0.5],
-                        ['get', 'age_s'],
+                        ['coalesce', ['get', 'age_s'], 0], // Default to 0 if age_s missing
                         0, 1.0,        // Just now: full weight
                         86400, 0.8,    // 1 day old: 80%
                         259200, 0.6,   // 3 days old: 60%
