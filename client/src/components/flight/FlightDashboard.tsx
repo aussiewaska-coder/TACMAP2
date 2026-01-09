@@ -646,6 +646,7 @@ export function FlightDashboard() {
     const orbitClockwise = useFlightStore((s) => s.orbitClockwise);
     const [orbitLookAtCenter, setOrbitLookAtCenter] = useState(true);
     const [orbitPaused, setOrbitPaused] = useState(false);
+    const [debugVisible, setDebugVisible] = useState(true);
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -1336,6 +1337,43 @@ export function FlightDashboard() {
                     </div>
                 </div>
             </div>
+
+            {/* Debug panel */}
+            {debugVisible && (
+                <div className="absolute bottom-4 left-4 pointer-events-auto">
+                    <div className="bg-black/90 border border-green-500/30 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 shadow-lg">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-green-400/70">FLIGHT DEBUG</span>
+                            <button
+                                onClick={() => setDebugVisible(false)}
+                                className="text-green-400/50 hover:text-green-300"
+                            >
+                                HIDE
+                            </button>
+                        </div>
+                        <div>mode: {mode}</div>
+                        <div>animationId: {useFlightStore.getState().animationId ?? 'null'}</div>
+                        <div>orbitCenter: {orbitCenter ? `${orbitCenter[0].toFixed(4)}, ${orbitCenter[1].toFixed(4)}` : 'null'}</div>
+                        <div>orbitRadiusKm: {orbitRadius.toFixed(2)}</div>
+                        <div>orbitAngle: {useFlightStore.getState().orbitAngle.toFixed(2)}</div>
+                        <div>orbitClockwise: {orbitClockwise ? 'true' : 'false'}</div>
+                        <div>orbitPaused: {orbitPaused ? 'true' : 'false'}</div>
+                        <div>lookAtCenter: {orbitLookAtCenter ? 'true' : 'false'}</div>
+                        <div>targetHeading: {targetHeading ?? 'null'}</div>
+                        <div>targetAltitude: {targetAltitude ?? 'null'}</div>
+                        <div>targetPitch: {targetPitch ?? 'null'}</div>
+                        <div>targetSpeed: {useFlightStore.getState().targetSpeed ?? 'null'}</div>
+                    </div>
+                </div>
+            )}
+            {!debugVisible && (
+                <button
+                    onClick={() => setDebugVisible(true)}
+                    className="absolute bottom-4 left-4 pointer-events-auto bg-black/80 border border-green-500/30 text-green-300 font-mono text-[10px] px-2 py-1 rounded"
+                >
+                    DEBUG
+                </button>
+            )}
         </div>
     );
 }
