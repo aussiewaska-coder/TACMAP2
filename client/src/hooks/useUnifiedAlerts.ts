@@ -18,7 +18,7 @@ export interface UseUnifiedAlertsOptions {
 }
 
 export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
-    const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
+    const { enabled, alertSource, data, showMarkers = true, showHeatmap = false, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
 
@@ -63,6 +63,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         }
 
         const sourceId = `${layerPrefix}-source`;
+        const heatmapLayerId = `${layerPrefix}-heatmap`;
         const clusterLayerId = `${layerPrefix}-clusters`;
         const clusterCountLayerId = `${layerPrefix}-cluster-count`;
         const layerId = `${layerPrefix}-dots`;
@@ -84,6 +85,64 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         } else {
             (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
             console.log(`✅ Source updated: ${sourceId}`);
+        }
+
+        // Add HEATMAP layer
+        if (!map.getLayer(heatmapLayerId)) {
+            map.addLayer({
+                id: heatmapLayerId,
+                type: 'heatmap',
+                source: sourceId,
+                filter: ['==', ['geometry-type'], 'Point'],
+                paint: {
+                    // Increase weight as diameter increases
+                    'heatmap-weight': [
+                        'interpolate',
+                        ['linear'],
+                        ['get', 'point_count'],
+                        0, 0,
+                        6, 1
+                    ],
+                    // Increase intensity as zoom level increases
+                    'heatmap-intensity': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        0, 1,
+                        14, 3
+                    ],
+                    // Color ramp: blue -> cyan -> lime -> yellow -> red
+                    'heatmap-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['heatmap-density'],
+                        0, 'rgba(0, 0, 255, 0)',
+                        0.2, 'rgb(0, 255, 255)',
+                        0.4, 'rgb(0, 255, 0)',
+                        0.6, 'rgb(255, 255, 0)',
+                        0.8, 'rgb(255, 165, 0)',
+                        1, 'rgb(255, 0, 0)'
+                    ],
+                    // Increase radius as zoom increases
+                    'heatmap-radius': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        0, 2,
+                        14, 20
+                    ],
+                    // Decrease opacity as zoom increases
+                    'heatmap-opacity': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        7, 0.9,
+                        14, 0.5
+                    ]
+                },
+                layout: { visibility: showHeatmap ? 'visible' : 'none' }
+            });
+            console.log(`✅ Heatmap layer added: ${heatmapLayerId}`);
         }
 
         // Add CLUSTER CIRCLE layer
@@ -201,6 +260,9 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         }
 
         // Update visibility for all layers
+        if (map.getLayer(heatmapLayerId)) {
+            map.setLayoutProperty(heatmapLayerId, 'visibility', showHeatmap ? 'visible' : 'none');
+        }
         if (map.getLayer(clusterLayerId)) {
             map.setLayoutProperty(clusterLayerId, 'visibility', showMarkers ? 'visible' : 'none');
         }
@@ -295,6 +357,9 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 map.off('mouseleave', clusterLayerId, setCursor(''));
                 map.removeLayer(clusterLayerId);
             }
+            if (map.getLayer(heatmapLayerId)) {
+                map.removeLayer(heatmapLayerId);
+            }
             if (map.getLayer(layerId)) {
                 map.off('click', layerId, handleClick);
                 map.off('mouseenter', layerId, setCursor('pointer'));
@@ -314,7 +379,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 map.removeSource(sourceId);
             }
         };
-    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
+    }, [map, isLoaded, enabled, geoJsonData, showMarkers, showHeatmap, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
 
     return {
         alertCount: geoJsonData.features.length
