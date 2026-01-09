@@ -4,3 +4,4 @@ export { useBreakpoint, useMediaQuery, useIsMobile, useIsDesktop } from './useBr
 export type { Breakpoint } from './useBreakpoint';
 
 export { useMapEvent, useMapEventOnce, useMapInstance, useOnMapLoad } from './useMapEvent';
+export { useFlight } from './useFlight';

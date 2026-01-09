@@ -10,134 +10,92 @@
 - `vercel.json` - Vercel deployment config
 - `vite.config.ts` - Vite config (root is `/client/`)
 
-## Flight Simulator Feature
-
-### Location
-`/client/src/components/layout/UnifiedSidebar.tsx`
+## Tactical Flight Command Dashboard
 
 ### Overview
-A flight simulator button that provides two modes:
-1. **Pan Mode** (click) - Continuous slow pan north
-2. **Sightseeing Mode** (hold 500ms) - Random path with rotation and zoom on globe projection
+A full HUD overlay system with manual controls, automated great-circle missions, and real-time telemetry. Features a glassmorphic tactical aesthetic with cyan/blue accents.
 
-### UI Button
-- Position: Fixed, bottom-right corner (`bottom-6 right-4`)
-- Icon: `Plane` from lucide-react
-- Visual states:
-  - Off: White/glass background
-  - Pan mode: Blue (`bg-blue-600`)
-  - Sightseeing: Purple with pulse animation (`bg-purple-600 animate-pulse`)
+### Key Files
+| File | Purpose |
+|------|---------|
+| `/client/src/stores/flightStore.ts` | Flight state management (Zustand) |
+| `/client/src/hooks/useFlight.ts` | Flight animation hook |
+| `/client/src/utils/geodesic.ts` | Great-circle calculations |
+| `/client/src/components/overlays/FlightDashboard.tsx` | Main HUD container |
+| `/client/src/components/layout/UnifiedSidebar.tsx` | Flight button (toggles dashboard) |
 
-### State Variables
-```typescript
-const [flightMode, setFlightMode] = useState<'off' | 'pan' | 'sightseeing'>('off');
-const flightRef = useRef<number | null>(null);        // requestAnimationFrame ID
-const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  // Long press detection
-const prevProj = useRef<string | null>(null);         // Previous projection to restore
+### Activation
+- Click the Plane button (bottom-right) to open/close the dashboard
+- Button color indicates state:
+  - White/glass: Dashboard closed
+  - Cyan: Dashboard open, flight off
+  - Blue: Manual flight active
+  - Green (pulsing): Autopilot active
+
+### Flight Modes
+1. **Off** - No flight, dashboard can be open or closed
+2. **Manual** - User controls via speed/heading/altitude sliders
+3. **Autopilot** - Follow great-circle route to destination
+
+### Manual Controls
+| Control | Range | Default |
+|---------|-------|---------|
+| Speed | 100-2000 km/h | 500 |
+| Heading | 0-360° | 0 (north) |
+| Altitude | 1000-50000m | 10000 |
+
+### Autopilot Destinations
+Predefined Australian destinations:
+- Sydney, Nimbin, Melbourne, Brisbane, Uluru, Perth, Adelaide, Hobart, Darwin, Cairns
+
+### HUD Layout
+```
++------------------------------------------------------------------+
+|  [COMPASS]     MODE: AUTOPILOT     [LAT/LNG]  [SPEED]  [ETA]    |
++------------------------------------------------------------------+
+|  [HORIZON]                                        [CONTROLS]     |
+|  [ALTITUDE]          [MAP AREA]                   [AUTOPILOT]    |
++------------------------------------------------------------------+
 ```
 
-### Core Functions
-
-#### `stopFlight()`
-- Cancels animation frame
-- Restores previous map projection (if changed)
-- Sets mode to 'off'
-
-#### `startPan()`
-- Simple northward pan
-- Speed: `0.00008` degrees latitude per millisecond
-- Uses `map.setCenter()` each frame
-- Clamps latitude at 85 degrees
-
-#### `startSight()` (Sightseeing)
-- Switches map to globe projection
-- Generates random waypoints
-- Interpolates:
-  - **Position**: Moves toward waypoint at `0.00012` deg/ms
-  - **Bearing**: Smooth rotation toward random target at `0.03` deg/ms
-  - **Zoom**: Random zoom between 3-13, interpolates at `0.005` per ms
-- New waypoint generated when within `0.02` degrees of current target
-- Bearing changes by random ±45 degrees at each waypoint
-
-### User Interaction Handling
-
-#### Long Press Detection
+### State Management (flightStore)
 ```typescript
-const fDown = () => {
-  pressTimer.current = setTimeout(() => {
-    startSight();
-    pressTimer.current = null;
-  }, 500);
-};
-
-const fUp = () => {
-  if (pressTimer.current) {
-    clearTimeout(pressTimer.current);
-    pressTimer.current = null;
-    if (flightMode === 'off') startPan();
-    else stopFlight();
-  }
-};
+interface FlightState {
+  dashboardOpen: boolean;
+  mode: 'off' | 'manual' | 'autopilot';
+  targetSpeed: number;
+  targetHeading: number;
+  targetAltitude: number;
+  telemetry: FlightTelemetry;
+  destination: Destination | null;
+  routeGeometry: GeoJSON.LineString | null;
+  distanceRemaining: number;
+  etaSeconds: number;
+}
 ```
 
-#### Auto-Stop on User Interaction
+### Geodesic Utilities (geodesic.ts)
+- `greatCircleDistance(from, to)` - Haversine formula
+- `greatCircleBearing(from, to)` - Forward azimuth
+- `greatCirclePath(from, to, numPoints)` - Interpolated LineString
+- `greatCircleInterpolate(from, to, fraction)` - Point along path
+- `destinationPoint(from, bearing, distance)` - Point at bearing/distance
+
+### Auto-Stop on User Interaction
 Flight automatically stops when user:
 - Drags the map (`dragstart`)
 - Scrolls/zooms (`wheel`)
 - Double-clicks (`dblclick`)
 - Touches the map (`touchstart`)
 
-```typescript
-useEffect(() => {
-  if (!map) return;
-  const stop = () => { if (flightRef.current) stopFlight(); };
-  map.on('dragstart', stop);
-  map.on('wheel', stop);
-  map.on('dblclick', stop);
-  map.on('touchstart', stop);
-  return () => { /* cleanup */ };
-}, [map]);
-```
+### Route Visualization
+Autopilot routes are displayed on the map as a dashed cyan line using a GeoJSON source/layer:
+- Source ID: `flight-route-source`
+- Layer ID: `flight-route-layer`
+- Style: 3px width, cyan color, 70% opacity, dashed
 
-### Button Event Handlers
-```typescript
-onMouseDown={fDown}
-onMouseUp={fUp}
-onMouseLeave={() => { /* clear timer */ }}
-onTouchStart={fDown}
-onTouchEnd={fUp}
-```
-
-### Dependencies
-- `useMapStore` - Zustand store for map instance
-- `toast` from sonner - Notifications
-- `Plane` icon from lucide-react
-- `Z_INDEX.CONTROLS` from constants
-
-### Animation Loop Pattern
-Uses `requestAnimationFrame` with delta time calculation:
-```typescript
-let last = 0;
-const go = (t: number) => {
-  if (!map) return;
-  if (last) {
-    const delta = Math.min(t - last, 50); // Cap at 50ms to prevent jumps
-    // ... update map position/bearing/zoom
-  }
-  last = t;
-  flightRef.current = requestAnimationFrame(go);
-};
-flightRef.current = requestAnimationFrame(go);
-```
-
-### Globe Projection
-Sightseeing mode switches to globe projection for cinematic effect:
-```typescript
-prevProj.current = map.getProjection()?.type || 'mercator';
-map.setProjection({ type: 'globe' });
-// ... on stop, restore:
-map.setProjection({ type: prevProj.current as any });
-```
+### Animation Pattern
+Uses `requestAnimationFrame` with delta time calculation (capped at 50ms)
 
 ## Key Files
 
