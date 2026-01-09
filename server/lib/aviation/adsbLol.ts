@@ -18,33 +18,58 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
     const icaoSet = new Set(icao24List.map(i => i.toLowerCase()));
 
     try {
-        // Query the bulk Australia region (Center of AU, 250nm radius max per v2 API)
-        // This is much more efficient than 137 individual calls
-        // Note: v2 API has 250nm max radius limit
-        const url = `${ADSB_LOL_BASE_URL}/v2/lat/-25/lon/135/dist/250`;
+        // Query multiple populated regions to cover Australian emergency aircraft
+        // v2 API has 250nm max radius, so we query major city hubs
+        const regions = [
+            { name: 'Sydney/NSW', lat: -33.87, lon: 151.21 },
+            { name: 'Melbourne/VIC', lat: -37.81, lon: 144.96 },
+            { name: 'Brisbane/QLD', lat: -27.47, lon: 153.03 },
+            { name: 'Perth/WA', lat: -31.95, lon: 115.86 },
+            { name: 'Adelaide/SA', lat: -34.93, lon: 138.60 },
+        ];
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s total timeout
 
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'TAC-MAP Emergency Services Dashboard',
-            },
-            signal: controller.signal
-        });
+        try {
+            // Query all regions in parallel
+            const regionPromises = regions.map(async (region) => {
+                const url = `${ADSB_LOL_BASE_URL}/v2/lat/${region.lat}/lon/${region.lon}/dist/250`;
 
-        clearTimeout(timeoutId);
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            'User-Agent': 'TAC-MAP Emergency Services Dashboard',
+                        },
+                        signal: controller.signal
+                    });
 
-        if (!response.ok) {
-            console.warn(`adsb.lol bulk query returned ${response.status}`);
-            return [];
-        }
+                    if (!response.ok) {
+                        console.warn(`adsb.lol ${region.name} query returned ${response.status}`);
+                        return [];
+                    }
 
-        const data: AdsbLolResponse = await response.json();
+                    const data: AdsbLolResponse = await response.json();
+                    return data.ac || [];
+                } catch (err) {
+                    console.error(`adsb.lol ${region.name} fetch error:`, err);
+                    return [];
+                }
+            });
 
-        if (data.ac) {
-            for (const ac of data.ac) {
+            const regionResults = await Promise.all(regionPromises);
+            clearTimeout(timeoutId);
+
+            // Combine and deduplicate aircraft from all regions
+            const seenHex = new Set<string>();
+            const allAircraft = regionResults.flat();
+
+            for (const ac of allAircraft) {
                 const hex = ac.hex.toLowerCase();
+
+                // Skip duplicates
+                if (seenHex.has(hex)) continue;
+                seenHex.add(hex);
 
                 // Only include if it was in our requested list
                 if (!icaoSet.has(hex)) continue;
@@ -73,6 +98,9 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
                 };
                 tracks.push(track);
             }
+        } catch (error) {
+            clearTimeout(timeoutId);
+            console.error('adsb.lol multi-region fetch error:', error);
         }
     } catch (error) {
         console.error('adsb.lol bulk fetch error:', error);
