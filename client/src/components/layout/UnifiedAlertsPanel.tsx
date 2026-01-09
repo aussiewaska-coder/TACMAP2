@@ -141,14 +141,23 @@ export function UnifiedAlertsPanel() {
         onSuccess: (data) => {
             const count = data.count || 0;
             if (count > 0) {
-                toast.success(`Found ${count} new police alerts`);
+                toast.success(`[✓] sweep.complete`, {
+                    description: `[INFO] Found ${count} new alert${count === 1 ? '' : 's'} → database.updated`,
+                    duration: 4000
+                });
                 utils.police.list.invalidate();
             } else {
-                toast.info("No new alerts in area");
+                toast.info("[i] sweep.complete", {
+                    description: "[INFO] No new alerts detected in scan area",
+                    duration: 3000
+                });
             }
         },
         onError: (err) => {
-            toast.error(`Sweep failed: ${err.message}`);
+            toast.error("[✗] sweep.error", {
+                description: `[ERROR] ${err.message || "Unable to scan area"}`,
+                duration: 5000
+            });
         }
     });
 
@@ -159,6 +168,29 @@ export function UnifiedAlertsPanel() {
             refetchInterval: 60000
         }
     );
+
+    // Toast notifications for feed loading - terminal style
+    useEffect(() => {
+        if (enabled && alertMode === 'emergency' && emergencyLoading) {
+            toast.loading("$ emergency.fetch --stream", {
+                description: "[LOAD] Connecting to emergency.services.api...",
+                id: 'emergency-feed'
+            });
+        } else {
+            toast.dismiss('emergency-feed');
+        }
+    }, [emergencyLoading, enabled, alertMode]);
+
+    useEffect(() => {
+        if (enabled && alertMode === 'police' && policeLoading) {
+            toast.loading("$ police.query --hours=" + hoursAgo, {
+                description: "[LOAD] Reading from alerts.db → filtering records...",
+                id: 'police-feed'
+            });
+        } else {
+            toast.dismiss('police-feed');
+        }
+    }, [policeLoading, enabled, alertMode, hoursAgo]);
 
     // Auto-sweep police data on first mount if empty
     useEffect(() => {
@@ -180,14 +212,35 @@ export function UnifiedAlertsPanel() {
     const handleSweep = () => {
         if (!map) return;
         const bounds = map.getBounds();
+        const center = map.getCenter();
+        const zoom = map.getZoom();
+
+        // Calculate approximate area dimensions in km
+        const width = bounds.getEast() - bounds.getWest();
+        const height = bounds.getNorth() - bounds.getSouth();
+        const approxWidth = Math.round(width * 111 * Math.cos(center.lat * Math.PI / 180));
+        const approxHeight = Math.round(height * 111);
+
         const bottomLeft = `${bounds.getSouth()},${bounds.getWest()}`;
         const topRight = `${bounds.getNorth()},${bounds.getEast()}`;
+
+        // Show sweep area info - terminal style
+        toast.loading("$ waze.sweep --active", {
+            description: `[SCAN] ${approxWidth}×${approxHeight}km @ [${center.lat.toFixed(2)}, ${center.lng.toFixed(2)}] z${zoom.toFixed(1)}`,
+            duration: 10000,
+            id: 'police-sweep'
+        });
+
         sweepMutation.mutate({
             bottomLeft,
             topRight,
             radiusUnits: 'KM',
             maxAlerts: 100,
             maxJams: 0
+        }, {
+            onSettled: () => {
+                toast.dismiss('police-sweep');
+            }
         });
     };
 
