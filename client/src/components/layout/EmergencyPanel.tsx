@@ -171,7 +171,7 @@ export function EmergencyPanel() {
                 total_alerts: filteredFeatures.length
             }
         };
-    }, [rawAlertsData, activeFilters]);
+    }, [rawAlertsData, activeFilters, opsMode]);
 
     const toggleFilter = (id: string) => {
         setActiveFilters(prev =>
@@ -227,129 +227,142 @@ export function EmergencyPanel() {
         };
     }, [map, isLoaded, aircraftData, aircraftEnabled]);
 
-    // --- EFFECT: Alerts Layer ---
+    // --- EFFECT: Alerts Source & Layer Management ---
     useEffect(() => {
-        if (!map || !isLoaded || !alertsEnabled || !alertsData) return;
+        if (!map || !isLoaded || !alertsEnabled) return;
 
         const sourceId = 'emergency-alerts-source';
         const iconLayerId = 'emergency-alerts-icons';
         const glowLayerId = 'emergency-alerts-glow';
         const clusterLayerId = 'emergency-clusters';
         const clusterCountLayerId = 'emergency-cluster-count';
+        const polygonLayerId = 'emergency-alerts-polygons';
+        const polygonOutlineLayerId = 'emergency-alerts-polygons-outline';
 
-        // Add or update source with clustering
-        if (!map.getSource(sourceId)) {
-            map.addSource(sourceId, {
-                type: 'geojson',
-                data: alertsData as any,
-                cluster: true,
-                clusterMaxZoom: 14,
-                clusterRadius: 50,
-            });
-        } else {
-            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
-            if (source) source.setData(alertsData as any);
-        }
+        const setPointer = () => { if (map) map.getCanvas().style.cursor = 'pointer'; };
+        const setGrab = () => { if (map) map.getCanvas().style.cursor = ''; };
+        const interactiveLayers = [iconLayerId, glowLayerId, clusterLayerId, polygonLayerId];
 
-        // 1. Clusters Layer
-        if (!map.getLayer(clusterLayerId)) {
+        const addLayers = () => {
+            if (!map) return;
+
+            // 1. Source
+            if (!map.getSource(sourceId)) {
+                map.addSource(sourceId, {
+                    type: 'geojson',
+                    data: { type: 'FeatureCollection', features: alertsData?.features || [] } as any,
+                    cluster: true,
+                    clusterMaxZoom: 14,
+                    clusterRadius: 50,
+                });
+            }
+
+            // 2. Polygonal Fills (Lowest)
             map.addLayer({
-                id: clusterLayerId,
-                type: 'circle',
+                id: polygonLayerId,
+                type: 'fill',
                 source: sourceId,
-                filter: ['has', 'point_count'],
+                filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
                 paint: {
-                    'circle-color': [
-                        'step',
-                        ['get', 'point_count'],
-                        '#fbbf24', // Yellow 400
-                        10,
-                        '#f59e0b', // Amber 500
-                        50,
-                        '#ef4444' // Red 500
-                    ],
-                    'circle-radius': [
-                        'step',
-                        ['get', 'point_count'],
-                        15,
-                        10,
-                        20,
-                        50,
-                        25
-                    ],
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#ffffff',
-                }
-            });
-        }
-
-        // 2. Cluster Count Layer
-        if (!map.getLayer(clusterCountLayerId)) {
-            map.addLayer({
-                id: clusterCountLayerId,
-                type: 'symbol',
-                source: sourceId,
-                filter: ['has', 'point_count'],
-                layout: {
-                    'text-field': '{point_count_abbreviated}',
-                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                    'text-size': 12,
-                },
-                paint: {
-                    'text-color': '#ffffff'
-                }
-            });
-        }
-
-        // 3. Unclustered: Severity Glow Layer (Under-icon accent)
-        if (!map.getLayer(glowLayerId)) {
-            map.addLayer({
-                id: glowLayerId,
-                type: 'circle',
-                source: sourceId,
-                filter: ['!', ['has', 'point_count']],
-                paint: {
-                    'circle-radius': [
-                        'interpolate', ['linear'], ['zoom'],
-                        3, 5,
-                        10, 9,
-                        15, 13
-                    ],
-                    'circle-color': [
+                    'fill-color': [
                         'match',
                         ['coalesce', ['get', 'severity_rank'], 4],
-                        1, '#ef4444', // Red 500
-                        2, '#f97316', // Orange 500
-                        3, '#eab308', // Yellow 500
-                        '#3b82f6' // Blue 500
+                        1, '#ef4444',
+                        2, '#f97316',
+                        3, '#eab308',
+                        '#3b82f6'
                     ],
-                    'circle-opacity': 0.4, // Subtler glow
-                    'circle-stroke-width': 1,
-                    'circle-stroke-color': 'rgba(15, 23, 42, 0.5)',
-                },
-            });
-        }
-
-        // 4. Unclustered: Alert Icons Symbol Layer
-        if (!map.getLayer(iconLayerId)) {
-            map.addLayer({
-                id: iconLayerId,
-                type: 'symbol',
-                source: sourceId,
-                filter: ['!', ['has', 'point_count']],
-                layout: {
-                    'icon-image': ['get', 'markerIcon'],
-                    'icon-size': [
-                        'interpolate', ['linear'], ['zoom'],
-                        3, 0.6,
-                        10, 0.75,
-                        15, 1.0
-                    ],
-                    'icon-allow-overlap': true,
-                    'icon-ignore-placement': true,
+                    'fill-opacity': 0.15
                 }
-            });
-        }
+            } as any, map.getLayer('emergency-aircraft-points') ? 'emergency-aircraft-points' : undefined);
+
+            // 3. Polygonal Outlines
+            if (!map.getLayer(polygonOutlineLayerId)) {
+                map.addLayer({
+                    id: polygonOutlineLayerId,
+                    type: 'line',
+                    source: sourceId,
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
+                    paint: {
+                        'line-color': [
+                            'match',
+                            ['coalesce', ['get', 'severity_rank'], 4],
+                            1, '#ef4444', 2, '#f97316', 3, '#eab308', '#3b82f6'
+                        ],
+                        'line-width': 2,
+                        'line-opacity': 0.6
+                    }
+                } as any);
+            }
+
+            // 4. Clusters
+            if (!map.getLayer(clusterLayerId)) {
+                map.addLayer({
+                    id: clusterLayerId,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['has', 'point_count'],
+                    paint: {
+                        'circle-color': ['step', ['get', 'point_count'], '#fbbf24', 10, '#f59e0b', 50, '#ef4444'],
+                        'circle-radius': ['step', ['get', 'point_count'], 15, 10, 20, 50, 25],
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': '#ffffff',
+                    }
+                });
+            }
+
+            if (!map.getLayer(clusterCountLayerId)) {
+                map.addLayer({
+                    id: clusterCountLayerId,
+                    type: 'symbol',
+                    source: sourceId,
+                    filter: ['has', 'point_count'],
+                    layout: {
+                        'text-field': '{point_count_abbreviated}',
+                        'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                        'text-size': 12,
+                    },
+                    paint: { 'text-color': '#ffffff' }
+                });
+            }
+
+            // 5. Unclustered Glow
+            if (!map.getLayer(glowLayerId)) {
+                map.addLayer({
+                    id: glowLayerId,
+                    type: 'circle',
+                    source: sourceId,
+                    filter: ['!', ['has', 'point_count']],
+                    paint: {
+                        'circle-radius': ['interpolate', ['linear'], ['zoom'], 3, 5, 10, 9, 15, 13],
+                        'circle-color': [
+                            'match',
+                            ['coalesce', ['get', 'severity_rank'], 4],
+                            1, '#ef4444', 2, '#f97316', 3, '#eab308', '#3b82f6'
+                        ],
+                        'circle-opacity': 0.4,
+                        'circle-stroke-width': 1,
+                        'circle-stroke-color': 'rgba(15, 23, 42, 0.5)',
+                    },
+                });
+            }
+
+            // 6. Alert Icons
+            if (!map.getLayer(iconLayerId)) {
+                map.addLayer({
+                    id: iconLayerId,
+                    type: 'symbol',
+                    source: sourceId,
+                    filter: ['!', ['has', 'point_count']],
+                    layout: {
+                        'icon-image': ['get', 'markerIcon'],
+                        'icon-size': ['interpolate', ['linear'], ['zoom'], 3, 0.6, 10, 0.75, 15, 1.0],
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true,
+                    }
+                });
+            }
+        };
 
         const handleAlertClick = (e: any) => {
             if (!e.features?.length) return;
@@ -401,22 +414,23 @@ export function EmergencyPanel() {
             }
         };
 
+        addLayers();
+
+        // Register handlers once
         map.on('click', iconLayerId, handleAlertClick);
         map.on('click', glowLayerId, handleAlertClick);
         map.on('click', clusterLayerId, handleClusterClick);
-
-        // Change cursor on hover
-        const setPointer = () => { if (map) map.getCanvas().style.cursor = 'pointer'; };
-        const setGrab = () => { if (map) map.getCanvas().style.cursor = ''; };
-
-        const interactiveLayers = [iconLayerId, glowLayerId, clusterLayerId];
         interactiveLayers.forEach(lyr => {
             map.on('mouseenter', lyr, setPointer);
             map.on('mouseleave', lyr, setGrab);
         });
 
+        const handleStyleData = () => addLayers();
+        map.on('styledata', handleStyleData);
+
         return () => {
             if (map) {
+                map.off('styledata', handleStyleData);
                 map.off('click', iconLayerId, handleAlertClick);
                 map.off('click', glowLayerId, handleAlertClick);
                 map.off('click', clusterLayerId, handleClusterClick);
@@ -426,12 +440,28 @@ export function EmergencyPanel() {
                 });
                 if (map.getLayer(iconLayerId)) map.removeLayer(iconLayerId);
                 if (map.getLayer(glowLayerId)) map.removeLayer(glowLayerId);
+                if (map.getLayer(polygonOutlineLayerId)) map.removeLayer(polygonOutlineLayerId);
+                if (map.getLayer(polygonLayerId)) map.removeLayer(polygonLayerId);
                 if (map.getLayer(clusterLayerId)) map.removeLayer(clusterLayerId);
                 if (map.getLayer(clusterCountLayerId)) map.removeLayer(clusterCountLayerId);
                 if (map.getSource(sourceId)) map.removeSource(sourceId);
             }
         };
-    }, [map, isLoaded, alertsData, alertsEnabled]);
+    }, [map, isLoaded, alertsEnabled]);
+
+    // Update data separately
+    useEffect(() => {
+        if (!map || !alertsData) return;
+        const source = map.getSource('emergency-alerts-source') as maplibregl.GeoJSONSource;
+        if (source) {
+            source.setData({
+                type: 'FeatureCollection',
+                features: alertsData.features
+            } as any);
+        }
+    }, [map, alertsData]);
+
+
 
     return (
         <div className="space-y-6">
@@ -550,40 +580,47 @@ export function EmergencyPanel() {
 
                         <div className="pt-3 border-t border-white/10">
                             <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Live Situation Feed</h4>
-                            <div className="space-y-2 max-height-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
                                 {alertsLoading ? (
                                     <div className="text-[10px] text-white/30 animate-pulse text-center py-4 italic">Synchronizing feeds...</div>
                                 ) : alertsData?.features.length === 0 ? (
                                     <div className="text-[10px] text-white/30 text-center py-4 italic">No active reports for current filters.</div>
                                 ) : (
-                                    alertsData?.features.slice(0, 5).map((feature: any) => (
-                                        <div
-                                            key={feature.properties.id}
-                                            onClick={() => {
-                                                if (map) {
-                                                    map.flyTo({
-                                                        center: (feature.geometry as any).coordinates,
-                                                        zoom: 12,
-                                                        duration: 1500
-                                                    });
-                                                }
-                                            }}
-                                            className="bg-black/40 p-2.5 rounded-xl border border-white/5 hover:border-white/20 transition-all cursor-pointer group"
-                                        >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <Badge className={`text-[8px] h-4 ${getSeverityBadgeColor(feature.properties.severity_rank)}`}>
-                                                    {feature.properties.severity}
-                                                </Badge>
-                                                <span className="text-[8px] text-white/30">{feature.properties.state} • {Math.floor(feature.properties.age_s / 60)}m ago</span>
+                                    alertsData?.features.slice(0, 15).map((feature: any) => {
+                                        const desc = String(feature.properties.description || '');
+                                        const cleanDesc = desc.replace(/<[^>]*>?/gm, '').substring(0, 100);
+                                        const coords = feature.geometry?.coordinates;
+
+                                        return (
+                                            <div
+                                                key={feature.properties.id || Math.random()}
+                                                onClick={() => {
+                                                    if (map && coords) {
+                                                        const target = Array.isArray(coords[0]) ? coords[0][0] : coords;
+                                                        map.flyTo({
+                                                            center: target as any,
+                                                            zoom: 12,
+                                                            duration: 1500
+                                                        });
+                                                    }
+                                                }}
+                                                className="bg-black/40 p-2.5 rounded-xl border border-white/5 hover:border-white/20 transition-all cursor-pointer group"
+                                            >
+                                                <div className="flex items-center justify-between mb-1">
+                                                    <Badge className={`text-[8px] h-4 ${getSeverityBadgeColor(feature.properties.severity_rank)}`}>
+                                                        {feature.properties.severity}
+                                                    </Badge>
+                                                    <span className="text-[8px] text-white/30">{feature.properties.state} • {Math.floor(feature.properties.age_s / 60)}m ago</span>
+                                                </div>
+                                                <h5 className="text-[11px] font-bold text-white/90 line-clamp-1 group-hover:text-white transition-colors">
+                                                    {feature.properties.title}
+                                                </h5>
+                                                <p className="text-[9px] text-white/50 line-clamp-2 mt-1 leading-relaxed">
+                                                    {cleanDesc}{cleanDesc.length >= 100 ? '...' : ''}
+                                                </p>
                                             </div>
-                                            <h5 className="text-[11px] font-bold text-white/90 line-clamp-1 group-hover:text-white transition-colors">
-                                                {feature.properties.title}
-                                            </h5>
-                                            <p className="text-[9px] text-white/50 line-clamp-2 mt-1 leading-relaxed">
-                                                {feature.properties.description?.replace(/<[^>]*>?/gm, '').substring(0, 100)}...
-                                            </p>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>
