@@ -16,10 +16,9 @@ import { LayersList } from './LayersList';
 import { SettingsPanel } from './SettingsPanel';
 import { ToolsPanel } from './ToolsPanel';
 import { SearchBox } from './SearchBox';
-import { PoliceAlertsPanel } from './PoliceAlertsPanel';
-import { EmergencyPanel } from './EmergencyPanel';
+import { UnifiedAlertsPanel } from './UnifiedAlertsPanel';
 
-type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts' | 'emergency';
+type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts';
 
 // Context for dark sidebar theme
 const SidebarThemeContext = createContext<{ isDark: boolean }>({ isDark: false });
@@ -34,7 +33,6 @@ interface TabConfig {
 const TABS: TabConfig[] = [
     { id: 'search', icon: <Search className="w-4 h-4" />, label: 'Search' },
     { id: 'alerts', icon: <Radio className="w-4 h-4" />, label: 'Alerts' },
-    { id: 'emergency', icon: <Plane className="w-4 h-4" />, label: 'Emergency' },
     { id: 'layers', icon: <Layers className="w-4 h-4" />, label: 'Layers' },
     { id: 'navigation', icon: <Compass className="w-4 h-4" />, label: 'Navigate' },
     { id: 'tools', icon: <Wrench className="w-4 h-4" />, label: 'Tools' },
@@ -183,8 +181,7 @@ export function UnifiedSidebar() {
                         <p className="text-sm">Use the search box above</p>
                     </div>
                 )}
-                {currentTab === 'alerts' && <PoliceAlertsPanel />}
-                {currentTab === 'emergency' && <EmergencyPanel />}
+                {currentTab === 'alerts' && <UnifiedAlertsPanel />}
                 {currentTab === 'layers' && <LayersList />}
                 {currentTab === 'navigation' && <CityList onSelect={closeSidebar} />}
                 {currentTab === 'tools' && <ToolsPanel />}

@@ -13,5 +13,5 @@ export { SearchPanel } from './SearchPanel';
 export { StylePicker } from './StylePicker';
 export { SearchBox } from './SearchBox';
 export { ToolsPanel } from './ToolsPanel';
-export { PoliceAlertsPanel } from './PoliceAlertsPanel';
+export { UnifiedAlertsPanel } from './UnifiedAlertsPanel';
 
