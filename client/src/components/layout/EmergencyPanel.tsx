@@ -32,6 +32,71 @@ export function EmergencyPanel() {
     const isLoaded = useMapStore((state) => state.isLoaded);
 
     const { data: aircraftData, isLoading: aircraftLoading, error: aircraftError } = useAircraftTracks(aircraftEnabled);
+    // --- EFFECT: Icon Registration ---
+    useEffect(() => {
+        if (!map || !isLoaded) return;
+
+        const icons = {
+            'icon-fire': {
+                path: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z',
+                color: '#ef4444'
+            },
+            'icon-flood': {
+                path: 'M2 6c.6.5 1.2 1 2.5 1C5.8 7 6.5 6 8 6c1.5 0 2.2 1 3.5 1 1.3 0 2-1 3.5-1s2.2 1 3.5 1c1.3 0 1.9-.5 2.5-1M2 12c.6.5 1.2 1 2.5 1 1.3 0 2-1 3.5-1 1.5 0 2.2 1 3.5 1 1.3 0 2-1 3.5-1s2.2 1 3.5 1c1.3 0 1.9-.5 2.5-1M2 18c.6.5 1.2 1 2.5 1 1.3 0 2-1 3.5-1 1.5 0 2.2 1 3.5 1 1.3 0 2-1 3.5-1s2.2 1 3.5 1c1.3 0 1.9-.5 2.5-1',
+                color: '#3b82f6'
+            },
+            'icon-road': {
+                path: 'M3 21h18M3 7l9-4 9 4M5 21V7m14 14V7m-7 14V11',
+                color: '#f97316'
+            },
+            'icon-aviation': {
+                path: 'M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z',
+                color: '#10b981'
+            },
+            'icon-space': {
+                path: 'M13 7l2 2M9 11l2 2M8 4l8 8M3 4l4 4M2 11l9 9M7 11l2 2M11 7l2-2M18 5L5 18M10 10l4 4M21 21l-3-3',
+                color: '#a855f7'
+            },
+            'icon-warning': {
+                path: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4m0 4h.01',
+                color: '#eab308'
+            }
+        };
+
+        Object.entries(icons).forEach(([name, config]) => {
+            if (map.hasImage(name)) return;
+
+            const size = 64;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // Background circle for better visibility
+            ctx.beginPath();
+            ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Main SVG path
+            const p = new Path2D(config.path);
+            ctx.save();
+            ctx.translate(size / 4, size / 4);
+            ctx.scale(size / 48, size / 48); // Scale for 24x24 path to fit in 64x64 canvas
+            ctx.strokeStyle = config.color;
+            ctx.lineWidth = 2;
+            ctx.stroke(p);
+            ctx.restore();
+
+            const imageData = ctx.getImageData(0, 0, size, size);
+            map.addImage(name, imageData);
+        });
+    }, [map, isLoaded]);
+
     const { data: rawAlertsData, isLoading: alertsLoading, error: alertsError } = useEmergencyAlerts(alertsEnabled);
 
     // Filter alerts data
@@ -132,7 +197,6 @@ export function EmergencyPanel() {
         if (!map || !isLoaded || !alertsEnabled || !alertsData) return;
 
         const sourceId = 'emergency-alerts-source';
-        const layerId = 'emergency-alerts-layer';
         const iconLayerId = 'emergency-alerts-icons';
 
         // Add or update source
@@ -146,64 +210,29 @@ export function EmergencyPanel() {
             if (source) source.setData(alertsData as any);
         }
 
-        // 1. Point Halo (Severity Colored)
-        if (!map.getLayer(layerId)) {
-            map.addLayer({
-                id: layerId,
-                type: 'circle',
-                source: sourceId,
-                paint: {
-                    'circle-radius': [
-                        'interpolate', ['linear'], ['zoom'],
-                        3, 8,
-                        10, 16,
-                        15, 24
-                    ],
-                    'circle-color': [
-                        'match',
-                        ['coalesce', ['get', 'severity_rank'], 4],
-                        1, '#dc2626', // Emergency - Red
-                        2, '#f59e0b', // Watch & Act - Orange
-                        3, '#eab308', // Advice - Yellow
-                        '#3b82f6' // Info - Blue
-                    ],
-                    'circle-stroke-width': 2,
-                    'circle-stroke-color': '#ffffff',
-                    'circle-opacity': 0.7,
-                },
-            });
-        }
-
-        // 2. Icon Label (Emoji/Symbol)
+        // Add Alert Icons Symbol Layer (No circles, strictly SVG icons)
         if (!map.getLayer(iconLayerId)) {
             map.addLayer({
                 id: iconLayerId,
                 type: 'symbol',
                 source: sourceId,
                 layout: {
-                    'text-field': [
+                    'icon-image': [
                         'case',
-                        ['match', ['get', 'category'], ['Aviation'], true, false], '✈️',
-                        ['match', ['to-string', ['get', 'hazard_type']], ['Bushfire'], true, ['Fire'], true, false], '🔥',
-                        ['match', ['to-string', ['get', 'hazard_type']], ['Flood'], true, ['Storm'], true, false], '🌊',
-                        ['match', ['to-string', ['get', 'hazard_type']], ['Weather'], true, ['Severe Weather'], true, false], '⛈️',
-                        ['match', ['to-string', ['get', 'hazard_type']], ['Road'], true, ['Traffic'], true, false, ['Road conditions & closures'], true], '🚧',
-                        '⚠️'
+                        ['match', ['get', 'category'], ['Aviation'], true, false], 'icon-aviation',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Bushfire'], true, ['Fire'], true, false], 'icon-fire',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Flood'], true, ['Storm'], true, false], 'icon-flood',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Weather'], true, ['Severe Weather'], true, false], 'icon-flood',
+                        ['match', ['to-string', ['get', 'hazard_type']], ['Road'], true, ['Traffic'], true, false, ['Road conditions & closures'], true], 'icon-road',
+                        'icon-warning'
                     ],
-                    'text-size': [
+                    'icon-size': [
                         'interpolate', ['linear'], ['zoom'],
-                        3, 10,
-                        10, 14,
-                        15, 20
+                        3, 0.4,
+                        10, 0.6,
+                        15, 0.8
                     ],
-                    'text-allow-overlap': true,
-                    'text-ignore-placement': true,
-                    'text-font': ['Open Sans Regular', 'Arial Unicode MS Regular'],
-                },
-                paint: {
-                    'text-color': '#ffffff',
-                    'text-halo-color': '#000000',
-                    'text-halo-width': 2,
+                    'icon-allow-overlap': true,
                 }
             });
         }
@@ -243,11 +272,10 @@ export function EmergencyPanel() {
                 .addTo(map);
         };
 
-        map.on('click', layerId, handleAlertClick);
+        map.on('click', iconLayerId, handleAlertClick);
         return () => {
-            map.off('click', layerId, handleAlertClick);
+            map.off('click', iconLayerId, handleAlertClick);
             if (map.getLayer(iconLayerId)) map.removeLayer(iconLayerId);
-            if (map.getLayer(layerId)) map.removeLayer(layerId);
             if (map.getSource(sourceId)) map.removeSource(sourceId);
         };
     }, [map, isLoaded, alertsData, alertsEnabled]);
