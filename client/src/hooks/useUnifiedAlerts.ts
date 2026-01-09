@@ -121,6 +121,8 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         const clusterCountLayerId = `${layerPrefix}-cluster-count`;
         const unclusteredGlowLayerId = `${layerPrefix}-unclustered-glow`;
         const unclusteredLayerId = `${layerPrefix}-unclustered`;
+        const polygonLayerId = `${layerPrefix}-polygons`;
+        const polygonOutlineLayerId = `${layerPrefix}-polygons-outline`;
 
         const addLayers = () => {
             if (!map) return;
@@ -142,7 +144,52 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
 
             const markerVisibility = (enabled && showMarkers) ? 'visible' : 'none';
 
-            // 2. Clusters
+            // 2. Polygonal Fills (for fires, floods - emergency only)
+            if (alertSource === 'emergency' && !map.getLayer(polygonLayerId)) {
+                map.addLayer({
+                    id: polygonLayerId,
+                    type: 'fill',
+                    source: sourceId,
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
+                    paint: {
+                        'fill-color': [
+                            'match',
+                            ['coalesce', ['get', 'severity_rank'], 4],
+                            1, '#ef4444',
+                            2, '#f97316',
+                            3, '#eab308',
+                            '#3b82f6'
+                        ],
+                        'fill-opacity': 0.15
+                    },
+                    layout: { visibility: markerVisibility }
+                });
+            }
+
+            // 3. Polygonal Outlines (for fires, floods - emergency only)
+            if (alertSource === 'emergency' && !map.getLayer(polygonOutlineLayerId)) {
+                map.addLayer({
+                    id: polygonOutlineLayerId,
+                    type: 'line',
+                    source: sourceId,
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
+                    paint: {
+                        'line-color': [
+                            'match',
+                            ['coalesce', ['get', 'severity_rank'], 4],
+                            1, '#ef4444',
+                            2, '#f97316',
+                            3, '#eab308',
+                            '#3b82f6'
+                        ],
+                        'line-width': 2,
+                        'line-opacity': 0.6
+                    },
+                    layout: { visibility: markerVisibility }
+                });
+            }
+
+            // 4. Clusters
             if (!map.getLayer(clusterLayerId)) {
                 map.addLayer({
                     id: clusterLayerId,
@@ -187,7 +234,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 });
             }
 
-            // 3. Unclustered glow
+            // 5. Unclustered glow
             if (!map.getLayer(unclusteredGlowLayerId)) {
                 map.addLayer({
                     id: unclusteredGlowLayerId,
@@ -214,7 +261,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 });
             }
 
-            // 4. Unclustered points (icons or circles)
+            // 6. Unclustered points (icons or circles)
             if (alertSource === 'emergency') {
                 // Use icon layer for emergency
                 if (!map.getLayer(unclusteredLayerId)) {
@@ -252,7 +299,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             }
 
             // Sync visibility
-            [clusterLayerId, clusterCountLayerId, unclusteredGlowLayerId, unclusteredLayerId].forEach(id => {
+            [polygonLayerId, polygonOutlineLayerId, clusterLayerId, clusterCountLayerId, unclusteredGlowLayerId, unclusteredLayerId].forEach(id => {
                 if (map.getLayer(id)) {
                     map.setLayoutProperty(id, 'visibility', markerVisibility);
                 }
@@ -345,6 +392,11 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         map.on('click', clusterLayerId, handleClusterClick);
         map.on('click', unclusteredLayerId, handleAlertClick);
         map.on('click', unclusteredGlowLayerId, handleAlertClick);
+        if (alertSource === 'emergency') {
+            map.on('click', polygonLayerId, handleAlertClick);
+            map.on('mouseenter', polygonLayerId, setPointer);
+            map.on('mouseleave', polygonLayerId, setGrab);
+        }
         map.on('mouseenter', clusterLayerId, setPointer);
         map.on('mouseleave', clusterLayerId, setGrab);
         map.on('mouseenter', unclusteredLayerId, setPointer);
@@ -357,6 +409,11 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             map.off('click', clusterLayerId, handleClusterClick);
             map.off('click', unclusteredLayerId, handleAlertClick);
             map.off('click', unclusteredGlowLayerId, handleAlertClick);
+            if (alertSource === 'emergency') {
+                map.off('click', polygonLayerId, handleAlertClick);
+                map.off('mouseenter', polygonLayerId, setPointer);
+                map.off('mouseleave', polygonLayerId, setGrab);
+            }
             map.off('mouseenter', clusterLayerId, setPointer);
             map.off('mouseleave', clusterLayerId, setGrab);
             map.off('mouseenter', unclusteredLayerId, setPointer);
@@ -367,6 +424,8 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             if (map.getLayer(clusterLayerId)) map.removeLayer(clusterLayerId);
             if (map.getLayer(unclusteredLayerId)) map.removeLayer(unclusteredLayerId);
             if (map.getLayer(unclusteredGlowLayerId)) map.removeLayer(unclusteredGlowLayerId);
+            if (map.getLayer(polygonOutlineLayerId)) map.removeLayer(polygonOutlineLayerId);
+            if (map.getLayer(polygonLayerId)) map.removeLayer(polygonLayerId);
             if (map.getSource(sourceId)) map.removeSource(sourceId);
         };
     }, [map, isLoaded, enabled, geoJsonData, showMarkers, alertSource, layerPrefix, clusterRadius, clusterMaxZoom, onAlertClick]);

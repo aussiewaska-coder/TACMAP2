@@ -37,7 +37,7 @@ export function UnifiedAlertsPanel() {
 
     // Mode toggle
     const [alertMode, setAlertMode] = useState<AlertMode>('emergency');
-    const [enabled, setEnabled] = useState(true);
+    const [enabled, setEnabled] = useState(false);
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
 
@@ -51,6 +51,7 @@ export function UnifiedAlertsPanel() {
 
     const utils = trpc.useUtils();
     const hasAutoSwept = useRef(false);
+    const [iconsReady, setIconsReady] = useState(false);
 
     // --- ICON REGISTRATION ---
     useEffect(() => {
@@ -120,6 +121,7 @@ export function UnifiedAlertsPanel() {
                 const imageData = ctx.getImageData(0, 0, size, size);
                 map.addImage(name, imageData);
             });
+            setIconsReady(true);
         };
 
         if (map.isStyleLoaded()) {
@@ -337,13 +339,13 @@ export function UnifiedAlertsPanel() {
                         <div className="grid grid-cols-2 gap-2 bg-black/40 p-1 rounded-xl border border-white/5 mb-4">
                             <button
                                 onClick={() => setAlertMode('emergency')}
-                                className={`py-2 text-sm font-bold rounded-lg transition-all ${alertMode === 'emergency' ? 'bg-orange-500/30 text-orange-300 shadow-inner' : 'text-white/40 hover:text-white/70'}`}
+                                className={`py-2 text-sm font-bold rounded-lg transition-all ${alertMode === 'emergency' ? 'bg-orange-500 text-white shadow-lg scale-105 ring-2 ring-orange-400' : 'text-white/40 hover:text-white/70 hover:bg-white/5'}`}
                             >
                                 🔥 Emergency
                             </button>
                             <button
                                 onClick={() => setAlertMode('police')}
-                                className={`py-2 text-sm font-bold rounded-lg transition-all ${alertMode === 'police' ? 'bg-blue-500/30 text-blue-300 shadow-inner' : 'text-white/40 hover:text-white/70'}`}
+                                className={`py-2 text-sm font-bold rounded-lg transition-all ${alertMode === 'police' ? 'bg-blue-500 text-white shadow-lg scale-105 ring-2 ring-blue-400' : 'text-white/40 hover:text-white/70 hover:bg-white/5'}`}
                             >
                                 🚨 Police
                             </button>
