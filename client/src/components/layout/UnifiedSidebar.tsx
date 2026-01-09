@@ -70,10 +70,12 @@ export function UnifiedSidebar() {
         map.on('touchstart', stop);
         return () => { map.off('dragstart', stop); map.off('wheel', stop); map.off('dblclick', stop); map.off('touchstart', stop); };
     }, [map]);
-    const startPan = () => { console.log('startPan called, map:', !!map); if (!map) { console.log('NO MAP!'); return; } stopFlight(); setFlightMode('pan'); let last = 0; const go = (t: number) => { if (!map) return; if (last) { const c = map.getCenter(); map.setCenter([c.lng, Math.min(85, c.lat + 0.00008 * (t - last))]); } last = t; flightRef.current = requestAnimationFrame(go); }; flightRef.current = requestAnimationFrame(go); toast.info('Flight: Pan north'); };
+    const startPan = () => { if (!map) return; stopFlight(); setFlightMode('pan'); let last = 0; const go = (t: number) => { if (!map) return; if (last) { const c = map.getCenter(); map.setCenter([c.lng, Math.min(85, c.lat + 0.00008 * (t - last))]); } last = t; flightRef.current = requestAnimationFrame(go); }; flightRef.current = requestAnimationFrame(go); toast.info('Flight: Pan north'); };
     const startSight = () => { if (!map) return; stopFlight(); prevProj.current = map.getProjection()?.type || 'mercator'; map.setProjection({ type: 'globe' }); setFlightMode('sightseeing'); let last = 0, tb = map.getBearing(), tz = map.getZoom(), wp = { lng: map.getCenter().lng, lat: map.getCenter().lat }; const go = (t: number) => { if (!map) return; if (last) { const d = Math.min(t - last, 50), c = map.getCenter(), z = map.getZoom(), dx = wp.lng - c.lng, dy = wp.lat - c.lat; if (Math.sqrt(dx*dx+dy*dy) < 0.02) { const a = Math.random()*6.28; wp = { lng: ((c.lng+Math.cos(a)*0.15+180)%360)-180, lat: Math.max(-85,Math.min(85,c.lat+Math.sin(a)*0.15)) }; tb = (tb+Math.random()*90-45+360)%360; tz = 3 + Math.random()*10; } const ma = Math.atan2(dy,dx), b = map.getBearing(), bd = ((tb-b+540)%360)-180, zd = tz - z; map.jumpTo({ center: [c.lng+Math.cos(ma)*0.00012*d, Math.max(-85,Math.min(85,c.lat+Math.sin(ma)*0.00012*d))], bearing: b+Math.sign(bd)*Math.min(Math.abs(bd),0.03*d), zoom: z+Math.sign(zd)*Math.min(Math.abs(zd),0.005*d) }); } last = t; flightRef.current = requestAnimationFrame(go); }; flightRef.current = requestAnimationFrame(go); toast.info('Flight: Sightseeing'); };
-    const fDown = () => { pressTimer.current = setTimeout(() => { startSight(); pressTimer.current = null; }, 500); };
-    const fUp = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; if (flightMode === 'off') startPan(); else stopFlight(); } };
+    const handleFlightClick = () => { if (flightMode === 'off') startPan(); else stopFlight(); };
+    const handleFlightLongPress = () => { if (flightMode === 'off') startSight(); else stopFlight(); };
+    const fDown = () => { pressTimer.current = setTimeout(() => { handleFlightLongPress(); pressTimer.current = null; }, 500); };
+    const fUp = () => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; handleFlightClick(); } };
 
     // Desktop state from store
     const sidebarCollapsed = useDesktopUIStore((state) => state.sidebarCollapsed);
@@ -228,17 +230,13 @@ export function UnifiedSidebar() {
         </SidebarThemeContext.Provider>
     );
 
-    // Flight button component
+    // Flight button - simple onClick, no complex mouseDown/Up logic
     const FlightButton = () => (
         <Button
             variant={flightMode !== 'off' ? 'default' : 'outline'}
             size="icon"
-            onMouseDown={fDown}
-            onMouseUp={fUp}
-            onMouseLeave={() => { if (pressTimer.current) { clearTimeout(pressTimer.current); pressTimer.current = null; } }}
-            onTouchStart={fDown}
-            onTouchEnd={fUp}
-            title="Flight (click: pan, hold: sightseeing)"
+            onClick={handleFlightClick}
+            title="Click to fly"
             className={`fixed bottom-6 right-4 shadow-2xl w-14 h-14 rounded-2xl select-none transition-all ${flightMode === 'pan' ? 'bg-blue-600 text-white' : flightMode === 'sightseeing' ? 'bg-purple-600 text-white animate-pulse' : 'bg-white/90 backdrop-blur-xl text-gray-800 hover:bg-white border border-white/50'}`}
             style={{ zIndex: Z_INDEX.CONTROLS }}
         >
