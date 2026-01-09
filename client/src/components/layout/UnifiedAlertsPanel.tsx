@@ -426,21 +426,7 @@ export function UnifiedAlertsPanel() {
                                 size="sm"
                                 className="w-full"
                                 disabled={alertMode !== 'police'}
-                                onClick={() => {
-                                    const newState = !showHeatmap;
-                                    setShowHeatmap(newState);
-                                    if (newState) {
-                                        toast.loading("[...] heatmap.loading", {
-                                            description: "[INFO] Fetching density data...",
-                                            id: 'heatmap-toggle'
-                                        });
-                                    } else {
-                                        toast.info("[i] heatmap.disabled", {
-                                            description: "[INFO] Heatmap layer hidden",
-                                            duration: 2000
-                                        });
-                                    }
-                                }}
+                                onClick={() => setShowHeatmap(!showHeatmap)}
                             >
                                 <Flame className={`w-4 h-4 mr-2 ${showHeatmap ? 'animate-pulse' : ''}`} />
                                 {showHeatmap ? `Heatmap (${heatmapCount} hotspots)` : 'Show Heatmap'}
