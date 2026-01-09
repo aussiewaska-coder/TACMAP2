@@ -4,7 +4,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { DndContext } from "@dnd-kit/core";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/lib/trpc";
-import { Settings, MapPin, Pencil, RotateCw, Navigation } from "lucide-react";
+import { Settings, MapPin, Pencil, RotateCw, Navigation, Plane } from "lucide-react";
 import MapSettingsModal from "@/components/MapSettingsModal";
 import { FlightSimulatorButton } from "@/components/FlightSimulatorButton";
 import { toast } from "sonner";
@@ -378,7 +378,15 @@ export default function MapPage() {
         {/* Mobile-Friendly Control Buttons - Bottom Right */}
         <div className="fixed bottom-20 right-4 z-[100] flex flex-col gap-3 md:bottom-4">
           {/* Flight Simulator Button */}
-          <FlightSimulatorButton map={mapRef.current} />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => toast.info('Flight mode coming soon')}
+            title="Flight Simulator"
+            className="bg-white text-gray-800 hover:bg-gray-100 shadow-xl w-14 h-14 md:w-12 md:h-12"
+          >
+            <Plane className="w-6 h-6" />
+          </Button>
 
           {/* Cities Button */}
           <Button
