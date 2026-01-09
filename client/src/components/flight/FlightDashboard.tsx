@@ -741,7 +741,10 @@ export function FlightDashboard() {
 
     const startOrbit = (center?: [number, number], skipTransition = false) => {
         const map = useMapStore.getState().map;
-        if (!map) return;
+        if (!map) {
+            toast.error('Map not ready');
+            return;
+        }
 
         stopFlight();
 
@@ -1182,7 +1185,7 @@ export function FlightDashboard() {
                                         const map = useMapStore.getState().map;
                                         if (map) {
                                             const center = map.getCenter();
-                                            startOrbit([center.lng, center.lat]);
+                                            startOrbit([center.lng, center.lat], true);
                                         }
                                     }}
                                     className={`
