@@ -122,7 +122,13 @@ export function useHeatmap(options: UseHeatmapOptions) {
         source: HEATMAP_SOURCE_ID,
         paint: {
           'heatmap-weight': ['get', 'weight'],
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 18, 3],
+          // Intensity increases as you zoom in to compensate for smaller visual coverage
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'],
+            8, 0.5,   // Regional view - subtle
+            12, 1.5,  // City view - moderate
+            16, 2.5,  // Neighborhood - stronger
+            20, 4     // Street level - full intensity
+          ],
           'heatmap-color': [
             'interpolate',
             ['linear'],
@@ -134,7 +140,17 @@ export function useHeatmap(options: UseHeatmapOptions) {
             0.8, 'rgba(255, 128, 0, 0.8)',
             1, 'rgba(255, 0, 0, 0.8)'
           ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 10, 15, 18, 30],
+          // CRITICAL: Radius must be large at low zoom for smooth blending
+          // Decreases as you zoom in so individual hotspots become visible
+          'heatmap-radius': ['interpolate', ['exponential', 2], ['zoom'],
+            8, 60,    // Regional - large radius for smooth coverage
+            10, 45,   // State/metro - good blending
+            12, 35,   // City view - smooth clusters
+            14, 25,   // Suburb - starting to show detail
+            16, 18,   // Neighborhood - individual areas visible
+            18, 12,   // Street level - precise hotspots
+            20, 8     // Maximum zoom - exact locations
+          ],
           'heatmap-opacity': 0.7
         }
       });
