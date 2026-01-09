@@ -43,6 +43,30 @@ const easePitch = (current: number, target: number, delta: number, rate: number)
     return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
 };
 
+// Smooth easing for speed (acceleration/deceleration)
+const easeSpeed = (current: number, target: number, delta: number, rate: number): number => {
+    const diff = target - current;
+    // Rate: km/h per second change
+    const maxChange = rate * delta * 0.001;
+    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+};
+
+// Map altitude (meters) to appropriate speed (km/h) using logarithmic interpolation
+const altitudeToSpeed = (altMeters: number): number => {
+    const minAlt = 152;   // 500ft
+    const maxAlt = 30480; // 100,000ft
+    const minSpeed = 25;
+    const maxSpeed = 2000;
+
+    const clampedAlt = Math.max(minAlt, Math.min(maxAlt, altMeters));
+    const logMin = Math.log(minAlt);
+    const logMax = Math.log(maxAlt);
+    const logAlt = Math.log(clampedAlt);
+
+    const t = (logAlt - logMin) / (logMax - logMin);
+    return Math.round(minSpeed + t * (maxSpeed - minSpeed));
+};
+
 export function FlightButton() {
     const mode = useFlightMode();
     const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,6 +102,9 @@ export function FlightButton() {
         let currentAltitude = zoomToAltitude(map.getZoom());
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
+        // Set initial speed based on current altitude
+        let currentSpeed = altitudeToSpeed(currentAltitude);
+        useFlightStore.getState().setSpeed(currentSpeed);
         let isAnimatingZoom = false; // Flag to ignore zoomend from our own animation
 
         // Track user zoom interactions - update current altitude ONLY when USER zooms (not our animation)
@@ -115,7 +142,6 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                const speedFactor = (store.speed / 250) * 0.000001; // Reduced 10x for realistic speed
                 const center = currentMap.getCenter();
 
                 // Smooth heading toward target (45° per second turn rate)
@@ -138,8 +164,15 @@ export function FlightButton() {
                     currentPitch = currentMap.getPitch(); // Follow map if no target
                 }
 
+                // Smooth speed toward target (500 km/h per second acceleration)
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 500);
+                    useFlightStore.getState().setSpeed(Math.round(currentSpeed));
+                }
+
                 // Move in the direction of CURRENT (smoothed) heading
                 const bearingRad = (currentHeading * Math.PI) / 180;
+                const speedFactor = (currentSpeed / 250) * 0.000001; // Use smoothed speed
                 const moveDist = speedFactor * delta;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
@@ -187,6 +220,9 @@ export function FlightButton() {
         let currentAltitude = zoomToAltitude(map.getZoom());
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
+        // Set initial speed based on current altitude
+        let currentSpeed = altitudeToSpeed(currentAltitude);
+        useFlightStore.getState().setSpeed(currentSpeed);
         let isAnimatingZoom = false;
 
         // Track user zoom interactions - ONLY update altitude when USER zooms
@@ -223,7 +259,6 @@ export function FlightButton() {
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
                 const center = currentMap.getCenter();
-                const speedFactor = store.speed / 250;
 
                 // Distance to waypoint
                 const dx = waypoint.lng - center.lng;
@@ -257,9 +292,16 @@ export function FlightButton() {
                     currentPitch = currentMap.getPitch();
                 }
 
+                // Smooth speed toward target (500 km/h per second acceleration)
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 500);
+                    useFlightStore.getState().setSpeed(Math.round(currentSpeed));
+                }
+
                 // Move toward waypoint
                 const moveAngle = Math.atan2(dy, dx);
-                const moveSpeed = 0.0000012 * delta * speedFactor; // Reduced 10x for realistic speed
+                const speedFactor = currentSpeed / 250; // Use smoothed speed
+                const moveSpeed = 0.0000012 * delta * speedFactor;
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 

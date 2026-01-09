@@ -7,19 +7,38 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 
 // Altitude preset buttons (feet to meters conversion)
 const ALTITUDE_PRESETS = [
-    { ft: 100000, m: 30480, label: '100K' },
-    { ft: 50000, m: 15240, label: '50K' },
-    { ft: 20000, m: 6096, label: '20K' },
-    { ft: 10000, m: 3048, label: '10K' },
-    { ft: 7500, m: 2286, label: '7.5K' },
-    { ft: 3000, m: 914, label: '3K' },
-    { ft: 500, m: 152, label: '500' },
+    { ft: 100000, m: 30480, label: '100K', speed: 2000 },
+    { ft: 50000, m: 15240, label: '50K', speed: 1500 },
+    { ft: 20000, m: 6096, label: '20K', speed: 1000 },
+    { ft: 10000, m: 3048, label: '10K', speed: 500 },
+    { ft: 7500, m: 2286, label: '7.5K', speed: 350 },
+    { ft: 3000, m: 914, label: '3K', speed: 150 },
+    { ft: 500, m: 152, label: '500', speed: 25 },
 ];
+
+// Map altitude (meters) to appropriate speed (km/h) using logarithmic interpolation
+const altitudeToSpeed = (altMeters: number): number => {
+    const minAlt = 152;   // 500ft
+    const maxAlt = 30480; // 100,000ft
+    const minSpeed = 25;
+    const maxSpeed = 2000;
+
+    // Clamp altitude to range
+    const clampedAlt = Math.max(minAlt, Math.min(maxAlt, altMeters));
+
+    // Logarithmic interpolation for natural feel
+    const logMin = Math.log(minAlt);
+    const logMax = Math.log(maxAlt);
+    const logAlt = Math.log(clampedAlt);
+
+    const t = (logAlt - logMin) / (logMax - logMin);
+    return Math.round(minSpeed + t * (maxSpeed - minSpeed));
+};
 
 // Altitude Buttons Component
 function AltitudeButtons({ currentAltitude, onAltitudeChange }: {
     currentAltitude: number; // in meters
-    onAltitudeChange: (meters: number) => void;
+    onAltitudeChange: (meters: number, speed: number) => void;
 }) {
     // Find closest preset to current altitude
     const closestPreset = ALTITUDE_PRESETS.reduce((prev, curr) =>
@@ -44,7 +63,7 @@ function AltitudeButtons({ currentAltitude, onAltitudeChange }: {
                     return (
                         <button
                             key={preset.ft}
-                            onClick={() => onAltitudeChange(preset.m)}
+                            onClick={() => onAltitudeChange(preset.m, preset.speed)}
                             className={`
                                 px-3 py-1 rounded font-mono text-xs font-bold transition-all
                                 border
@@ -457,9 +476,11 @@ export function FlightDashboard() {
         useFlightStore.getState().setTargetHeading(newHeading);
     };
 
-    // Apply altitude change - set target for smooth easing
-    const applyAltitude = (newAlt: number) => {
-        useFlightStore.getState().setTargetAltitude(newAlt);
+    // Apply altitude change - set target altitude AND speed for smooth easing
+    const applyAltitude = (newAlt: number, newSpeed: number) => {
+        const store = useFlightStore.getState();
+        store.setTargetAltitude(newAlt);
+        store.setTargetSpeed(newSpeed);
     };
 
     // Apply pitch/tilt change - set target for smooth easing
@@ -467,9 +488,9 @@ export function FlightDashboard() {
         useFlightStore.getState().setTargetPitch(newPitch);
     };
 
-    // Update speed in store
+    // Update speed directly (from throttle slider) - also sets target for easing
     const setSpeed = (newSpeed: number) => {
-        useFlightStore.getState().setSpeed(newSpeed);
+        useFlightStore.getState().setTargetSpeed(newSpeed);
     };
 
     return (

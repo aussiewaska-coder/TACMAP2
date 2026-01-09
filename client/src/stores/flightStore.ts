@@ -5,13 +5,14 @@ interface FlightState {
     mode: 'off' | 'pan' | 'sightseeing' | 'manual';
     animationId: number | null;
     prevProjection: string | null;
-    speed: number; // km/h
+    speed: number; // km/h (current smoothed value)
     userZooming: boolean; // Track when user is actively zooming (double-click, pinch, wheel)
 
     // Target values for smooth easing
     targetHeading: number | null; // null = no override, use current
     targetAltitude: number | null; // in meters, null = no override
     targetPitch: number | null; // 0-85 degrees, null = no override
+    targetSpeed: number | null; // km/h, null = no override
 
     openDashboard: () => void;
     closeDashboard: () => void;
@@ -23,6 +24,7 @@ interface FlightState {
     setTargetHeading: (heading: number | null) => void;
     setTargetAltitude: (altitude: number | null) => void;
     setTargetPitch: (pitch: number | null) => void;
+    setTargetSpeed: (speed: number | null) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -35,10 +37,11 @@ export const useFlightStore = create<FlightState>((set) => ({
     targetHeading: null,
     targetAltitude: null,
     targetPitch: null,
+    targetSpeed: null,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
-    setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null, targetPitch: null }),
+    setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null, targetPitch: null, targetSpeed: null }),
     setAnimationId: (id) => set({ animationId: id }),
     setPrevProjection: (proj) => set({ prevProjection: proj }),
     setSpeed: (speed) => set({ speed }),
@@ -46,6 +49,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     setTargetHeading: (heading) => set({ targetHeading: heading }),
     setTargetAltitude: (altitude) => set({ targetAltitude: altitude }),
     setTargetPitch: (pitch) => set({ targetPitch: pitch }),
+    setTargetSpeed: (speed) => set({ targetSpeed: speed }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow
