@@ -5,6 +5,19 @@ import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightSt
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
+// DEBUG: Global zoom function
+if (typeof window !== 'undefined') {
+    (window as any).testZoom = (z: number) => {
+        const map = useMapStore.getState().map;
+        if (map) {
+            map.setZoom(z);
+            console.log('ZOOM SET TO', z);
+        } else {
+            console.log('NO MAP');
+        }
+    };
+}
+
 // Altitude preset buttons - DIRECT zoom control, no bullshit
 const ALTITUDE_PRESETS = [
     { ft: 100000, zoom: 3, label: '100K', speed: 2000 },
@@ -23,24 +36,11 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
         Math.abs(curr.zoom - currentZoom) < Math.abs(prev.zoom - currentZoom) ? curr : prev
     );
 
-    const handleClick = (preset: typeof ALTITUDE_PRESETS[0]) => {
-        const map = useMapStore.getState().map;
-        if (!map) {
-            console.error('No map!');
-            return;
-        }
-
-        // INSTANT zoom - no animation to get interrupted
-        map.setZoom(preset.zoom);
-        useFlightStore.getState().setSpeed(preset.speed);
-        console.log('ZOOM SET TO:', preset.zoom);
-    };
-
     return (
         <div className="flex flex-col items-center gap-1 select-none">
             <div className="text-amber-400/50 text-[10px] font-mono font-bold tracking-wider">ALT</div>
             <div className="text-amber-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-500/30">
-                {closestPreset.label}ft
+                Z{currentZoom.toFixed(0)}
             </div>
             <div className="flex flex-col gap-1 mt-1">
                 {ALTITUDE_PRESETS.map((preset) => {
@@ -49,7 +49,13 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
                     return (
                         <button
                             key={preset.ft}
-                            onClick={() => handleClick(preset)}
+                            onClick={() => {
+                                const map = useMapStore.getState().map;
+                                if (map) {
+                                    map.setZoom(preset.zoom);
+                                    useFlightStore.getState().setSpeed(preset.speed);
+                                }
+                            }}
                             className={`
                                 px-3 py-1 rounded font-mono text-xs font-bold transition-all border
                                 ${isActive
