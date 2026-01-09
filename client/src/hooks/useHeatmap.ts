@@ -13,16 +13,77 @@ interface HeatmapData {
   camera_summary: { high: number; medium: number; low: number };
 }
 
+export type HeatmapColorScheme = 'thermal' | 'green' | 'plasma' | 'ocean' | 'fire';
+
+export const HEATMAP_SCHEMES: Record<HeatmapColorScheme, { name: string; colors: any[] }> = {
+  thermal: {
+    name: 'Thermal',
+    colors: [
+      0, 'rgba(0, 0, 0, 0)',
+      0.2, 'rgba(128, 0, 128, 0.7)',
+      0.4, 'rgba(255, 0, 0, 0.8)',
+      0.6, 'rgba(255, 128, 0, 0.85)',
+      0.8, 'rgba(255, 255, 0, 0.9)',
+      1, 'rgba(255, 255, 255, 0.95)'
+    ]
+  },
+  green: {
+    name: 'Night Vision',
+    colors: [
+      0, 'rgba(0, 20, 0, 0)',
+      0.2, 'rgba(0, 80, 0, 0.6)',
+      0.4, 'rgba(0, 160, 0, 0.75)',
+      0.6, 'rgba(50, 200, 50, 0.85)',
+      0.8, 'rgba(100, 255, 100, 0.9)',
+      1, 'rgba(200, 255, 200, 0.95)'
+    ]
+  },
+  plasma: {
+    name: 'Plasma',
+    colors: [
+      0, 'rgba(10, 0, 30, 0)',
+      0.2, 'rgba(100, 0, 150, 0.7)',
+      0.4, 'rgba(200, 50, 150, 0.8)',
+      0.6, 'rgba(255, 100, 100, 0.85)',
+      0.8, 'rgba(255, 200, 50, 0.9)',
+      1, 'rgba(255, 255, 200, 0.95)'
+    ]
+  },
+  ocean: {
+    name: 'Ocean',
+    colors: [
+      0, 'rgba(0, 0, 30, 0)',
+      0.2, 'rgba(0, 50, 100, 0.6)',
+      0.4, 'rgba(0, 100, 180, 0.75)',
+      0.6, 'rgba(0, 180, 220, 0.85)',
+      0.8, 'rgba(100, 220, 255, 0.9)',
+      1, 'rgba(220, 255, 255, 0.95)'
+    ]
+  },
+  fire: {
+    name: 'Fire',
+    colors: [
+      0, 'rgba(0, 0, 0, 0)',
+      0.2, 'rgba(80, 0, 0, 0.6)',
+      0.4, 'rgba(180, 30, 0, 0.75)',
+      0.6, 'rgba(255, 100, 0, 0.85)',
+      0.8, 'rgba(255, 180, 0, 0.9)',
+      1, 'rgba(255, 255, 100, 0.95)'
+    ]
+  }
+};
+
 export interface UseHeatmapOptions {
   enabled: boolean;
   hoursAgo: number;
+  colorScheme?: HeatmapColorScheme;
 }
 
 const HEATMAP_SOURCE_ID = 'heatmap-source';
 const HEATMAP_LAYER_ID = 'heatmap-layer';
 
 export function useHeatmap(options: UseHeatmapOptions) {
-  const { enabled, hoursAgo } = options;
+  const { enabled, hoursAgo, colorScheme = 'thermal' } = options;
   const map = useMapStore((state) => state.map);
   const isLoaded = useMapStore((state) => state.isLoaded);
   const sessionData = useRef<Map<string, number>>(new Map());
@@ -104,6 +165,13 @@ export function useHeatmap(options: UseHeatmapOptions) {
       (map.getSource(HEATMAP_SOURCE_ID) as maplibregl.GeoJSONSource).setData(geojson as any);
     }
 
+    const heatmapColorExpr = [
+      'interpolate',
+      ['linear'],
+      ['heatmap-density'],
+      ...HEATMAP_SCHEMES[colorScheme].colors
+    ];
+
     // Add heatmap layer (only if not exists)
     if (!map.getLayer(HEATMAP_LAYER_ID)) {
       map.addLayer({
@@ -112,38 +180,29 @@ export function useHeatmap(options: UseHeatmapOptions) {
         source: HEATMAP_SOURCE_ID,
         paint: {
           'heatmap-weight': ['get', 'weight'],
-          // Intensity increases as you zoom in to compensate for smaller visual coverage
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'],
-            8, 0.5,   // Regional view - subtle
-            12, 1.5,  // City view - moderate
-            16, 2.5,  // Neighborhood - stronger
-            20, 4     // Street level - full intensity
+            8, 0.5,
+            12, 1.5,
+            16, 2.5,
+            20, 4
           ],
-          'heatmap-color': [
-            'interpolate',
-            ['linear'],
-            ['heatmap-density'],
-            0, 'rgba(0, 50, 0, 0)',
-            0.2, 'rgba(0, 100, 0, 0.6)',
-            0.4, 'rgba(0, 180, 0, 0.7)',
-            0.6, 'rgba(50, 220, 50, 0.8)',
-            0.8, 'rgba(100, 255, 100, 0.85)',
-            1, 'rgba(180, 255, 180, 0.9)'
-          ],
-          // Radius increases with zoom to maintain smooth blending at all levels
+          'heatmap-color': heatmapColorExpr,
           'heatmap-radius': ['interpolate', ['linear'], ['zoom'],
-            8, 30,    // Regional
-            10, 40,   // State/metro
-            12, 55,   // City view
-            14, 75,   // Suburb
-            16, 100,  // Neighborhood
-            18, 130,  // Street level
-            20, 160   // Maximum zoom
+            8, 30,
+            10, 40,
+            12, 55,
+            14, 75,
+            16, 100,
+            18, 130,
+            20, 160
           ],
           'heatmap-opacity': 0.7
         }
       });
       console.log('✅ Heatmap layer added');
+    } else {
+      // Update color scheme on existing layer
+      map.setPaintProperty(HEATMAP_LAYER_ID, 'heatmap-color', heatmapColorExpr);
     }
 
     // Cleanup function
@@ -155,7 +214,7 @@ export function useHeatmap(options: UseHeatmapOptions) {
         map.removeSource(HEATMAP_SOURCE_ID);
       }
     };
-  }, [map, isLoaded, enabled, renderTrigger]);
+  }, [map, isLoaded, enabled, renderTrigger, colorScheme]);
 
   // Clear session data when disabled
   useEffect(() => {

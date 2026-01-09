@@ -13,7 +13,7 @@ import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
 import { useEmergencyAlerts } from '@/hooks/useEmergencyAlerts';
 import { useUnifiedAlerts } from '@/hooks/useUnifiedAlerts';
-import { useHeatmap } from '@/hooks/useHeatmap';
+import { useHeatmap, HEATMAP_SCHEMES, HeatmapColorScheme } from '@/hooks/useHeatmap';
 import maplibregl from 'maplibre-gl';
 
 type AlertMode = 'emergency' | 'police';
@@ -41,6 +41,7 @@ export function UnifiedAlertsPanel() {
     const [enabled, setEnabled] = useState(true); // ✅ ENABLED BY DEFAULT
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
+    const [heatmapScheme, setHeatmapScheme] = useState<HeatmapColorScheme>('thermal');
 
     // Auto-hide markers when heatmap is enabled (old system behavior)
     useEffect(() => {
@@ -350,7 +351,8 @@ export function UnifiedAlertsPanel() {
     // NEW: Use the old heatmap system (police only for now)
     const { heatmapCount, isLoading: heatmapLoading } = useHeatmap({
         enabled: showHeatmap && alertMode === 'police',
-        hoursAgo
+        hoursAgo,
+        colorScheme: heatmapScheme
     });
 
     // Stats
@@ -446,16 +448,33 @@ export function UnifiedAlertsPanel() {
                             </Button>
 
                             {showHeatmap && (
-                                <div className="flex items-center space-x-2 px-1 animate-in fade-in">
-                                    <Switch
-                                        id="show-markers"
-                                        checked={showMarkers}
-                                        onCheckedChange={setShowMarkers}
-                                        className="scale-75"
-                                    />
-                                    <Label htmlFor="show-markers" className="text-xs text-white/70 cursor-pointer">
-                                        Show Markers Overlay
-                                    </Label>
+                                <div className="space-y-3 animate-in fade-in">
+                                    <div className="flex items-center space-x-2 px-1">
+                                        <Switch
+                                            id="show-markers"
+                                            checked={showMarkers}
+                                            onCheckedChange={setShowMarkers}
+                                            className="scale-75"
+                                        />
+                                        <Label htmlFor="show-markers" className="text-xs text-white/70 cursor-pointer">
+                                            Show Markers Overlay
+                                        </Label>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(Object.keys(HEATMAP_SCHEMES) as HeatmapColorScheme[]).map((scheme) => (
+                                            <button
+                                                key={scheme}
+                                                onClick={() => setHeatmapScheme(scheme)}
+                                                className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                                                    heatmapScheme === scheme
+                                                        ? 'bg-white/20 text-white ring-1 ring-white/40'
+                                                        : 'bg-white/5 text-white/50 hover:bg-white/10'
+                                                }`}
+                                            >
+                                                {HEATMAP_SCHEMES[scheme].name}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                         </div>
