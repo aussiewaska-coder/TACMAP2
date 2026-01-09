@@ -18,26 +18,22 @@ const ALTITUDE_PRESETS = [
 
 // Altitude Buttons - DIRECTLY controls map zoom
 function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
-    const map = useMapStore.getState().map;
-
     // Find closest preset to current zoom
     const closestPreset = ALTITUDE_PRESETS.reduce((prev, curr) =>
         Math.abs(curr.zoom - currentZoom) < Math.abs(prev.zoom - currentZoom) ? curr : prev
     );
 
     const handleClick = (preset: typeof ALTITUDE_PRESETS[0]) => {
-        const currentMap = useMapStore.getState().map;
-        if (!currentMap) return;
+        const map = useMapStore.getState().map;
+        if (!map) {
+            console.error('No map!');
+            return;
+        }
 
-        // DIRECT map control - flyTo with easing
-        currentMap.flyTo({
-            zoom: preset.zoom,
-            duration: 1500,
-            easing: (t) => t * (2 - t) // ease out quad
-        });
-
-        // Update speed to match altitude
+        // INSTANT zoom - no animation to get interrupted
+        map.setZoom(preset.zoom);
         useFlightStore.getState().setSpeed(preset.speed);
+        console.log('ZOOM SET TO:', preset.zoom);
     };
 
     return (
