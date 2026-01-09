@@ -29,10 +29,16 @@ export interface AdsbLolResponse {
         track?: number;
         baro_rate?: number;
         category?: string;
-        t?: string;
+        t?: string; // aircraft type
+        r?: string; // registration
+        seen?: number; // seconds since last update (v2 API)
+        seen_pos?: number; // seconds since last position update
+        rssi?: number; // signal strength
     }>;
-    now?: number;
+    now?: number; // unix timestamp
+    total?: number; // total aircraft count
     messages?: number;
+    msg?: string; // status message
 }
 
 export interface OpenSkyState {

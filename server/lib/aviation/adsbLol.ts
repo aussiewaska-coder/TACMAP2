@@ -18,9 +18,10 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
     const icaoSet = new Set(icao24List.map(i => i.toLowerCase()));
 
     try {
-        // Query the bulk Australia region (Center of AU, 1200nm radius)
+        // Query the bulk Australia region (Center of AU, 250nm radius max per v2 API)
         // This is much more efficient than 137 individual calls
-        const url = `${ADSB_LOL_BASE_URL}/api/aircraft/lat/-25/lon/135/dist/1200/`;
+        // Note: v2 API has 250nm max radius limit
+        const url = `${ADSB_LOL_BASE_URL}/v2/lat/-25/lon/135/dist/250`;
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 8000);
@@ -49,8 +50,8 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
                 if (!icaoSet.has(hex)) continue;
                 if (ac.lat === undefined || ac.lon === undefined) continue;
 
-                const lastSeen = data.now || now;
-                const age_s = Math.floor(now - lastSeen);
+                // v2 API provides 'seen' field (seconds since last update)
+                const age_s = Math.floor(ac.seen || 0);
 
                 let alt_m = 0;
                 if (typeof ac.alt_baro === 'number') {
@@ -89,7 +90,7 @@ export async function fetchAdsbLolArea(
     distanceNm: number = 50
 ): Promise<AircraftTrack[]> {
     try {
-        const url = `${ADSB_LOL_BASE_URL}/api/aircraft/lat/${lat}/lon/${lon}/dist/${distanceNm}/`;
+        const url = `${ADSB_LOL_BASE_URL}/v2/lat/${lat}/lon/${lon}/dist/${distanceNm}`;
         const response = await fetch(url, {
             headers: {
                 'User-Agent': 'TAC-MAP Emergency Services Dashboard',
@@ -109,8 +110,8 @@ export async function fetchAdsbLolArea(
             for (const ac of data.ac) {
                 if (ac.lat === undefined || ac.lon === undefined) continue;
 
-                const lastSeen = data.now || now;
-                const age_s = Math.floor(now - lastSeen);
+                // v2 API provides 'seen' field (seconds since last update)
+                const age_s = Math.floor(ac.seen || 0);
 
                 let alt_m = 0;
                 if (typeof ac.alt_baro === 'number') {
