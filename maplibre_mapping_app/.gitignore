@@ -7,11 +7,6 @@ dist/
 build/
 *.dist
 
-# Reference data and documentation (local only)
-*REF_DATA/
-*DATABASE TABLES/
-DOCUMENTS/
-
 # Environment variables
 .env
 .env.local
@@ -110,5 +105,3 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
-.vercel
-env.local
