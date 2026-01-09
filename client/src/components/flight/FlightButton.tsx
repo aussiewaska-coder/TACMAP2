@@ -1,14 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode } from '@/stores/flightStore';
-import { useMapStore, useMapLoaded } from '@/stores';
+import { useMapStore } from '@/stores';
 import { toast } from 'sonner';
 
 export function FlightButton() {
     const mode = useFlightMode();
-    const mapLoaded = useMapLoaded();
     const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const touchActiveRef = useRef(false);
 
@@ -41,6 +40,7 @@ export function FlightButton() {
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
             const currentMode = useFlightStore.getState().mode;
+            const speed = useFlightStore.getState().speed;
 
             if (!currentMap || currentMode !== 'pan') {
                 useFlightStore.getState().setAnimationId(null);
@@ -49,9 +49,19 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
+                // Convert speed (km/h) to degrees per ms
+                // At equator: 1 degree ≈ 111 km
+                // speed km/h = speed/111 degrees/hour = speed/111/3600000 degrees/ms
+                const degreesPerMs = (speed / 111) / 3600000;
                 const center = currentMap.getCenter();
-                const newLat = Math.min(85, center.lat + 0.00008 * delta);
-                currentMap.setCenter([center.lng, newLat]);
+                const bearing = currentMap.getBearing();
+
+                // Move in the direction of bearing
+                const bearingRad = (bearing * Math.PI) / 180;
+                const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * degreesPerMs * delta * 50000));
+                const newLng = center.lng + Math.sin(bearingRad) * degreesPerMs * delta * 50000;
+
+                currentMap.setCenter([newLng, newLat]);
             }
 
             lastTime = time;
@@ -61,7 +71,7 @@ export function FlightButton() {
 
         const id = requestAnimationFrame(animate);
         useFlightStore.getState().setAnimationId(id);
-        toast.info('Flight: Pan north');
+        toast.info('Flight: Pan mode - use controls to adjust');
     };
 
     const startSightseeing = () => {
@@ -88,6 +98,7 @@ export function FlightButton() {
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
             const currentMode = useFlightStore.getState().mode;
+            const speed = useFlightStore.getState().speed;
 
             if (!currentMap || currentMode !== 'sightseeing') {
                 useFlightStore.getState().setAnimationId(null);
@@ -99,6 +110,9 @@ export function FlightButton() {
                 const center = currentMap.getCenter();
                 const zoom = currentMap.getZoom();
                 const bearing = currentMap.getBearing();
+
+                // Speed factor based on throttle
+                const speedFactor = speed / 500;
 
                 // Distance to waypoint
                 const dx = waypoint.lng - center.lng;
@@ -118,8 +132,9 @@ export function FlightButton() {
 
                 // Move toward waypoint
                 const moveAngle = Math.atan2(dy, dx);
-                const newLng = center.lng + Math.cos(moveAngle) * 0.00012 * delta;
-                const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * 0.00012 * delta));
+                const moveSpeed = 0.00012 * delta * speedFactor;
+                const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
+                const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
                 // Smooth bearing
                 const bearingDiff = ((targetBearing - bearing + 540) % 360) - 180;
@@ -143,7 +158,7 @@ export function FlightButton() {
 
         const id = requestAnimationFrame(animate);
         useFlightStore.getState().setAnimationId(id);
-        toast.info('Flight: Sightseeing');
+        toast.info('Flight: Sightseeing mode');
     };
 
     const handleClick = () => {
@@ -197,36 +212,6 @@ export function FlightButton() {
         clearPressTimer();
     };
 
-    // Stop flight on user interaction - re-run when map becomes available
-    useEffect(() => {
-        if (!mapLoaded) return;
-        const map = useMapStore.getState().map;
-        if (!map) return;
-
-        const stop = () => {
-            const currentMode = useFlightStore.getState().mode;
-            if (currentMode !== 'off') {
-                stopFlight();
-            }
-        };
-
-        map.on('dragstart', stop);
-        map.on('wheel', stop);
-        map.on('dblclick', stop);
-        map.on('touchstart', stop);
-
-        return () => {
-            try {
-                map.off('dragstart', stop);
-                map.off('wheel', stop);
-                map.off('dblclick', stop);
-                map.off('touchstart', stop);
-            } catch {
-                // Map may be destroyed
-            }
-        };
-    }, [mapLoaded]);
-
     return (
         <Button
             variant={mode !== 'off' ? 'default' : 'outline'}
@@ -236,11 +221,12 @@ export function FlightButton() {
             onMouseLeave={onPointerLeave}
             onTouchStart={() => onPointerDown(true)}
             onTouchEnd={() => onPointerUp(true)}
-            title="Click: pan north | Hold: sightseeing"
+            title="Click: pan mode | Hold: sightseeing"
             className={`
                 fixed bottom-6 right-4 w-14 h-14 rounded-2xl shadow-2xl select-none
                 ${mode === 'pan' ? 'bg-blue-600 text-white' : ''}
                 ${mode === 'sightseeing' ? 'bg-purple-600 text-white animate-pulse' : ''}
+                ${mode === 'manual' ? 'bg-green-600 text-white' : ''}
                 ${mode === 'off' ? 'bg-white/90 backdrop-blur-xl text-gray-800 hover:bg-white border border-white/50' : ''}
             `}
             style={{ zIndex: Z_INDEX.CONTROLS }}

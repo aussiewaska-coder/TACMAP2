@@ -9,4 +9,4 @@ export { useFeatureStore, useFeature, useFeatureEnabled, useEnabledFeatures } fr
 export type { FeatureDefinition, FeatureCategory } from './featureStore';
 export { useBasemapStore, useCurrentBasemap, useBasemapChanging, BASEMAP_STYLES } from './basemapStore';
 export type { BasemapStyle } from './basemapStore';
-export { useFlightStore, useFlightDashboardOpen, useFlightMode } from './flightStore';
+export { useFlightStore, useFlightDashboardOpen, useFlightMode, useFlightSpeed } from './flightStore';
