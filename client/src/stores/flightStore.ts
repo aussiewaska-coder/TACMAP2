@@ -3,6 +3,7 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { shallow } from 'zustand/shallow';
 
 export interface Destination {
     name: string;
@@ -189,17 +190,23 @@ export const useFlightStore = create<FlightState>()(
 export const useFlightDashboard = () => useFlightStore((state) => state.dashboardOpen);
 export const useFlightMode = () => useFlightStore((state) => state.mode);
 export const useFlightTelemetry = () => useFlightStore((state) => state.telemetry);
-export const useFlightControls = () => useFlightStore((state) => ({
-    targetSpeed: state.targetSpeed,
-    targetHeading: state.targetHeading,
-    targetAltitude: state.targetAltitude,
-}));
-export const useFlightDestination = () => useFlightStore((state) => ({
-    destination: state.destination,
-    routeGeometry: state.routeGeometry,
-    distanceRemaining: state.distanceRemaining,
-    etaSeconds: state.etaSeconds,
-}));
+export const useFlightControls = () => useFlightStore(
+    (state) => ({
+        targetSpeed: state.targetSpeed,
+        targetHeading: state.targetHeading,
+        targetAltitude: state.targetAltitude,
+    }),
+    shallow
+);
+export const useFlightDestination = () => useFlightStore(
+    (state) => ({
+        destination: state.destination,
+        routeGeometry: state.routeGeometry,
+        distanceRemaining: state.distanceRemaining,
+        etaSeconds: state.etaSeconds,
+    }),
+    shallow
+);
 
 // Predefined destinations
 export const DESTINATIONS: Destination[] = [
