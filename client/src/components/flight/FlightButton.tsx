@@ -35,6 +35,14 @@ const easeAltitude = (current: number, target: number, delta: number, rate: numb
     return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
 };
 
+// Smooth easing for pitch (camera tilt rate)
+const easePitch = (current: number, target: number, delta: number, rate: number): number => {
+    const diff = target - current;
+    // Pitch rate: degrees per second
+    const maxChange = rate * delta * 0.001;
+    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+};
+
 export function FlightButton() {
     const mode = useFlightMode();
     const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,6 +77,7 @@ export function FlightButton() {
         // Current smoothed values (what we actually apply to the map)
         let currentAltitude = zoomToAltitude(map.getZoom());
         let currentHeading = map.getBearing();
+        let currentPitch = map.getPitch();
 
         // Track user zoom interactions - update current altitude when user finishes zooming
         const onZoomEnd = () => {
@@ -108,6 +117,13 @@ export function FlightButton() {
                     currentAltitude = easeAltitude(currentAltitude, store.targetAltitude, delta, 2000);
                 }
 
+                // Smooth pitch toward target (30° per second tilt rate)
+                if (store.targetPitch !== null) {
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 30);
+                } else {
+                    currentPitch = currentMap.getPitch(); // Follow map if no target
+                }
+
                 // Move in the direction of CURRENT (smoothed) heading
                 const bearingRad = (currentHeading * Math.PI) / 180;
                 const moveDist = speedFactor * delta;
@@ -117,7 +133,8 @@ export function FlightButton() {
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
-                    zoom: altitudeToZoom(currentAltitude)
+                    zoom: altitudeToZoom(currentAltitude),
+                    pitch: currentPitch
                 });
             }
 
@@ -152,6 +169,7 @@ export function FlightButton() {
         let waypoint = { lng: map.getCenter().lng, lat: map.getCenter().lat };
         let currentAltitude = zoomToAltitude(map.getZoom());
         let currentHeading = map.getBearing();
+        let currentPitch = map.getPitch();
 
         // Track user zoom interactions
         const onZoomEnd = () => {
@@ -202,6 +220,13 @@ export function FlightButton() {
                     currentAltitude = easeAltitude(currentAltitude, store.targetAltitude, delta, 2000);
                 }
 
+                // Smooth pitch toward target (30° per second tilt rate)
+                if (store.targetPitch !== null) {
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 30);
+                } else {
+                    currentPitch = currentMap.getPitch();
+                }
+
                 // Move toward waypoint
                 const moveAngle = Math.atan2(dy, dx);
                 const moveSpeed = 0.000012 * delta * speedFactor;
@@ -211,7 +236,8 @@ export function FlightButton() {
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
-                    zoom: altitudeToZoom(currentAltitude)
+                    zoom: altitudeToZoom(currentAltitude),
+                    pitch: currentPitch
                 });
             }
 

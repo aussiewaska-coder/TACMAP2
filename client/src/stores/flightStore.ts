@@ -11,6 +11,7 @@ interface FlightState {
     // Target values for smooth easing
     targetHeading: number | null; // null = no override, use current
     targetAltitude: number | null; // in meters, null = no override
+    targetPitch: number | null; // 0-85 degrees, null = no override
 
     openDashboard: () => void;
     closeDashboard: () => void;
@@ -21,6 +22,7 @@ interface FlightState {
     setUserZooming: (zooming: boolean) => void;
     setTargetHeading: (heading: number | null) => void;
     setTargetAltitude: (altitude: number | null) => void;
+    setTargetPitch: (pitch: number | null) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -32,16 +34,18 @@ export const useFlightStore = create<FlightState>((set) => ({
     userZooming: false,
     targetHeading: null,
     targetAltitude: null,
+    targetPitch: null,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
-    setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null }),
+    setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null, targetPitch: null }),
     setAnimationId: (id) => set({ animationId: id }),
     setPrevProjection: (proj) => set({ prevProjection: proj }),
     setSpeed: (speed) => set({ speed }),
     setUserZooming: (zooming) => set({ userZooming: zooming }),
     setTargetHeading: (heading) => set({ targetHeading: heading }),
     setTargetAltitude: (altitude) => set({ targetAltitude: altitude }),
+    setTargetPitch: (pitch) => set({ targetPitch: pitch }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow

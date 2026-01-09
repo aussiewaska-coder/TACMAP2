@@ -24,15 +24,18 @@ function VerticalSlider({
     step: number;
     label: string;
     unit: string;
-    color?: 'green' | 'amber';
+    color?: 'green' | 'amber' | 'cyan';
     ticks: { value: number; label: string }[];
 }) {
     const sliderRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
 
-    const colorClasses = color === 'green'
-        ? { bg: 'bg-green-500', glow: 'shadow-green-500/50', text: 'text-green-400', border: 'border-green-500/30', dim: 'text-green-400/50' }
-        : { bg: 'bg-amber-500', glow: 'shadow-amber-500/50', text: 'text-amber-400', border: 'border-amber-500/30', dim: 'text-amber-400/50' };
+    const colorMap = {
+        green: { bg: 'bg-green-500', glow: 'shadow-green-500/50', text: 'text-green-400', border: 'border-green-500/30', dim: 'text-green-400/50' },
+        amber: { bg: 'bg-amber-500', glow: 'shadow-amber-500/50', text: 'text-amber-400', border: 'border-amber-500/30', dim: 'text-amber-400/50' },
+        cyan: { bg: 'bg-cyan-500', glow: 'shadow-cyan-500/50', text: 'text-cyan-400', border: 'border-cyan-500/30', dim: 'text-cyan-400/50' },
+    };
+    const colorClasses = colorMap[color];
 
     const percentage = ((value - min) / (max - min)) * 100;
 
@@ -324,11 +327,13 @@ export function FlightDashboard() {
     const speed = useFlightSpeed(); // From store
     const targetHeading = useFlightStore((s) => s.targetHeading);
     const targetAltitude = useFlightStore((s) => s.targetAltitude);
+    const targetPitch = useFlightStore((s) => s.targetPitch);
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
         bearing: 0,
         zoom: 0,
+        pitch: 0,
     });
 
     // Update telemetry from map (live) - this is the source of truth
@@ -345,6 +350,7 @@ export function FlightDashboard() {
                 lng: center.lng,
                 bearing: map.getBearing(),
                 zoom: map.getZoom(),
+                pitch: map.getPitch(),
             });
         }, 50); // Faster updates for responsive sliders
 
@@ -358,6 +364,9 @@ export function FlightDashboard() {
 
     // Derive heading from bearing
     const heading = Math.round((telemetry.bearing + 360) % 360);
+
+    // Current pitch (0-85°)
+    const pitch = Math.round(telemetry.pitch);
 
     // Don't render if flight is off
     if (mode === 'off') return null;
@@ -387,6 +396,11 @@ export function FlightDashboard() {
         useFlightStore.getState().setTargetAltitude(newAlt);
     };
 
+    // Apply pitch/tilt change - set target for smooth easing
+    const applyPitch = (newPitch: number) => {
+        useFlightStore.getState().setTargetPitch(newPitch);
+    };
+
     // Update speed in store
     const setSpeed = (newSpeed: number) => {
         useFlightStore.getState().setSpeed(newSpeed);
@@ -398,7 +412,7 @@ export function FlightDashboard() {
             style={{ zIndex: Z_INDEX.OVERLAY }}
         >
             {/* MODAL DASHBOARD - Bottom right, above flight button */}
-            <div className="absolute bottom-24 right-4 pointer-events-auto w-80">
+            <div className="absolute bottom-24 right-4 pointer-events-auto w-[420px]">
                 <div className="bg-black/95 backdrop-blur-xl border border-green-500/40 rounded-lg shadow-2xl shadow-green-500/10 overflow-hidden">
 
                     {/* Header - Military style */}
@@ -429,7 +443,7 @@ export function FlightDashboard() {
                     </div>
 
                     {/* Telemetry row - Military HUD style */}
-                    <div className="px-3 py-2 bg-black/60 border-b border-green-500/20 grid grid-cols-4 gap-1">
+                    <div className="px-3 py-2 bg-black/60 border-b border-green-500/20 grid grid-cols-5 gap-1">
                         <div className="text-center">
                             <div className="text-green-400/40 text-[8px] font-mono tracking-wider">LAT</div>
                             <div className="text-green-400 font-mono text-xs">{telemetry.lat.toFixed(2)}°</div>
@@ -446,11 +460,15 @@ export function FlightDashboard() {
                             <div className="text-amber-400/40 text-[8px] font-mono tracking-wider">ALT</div>
                             <div className="text-amber-400 font-mono text-xs">{clampedAltitude.toLocaleString()}m</div>
                         </div>
+                        <div className="text-center">
+                            <div className="text-cyan-400/40 text-[8px] font-mono tracking-wider">TILT</div>
+                            <div className="text-cyan-400 font-mono text-xs">{pitch}°</div>
+                        </div>
                     </div>
 
                     {/* CONTROLS - Military Layout */}
                     <div className="p-4">
-                        <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-start justify-between gap-2">
                             {/* THROTTLE - Left side */}
                             <VerticalSlider
                                 value={speed}
@@ -475,7 +493,7 @@ export function FlightDashboard() {
                                 <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
                             </div>
 
-                            {/* ALTITUDE - Right side */}
+                            {/* ALTITUDE */}
                             <VerticalSlider
                                 value={clampedAltitude}
                                 onChange={applyAltitude}
@@ -491,6 +509,25 @@ export function FlightDashboard() {
                                     { value: 25000, label: '25K' },
                                     { value: 12500, label: '' },
                                     { value: 1000, label: '1K' },
+                                ]}
+                            />
+
+                            {/* TILT / PITCH */}
+                            <VerticalSlider
+                                value={pitch}
+                                onChange={applyPitch}
+                                min={0}
+                                max={85}
+                                step={5}
+                                label="TILT"
+                                unit="°"
+                                color="cyan"
+                                ticks={[
+                                    { value: 85, label: '85' },
+                                    { value: 60, label: '60' },
+                                    { value: 45, label: '45' },
+                                    { value: 30, label: '30' },
+                                    { value: 0, label: '0' },
                                 ]}
                             />
                         </div>
