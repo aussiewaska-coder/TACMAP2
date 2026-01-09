@@ -16,11 +16,12 @@ const easeHeading = (current: number, target: number, delta: number, smoothing: 
     return (current + turn + 360) % 360;
 };
 
-// Smooth easing for pitch
-const easePitch = (current: number, target: number, delta: number, rate: number): number => {
+// Smooth easing for pitch - exponential ease for natural feel
+const easePitch = (current: number, target: number, delta: number, smoothing: number): number => {
     const diff = target - current;
-    const maxChange = rate * delta * 0.001;
-    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+    if (Math.abs(diff) < 0.5) return target; // Snap when very close
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    return current + diff * ease;
 };
 
 // Smooth easing for zoom - graceful exponential ease-out like flying
@@ -32,11 +33,12 @@ const easeZoom = (current: number, target: number, delta: number, smoothing: num
     return current + diff * ease;
 };
 
-// Smooth easing for speed (rate = km/h change per second)
-const easeSpeed = (current: number, target: number, delta: number, rate: number): number => {
+// Smooth easing for speed - exponential for natural throttle feel
+const easeSpeed = (current: number, target: number, delta: number, smoothing: number): number => {
     const diff = target - current;
-    const maxChange = rate * delta * 0.001;
-    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+    if (Math.abs(diff) < 1) return target; // Snap when very close
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    return current + diff * ease;
 };
 
 export function FlightButton() {
@@ -101,9 +103,9 @@ export function FlightButton() {
                 }
                 // else: keep currentHeading as-is
 
-                // Pitch easing - NEVER read from map, terrain causes drift
+                // Pitch easing - smooth exponential, NEVER read from map
                 if (store.targetPitch !== null) {
-                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 30);
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
                 }
                 // else: keep currentPitch as-is
 
@@ -113,9 +115,9 @@ export function FlightButton() {
                 }
                 // else: keep currentZoom as-is
 
-                // Speed easing - fast response on throttle
+                // Speed easing - smooth exponential for natural throttle
                 if (store.targetSpeed !== null) {
-                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 1500);
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
                     store.setSpeed(currentSpeed);
                 } else {
                     currentSpeed = store.speed;
@@ -209,9 +211,9 @@ export function FlightButton() {
                 const targetHeading = store.targetHeading !== null ? store.targetHeading : autoTargetBearing;
                 currentHeading = easeHeading(currentHeading, targetHeading, delta, 0.12);
 
-                // Pitch - NEVER read from map, terrain causes drift
+                // Pitch - smooth exponential, NEVER read from map
                 if (store.targetPitch !== null) {
-                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 30);
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
                 }
                 // else: keep currentPitch as-is
 
@@ -221,9 +223,9 @@ export function FlightButton() {
                 }
                 // else: keep currentZoom as-is
 
-                // Speed easing - fast response on throttle
+                // Speed easing - smooth exponential for natural throttle
                 if (store.targetSpeed !== null) {
-                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 1500);
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
                     store.setSpeed(currentSpeed);
                 } else {
                     currentSpeed = store.speed;
