@@ -49,9 +49,9 @@ export function FlightButton() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                // Speed factor: 250 km/h baseline = 0.0001 degrees per ms visual speed
-                // This gives smooth visible movement without being crazy fast
-                const speedFactor = (speed / 250) * 0.0001;
+                // Speed factor: 250 km/h baseline = 0.00001 degrees per ms
+                // Tuned to feel realistic relative to displayed speed
+                const speedFactor = (speed / 250) * 0.00001;
                 const center = currentMap.getCenter();
                 const bearing = currentMap.getBearing();
 
@@ -132,7 +132,7 @@ export function FlightButton() {
 
                 // Move toward waypoint
                 const moveAngle = Math.atan2(dy, dx);
-                const moveSpeed = 0.00012 * delta * speedFactor;
+                const moveSpeed = 0.000012 * delta * speedFactor;
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
