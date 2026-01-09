@@ -1,9 +1,153 @@
-import { X, Plane, Gauge, Navigation, Globe } from 'lucide-react';
+import { X, Plane, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
+
+// Military-style Vertical Slider Component
+function VerticalSlider({
+    value,
+    onChange,
+    min,
+    max,
+    step,
+    label,
+    unit,
+    color = 'green',
+    ticks
+}: {
+    value: number;
+    onChange: (v: number) => void;
+    min: number;
+    max: number;
+    step: number;
+    label: string;
+    unit: string;
+    color?: 'green' | 'amber';
+    ticks: { value: number; label: string }[];
+}) {
+    const sliderRef = useRef<HTMLDivElement>(null);
+    const isDragging = useRef(false);
+
+    const colorClasses = color === 'green'
+        ? { bg: 'bg-green-500', glow: 'shadow-green-500/50', text: 'text-green-400', border: 'border-green-500/30', dim: 'text-green-400/50' }
+        : { bg: 'bg-amber-500', glow: 'shadow-amber-500/50', text: 'text-amber-400', border: 'border-amber-500/30', dim: 'text-amber-400/50' };
+
+    const percentage = ((value - min) / (max - min)) * 100;
+
+    const getValueFromEvent = useCallback((e: MouseEvent | TouchEvent) => {
+        if (!sliderRef.current) return value;
+        const rect = sliderRef.current.getBoundingClientRect();
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        // Inverted: top = max, bottom = min
+        const pct = 1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+        const rawValue = min + pct * (max - min);
+        return Math.round(rawValue / step) * step;
+    }, [value, min, max, step]);
+
+    const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault();
+        isDragging.current = true;
+        const nativeEvent = 'touches' in e ? e.nativeEvent : e.nativeEvent;
+        onChange(getValueFromEvent(nativeEvent as MouseEvent | TouchEvent));
+    }, [getValueFromEvent, onChange]);
+
+    useEffect(() => {
+        const handleMove = (e: MouseEvent | TouchEvent) => {
+            if (!isDragging.current) return;
+            e.preventDefault();
+            onChange(getValueFromEvent(e));
+        };
+        const handleEnd = () => { isDragging.current = false; };
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchend', handleEnd);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleEnd);
+            window.removeEventListener('touchmove', handleMove);
+            window.removeEventListener('touchend', handleEnd);
+        };
+    }, [getValueFromEvent, onChange]);
+
+    // Format display value
+    const displayValue = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toString();
+
+    return (
+        <div className="flex flex-col items-center gap-1 select-none">
+            {/* Label */}
+            <div className={`${colorClasses.dim} text-[10px] font-mono font-bold tracking-wider`}>{label}</div>
+
+            {/* Digital readout */}
+            <div className={`${colorClasses.text} font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border ${colorClasses.border}`}>
+                {displayValue}{unit}
+            </div>
+
+            {/* Slider track with ticks */}
+            <div className="flex items-stretch gap-1 h-36">
+                {/* Tick marks - left side */}
+                <div className="flex flex-col justify-between py-1">
+                    {ticks.map((tick, i) => (
+                        <div key={i} className="flex items-center gap-1">
+                            <span className={`${colorClasses.dim} text-[8px] font-mono w-6 text-right`}>{tick.label}</span>
+                            <div className={`w-2 h-px ${colorClasses.bg}/40`} />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Main slider track */}
+                <div
+                    ref={sliderRef}
+                    onMouseDown={handleStart}
+                    onTouchStart={handleStart}
+                    className="relative w-8 cursor-ns-resize"
+                >
+                    {/* Track background */}
+                    <div className={`absolute inset-0 bg-black/80 border ${colorClasses.border} rounded`}>
+                        {/* Grid lines */}
+                        {[...Array(10)].map((_, i) => (
+                            <div
+                                key={i}
+                                className={`absolute left-0 right-0 h-px ${colorClasses.bg}/20`}
+                                style={{ top: `${(i + 1) * 10}%` }}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Fill bar */}
+                    <div
+                        className={`absolute bottom-0 left-1 right-1 ${colorClasses.bg}/30 rounded-sm transition-all`}
+                        style={{ height: `${percentage}%` }}
+                    />
+
+                    {/* Glowing indicator line */}
+                    <div
+                        className={`absolute left-0 right-0 h-1 ${colorClasses.bg} shadow-lg ${colorClasses.glow} rounded transition-all`}
+                        style={{ bottom: `calc(${percentage}% - 2px)` }}
+                    />
+
+                    {/* Handle */}
+                    <div
+                        className={`absolute left-1/2 -translate-x-1/2 w-6 h-3 ${colorClasses.bg} rounded-sm shadow-lg ${colorClasses.glow}
+                            border-t border-white/30 transition-all cursor-grab active:cursor-grabbing`}
+                        style={{ bottom: `calc(${percentage}% - 6px)` }}
+                    >
+                        {/* Handle grip lines */}
+                        <div className="absolute inset-x-1 top-1 flex justify-between">
+                            <div className="w-px h-1 bg-black/30" />
+                            <div className="w-px h-1 bg-black/30" />
+                            <div className="w-px h-1 bg-black/30" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 // Glassmorphic Ball Compass Component
 function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingChange: (h: number) => void }) {
@@ -55,30 +199,33 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
     }, [getAngleFromEvent, onHeadingChange]);
 
     return (
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-1 select-none">
+            {/* Label */}
+            <div className="text-green-400/50 text-[10px] font-mono font-bold tracking-wider">HDG</div>
+
             <div
                 ref={compassRef}
                 onMouseDown={handleStart}
                 onTouchStart={handleStart}
-                className="relative w-28 h-28 cursor-grab active:cursor-grabbing select-none"
+                className="relative w-24 h-24 cursor-grab active:cursor-grabbing"
             >
-                {/* Outer glass ring */}
-                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md border border-white/30 shadow-lg shadow-cyan-500/20" />
+                {/* Outer ring */}
+                <div className="absolute inset-0 rounded-full bg-black/80 border border-green-500/40 shadow-lg shadow-green-500/10" />
 
                 {/* Inner dark sphere */}
-                <div className="absolute inset-2 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border border-cyan-500/30 shadow-inner" />
+                <div className="absolute inset-1 rounded-full bg-gradient-to-br from-slate-900 to-black border border-green-500/20 shadow-inner" />
 
                 {/* Compass rose - rotates with heading */}
                 <div
-                    className="absolute inset-3 rounded-full"
+                    className="absolute inset-2 rounded-full"
                     style={{ transform: `rotate(${-heading}deg)` }}
                 >
                     {/* Cardinal directions */}
                     <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="absolute top-1 text-[10px] font-bold text-red-400">N</span>
-                        <span className="absolute bottom-1 text-[10px] font-bold text-cyan-400/60">S</span>
-                        <span className="absolute left-1 text-[10px] font-bold text-cyan-400/60">W</span>
-                        <span className="absolute right-1 text-[10px] font-bold text-cyan-400/60">E</span>
+                        <span className="absolute top-0 text-[9px] font-bold text-red-500">N</span>
+                        <span className="absolute bottom-0 text-[9px] font-bold text-green-400/50">S</span>
+                        <span className="absolute left-0 text-[9px] font-bold text-green-400/50">W</span>
+                        <span className="absolute right-0 text-[9px] font-bold text-green-400/50">E</span>
                     </div>
 
                     {/* Tick marks */}
@@ -92,7 +239,7 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
                             }}
                         >
                             <div
-                                className={`w-px ${i % 9 === 0 ? 'h-2 bg-cyan-400' : 'h-1 bg-cyan-400/40'}`}
+                                className={`w-px ${i % 9 === 0 ? 'h-2 bg-green-400' : 'h-1 bg-green-400/30'}`}
                             />
                         </div>
                     ))}
@@ -100,20 +247,17 @@ function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingC
 
                 {/* Fixed aircraft indicator (pointing up = current heading) */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[12px] border-l-transparent border-r-transparent border-b-cyan-400 -translate-y-4" />
+                    <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[10px] border-l-transparent border-r-transparent border-b-green-400 -translate-y-3 drop-shadow-[0_0_3px_rgba(74,222,128,0.5)]" />
                 </div>
 
                 {/* Center dot */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-lg shadow-green-400/50" />
                 </div>
-
-                {/* Glass highlight */}
-                <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" style={{ clipPath: 'ellipse(45% 30% at 50% 25%)' }} />
             </div>
 
             {/* Heading readout */}
-            <div className="text-cyan-400 font-mono text-lg font-bold">
+            <div className="text-green-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-green-500/30">
                 {Math.round(heading).toString().padStart(3, '0')}°
             </div>
         </div>
@@ -206,21 +350,22 @@ export function FlightDashboard() {
             style={{ zIndex: Z_INDEX.OVERLAY }}
         >
             {/* MODAL DASHBOARD - Bottom right, above flight button */}
-            <div className="absolute bottom-24 right-4 pointer-events-auto w-96">
-                <div className="bg-slate-900/95 backdrop-blur-xl border border-cyan-500/50 rounded-2xl shadow-2xl shadow-cyan-500/20 overflow-hidden">
+            <div className="absolute bottom-24 right-4 pointer-events-auto w-80">
+                <div className="bg-black/95 backdrop-blur-xl border border-green-500/40 rounded-lg shadow-2xl shadow-green-500/10 overflow-hidden">
 
-                    {/* Header */}
-                    <div className="bg-gradient-to-r from-cyan-600 to-blue-600 px-4 py-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Plane className="w-5 h-5 text-white" />
-                            <span className="text-white font-bold tracking-wide">FLIGHT COMMAND</span>
+                    {/* Header - Military style */}
+                    <div className="bg-black/90 border-b border-green-500/30 px-4 py-2 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-lg shadow-green-500/50" />
+                            <Plane className="w-5 h-5 text-green-400" />
+                            <span className="text-green-400 font-mono font-bold tracking-widest text-sm">FLT CMD</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                             <div className={`
-                                px-2 py-0.5 rounded text-xs font-mono font-bold
-                                ${mode === 'pan' ? 'bg-blue-400/30 text-blue-200' : ''}
-                                ${mode === 'sightseeing' ? 'bg-purple-400/30 text-purple-200' : ''}
-                                ${mode === 'manual' ? 'bg-green-400/30 text-green-200' : ''}
+                                px-2 py-0.5 rounded text-[10px] font-mono font-bold border
+                                ${mode === 'pan' ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : ''}
+                                ${mode === 'sightseeing' ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : ''}
+                                ${mode === 'manual' ? 'bg-green-500/20 text-green-400 border-green-500/50' : ''}
                             `}>
                                 {mode.toUpperCase()}
                             </div>
@@ -228,124 +373,99 @@ export function FlightDashboard() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={stopFlight}
-                                className="h-8 w-8 text-white hover:bg-white/20 rounded-lg"
+                                className="h-7 w-7 text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded border border-red-500/30"
                             >
-                                <X className="w-5 h-5" />
+                                <X className="w-4 h-4" />
                             </Button>
                         </div>
                     </div>
 
-                    {/* Telemetry row */}
-                    <div className="px-4 py-2 bg-black/40 border-b border-cyan-500/20 grid grid-cols-4 gap-2">
+                    {/* Telemetry row - Military HUD style */}
+                    <div className="px-3 py-2 bg-black/60 border-b border-green-500/20 grid grid-cols-4 gap-1">
                         <div className="text-center">
-                            <div className="text-cyan-400/50 text-[10px] font-mono">LAT</div>
-                            <div className="text-cyan-400 font-mono text-sm">{telemetry.lat.toFixed(2)}°</div>
+                            <div className="text-green-400/40 text-[8px] font-mono tracking-wider">LAT</div>
+                            <div className="text-green-400 font-mono text-xs">{telemetry.lat.toFixed(2)}°</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-cyan-400/50 text-[10px] font-mono">LNG</div>
-                            <div className="text-cyan-400 font-mono text-sm">{telemetry.lng.toFixed(2)}°</div>
+                            <div className="text-green-400/40 text-[8px] font-mono tracking-wider">LNG</div>
+                            <div className="text-green-400 font-mono text-xs">{telemetry.lng.toFixed(2)}°</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-cyan-400/50 text-[10px] font-mono">HDG</div>
-                            <div className="text-cyan-400 font-mono text-sm">{telemetry.bearing.toFixed(0)}°</div>
+                            <div className="text-green-400/40 text-[8px] font-mono tracking-wider">HDG</div>
+                            <div className="text-green-400 font-mono text-xs">{telemetry.bearing.toFixed(0)}°</div>
                         </div>
                         <div className="text-center">
-                            <div className="text-cyan-400/50 text-[10px] font-mono">ALT</div>
-                            <div className="text-cyan-400 font-mono text-sm">{clampedAltitude.toLocaleString()}m</div>
+                            <div className="text-amber-400/40 text-[8px] font-mono tracking-wider">ALT</div>
+                            <div className="text-amber-400 font-mono text-xs">{clampedAltitude.toLocaleString()}m</div>
                         </div>
                     </div>
 
-                    {/* CONTROLS */}
-                    <div className="p-4 space-y-4">
-
-                        {/* THROTTLE / SPEED */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-cyan-400/70 text-xs font-mono flex items-center gap-2">
-                                    <Gauge className="w-3 h-3" />
-                                    THROTTLE
-                                </label>
-                                <span className="text-cyan-400 font-mono text-sm font-bold">{speed} km/h</span>
-                            </div>
-                            <input
-                                type="range"
-                                min="25"
-                                max="2000"
-                                step="25"
+                    {/* CONTROLS - Military Layout */}
+                    <div className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                            {/* THROTTLE - Left side */}
+                            <VerticalSlider
                                 value={speed}
-                                onChange={(e) => setSpeed(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
-                                    [&::-webkit-slider-thumb]:appearance-none
-                                    [&::-webkit-slider-thumb]:w-4
-                                    [&::-webkit-slider-thumb]:h-4
-                                    [&::-webkit-slider-thumb]:bg-cyan-500
-                                    [&::-webkit-slider-thumb]:rounded-full
-                                    [&::-webkit-slider-thumb]:cursor-pointer
-                                    [&::-webkit-slider-thumb]:shadow-lg
-                                    [&::-webkit-slider-thumb]:shadow-cyan-500/50"
+                                onChange={setSpeed}
+                                min={25}
+                                max={2000}
+                                step={25}
+                                label="THRTL"
+                                unit=""
+                                color="green"
+                                ticks={[
+                                    { value: 2000, label: '2K' },
+                                    { value: 1500, label: '1.5K' },
+                                    { value: 1000, label: '1K' },
+                                    { value: 500, label: '500' },
+                                    { value: 25, label: '25' },
+                                ]}
                             />
-                            <div className="flex justify-between text-[10px] text-cyan-400/40 font-mono">
-                                <span>25</span>
-                                <span>1000</span>
-                                <span>2000</span>
-                            </div>
-                        </div>
 
-                        {/* HEADING - Ball Compass */}
-                        <div className="flex justify-center py-2">
-                            <BallCompass heading={heading} onHeadingChange={applyHeading} />
-                        </div>
-
-                        {/* ALTITUDE */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-cyan-400/70 text-xs font-mono flex items-center gap-2">
-                                    <Navigation className="w-3 h-3 -rotate-45" />
-                                    ALTITUDE
-                                </label>
-                                <span className="text-cyan-400 font-mono text-sm font-bold">{clampedAltitude.toLocaleString()}m</span>
+                            {/* HEADING - Center compass */}
+                            <div className="flex flex-col items-center">
+                                <BallCompass heading={heading} onHeadingChange={applyHeading} />
                             </div>
-                            <input
-                                type="range"
-                                min="1000"
-                                max="50000"
-                                step="1000"
+
+                            {/* ALTITUDE - Right side */}
+                            <VerticalSlider
                                 value={clampedAltitude}
-                                onChange={(e) => applyAltitude(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
-                                    [&::-webkit-slider-thumb]:appearance-none
-                                    [&::-webkit-slider-thumb]:w-4
-                                    [&::-webkit-slider-thumb]:h-4
-                                    [&::-webkit-slider-thumb]:bg-cyan-500
-                                    [&::-webkit-slider-thumb]:rounded-full
-                                    [&::-webkit-slider-thumb]:cursor-pointer"
+                                onChange={applyAltitude}
+                                min={1000}
+                                max={50000}
+                                step={1000}
+                                label="ALT"
+                                unit="m"
+                                color="amber"
+                                ticks={[
+                                    { value: 50000, label: '50K' },
+                                    { value: 37500, label: '' },
+                                    { value: 25000, label: '25K' },
+                                    { value: 12500, label: '' },
+                                    { value: 1000, label: '1K' },
+                                ]}
                             />
-                            <div className="flex justify-between text-[10px] text-cyan-400/40 font-mono">
-                                <span>1km</span>
-                                <span>25km</span>
-                                <span>50km</span>
-                            </div>
                         </div>
                     </div>
 
                     {/* Projection indicator for sightseeing */}
                     {mode === 'sightseeing' && (
-                        <div className="px-4 pb-3">
-                            <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg px-3 py-2 flex items-center gap-2">
-                                <Globe className="w-4 h-4 text-purple-400" />
-                                <span className="text-purple-400 text-sm font-mono">Globe projection active</span>
+                        <div className="px-3 pb-2">
+                            <div className="bg-purple-500/10 border border-purple-500/30 rounded px-2 py-1 flex items-center gap-2">
+                                <Globe className="w-3 h-3 text-purple-400" />
+                                <span className="text-purple-400 text-[10px] font-mono">GLOBE MODE</span>
                             </div>
                         </div>
                     )}
 
-                    {/* Stop button */}
-                    <div className="p-4 pt-2">
+                    {/* Stop button - Military style */}
+                    <div className="p-3 pt-1">
                         <Button
                             onClick={stopFlight}
-                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl"
+                            className="w-full bg-red-900/50 hover:bg-red-800/60 text-red-400 hover:text-red-300 font-mono font-bold py-2 rounded border border-red-500/50 text-sm tracking-wider"
                         >
-                            <X className="w-5 h-5 mr-2" />
-                            STOP FLIGHT
+                            <X className="w-4 h-4 mr-2" />
+                            DISENGAGE
                         </Button>
                     </div>
                 </div>
