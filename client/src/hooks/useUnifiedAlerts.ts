@@ -125,13 +125,14 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                         0.8, 'rgba(255, 128, 0, 0.8)',  // Orange
                         1, 'rgba(255, 0, 0, 0.8)'       // Red
                     ],
-                    // Smaller radius for tighter hotspots
+                    // Larger radius for smooth blending and glow effect
                     'heatmap-radius': [
                         'interpolate',
                         ['linear'],
                         ['zoom'],
-                        10, 15,
-                        18, 30
+                        0, 50,
+                        10, 80,
+                        18, 120
                     ],
                     // Lower opacity to see through to map
                     'heatmap-opacity': 0.7
