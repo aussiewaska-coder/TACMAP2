@@ -36,24 +36,23 @@ export function FlightButton() {
         stopFlight();
         useFlightStore.getState().setMode('pan');
 
-        // Track user zoom interactions (double-click, pinch, wheel)
-        const onZoomStart = () => useFlightStore.getState().setUserZooming(true);
-        const onZoomEnd = () => useFlightStore.getState().setUserZooming(false);
-        map.on('zoomstart', onZoomStart);
-        map.on('zoomend', onZoomEnd);
-
         let lastTime = 0;
-        let lockedZoom = map.getZoom(); // Initial locked altitude
+        let lockedZoom = map.getZoom(); // Initial locked altitude - ONLY changes on user zoom
+
+        // Track user zoom interactions - update lockedZoom ONLY when user finishes zooming
+        const onZoomEnd = () => {
+            const m = useMapStore.getState().map;
+            if (m) lockedZoom = m.getZoom();
+        };
+        map.on('zoomend', onZoomEnd);
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
             const currentMode = useFlightStore.getState().mode;
             const speed = useFlightStore.getState().speed;
-            const userZooming = useFlightStore.getState().userZooming;
 
             if (!currentMap || currentMode !== 'pan') {
-                // Cleanup listeners
-                currentMap?.off('zoomstart', onZoomStart);
+                // Cleanup listener
                 currentMap?.off('zoomend', onZoomEnd);
                 useFlightStore.getState().setAnimationId(null);
                 return;
@@ -65,22 +64,13 @@ export function FlightButton() {
                 const center = currentMap.getCenter();
                 const bearing = currentMap.getBearing();
 
-                // Update locked zoom after user finishes zooming
-                if (!userZooming) {
-                    lockedZoom = currentMap.getZoom();
-                }
-
                 const bearingRad = (bearing * Math.PI) / 180;
                 const moveDist = speedFactor * delta;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
-                // Only include zoom when NOT user zooming (let double-click zoom complete)
-                if (userZooming) {
-                    currentMap.jumpTo({ center: [newLng, newLat] });
-                } else {
-                    currentMap.jumpTo({ center: [newLng, newLat], zoom: lockedZoom });
-                }
+                // ALWAYS force the locked zoom - never let terrain affect altitude
+                currentMap.jumpTo({ center: [newLng, newLat], zoom: lockedZoom });
             }
 
             lastTime = time;
@@ -109,26 +99,25 @@ export function FlightButton() {
         map.setProjection({ type: 'globe' });
         useFlightStore.getState().setMode('sightseeing');
 
-        // Track user zoom interactions (double-click, pinch, wheel)
-        const onZoomStart = () => useFlightStore.getState().setUserZooming(true);
-        const onZoomEnd = () => useFlightStore.getState().setUserZooming(false);
-        map.on('zoomstart', onZoomStart);
-        map.on('zoomend', onZoomEnd);
-
         let lastTime = 0;
         let targetBearing = map.getBearing();
         let waypoint = { lng: map.getCenter().lng, lat: map.getCenter().lat };
-        let lockedZoom = map.getZoom(); // Initial locked altitude
+        let lockedZoom = map.getZoom(); // Initial locked altitude - ONLY changes on user zoom
+
+        // Track user zoom interactions - update lockedZoom ONLY when user finishes zooming
+        const onZoomEnd = () => {
+            const m = useMapStore.getState().map;
+            if (m) lockedZoom = m.getZoom();
+        };
+        map.on('zoomend', onZoomEnd);
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
             const currentMode = useFlightStore.getState().mode;
             const speed = useFlightStore.getState().speed;
-            const userZooming = useFlightStore.getState().userZooming;
 
             if (!currentMap || currentMode !== 'sightseeing') {
-                // Cleanup listeners
-                currentMap?.off('zoomstart', onZoomStart);
+                // Cleanup listener
                 currentMap?.off('zoomend', onZoomEnd);
                 useFlightStore.getState().setAnimationId(null);
                 return;
@@ -138,11 +127,6 @@ export function FlightButton() {
                 const delta = Math.min(time - lastTime, 50);
                 const center = currentMap.getCenter();
                 const bearing = currentMap.getBearing();
-
-                // Update locked zoom after user finishes zooming
-                if (!userZooming) {
-                    lockedZoom = currentMap.getZoom();
-                }
 
                 // Speed factor based on throttle (250 baseline)
                 const speedFactor = speed / 250;
@@ -172,12 +156,8 @@ export function FlightButton() {
                 const bearingDiff = ((targetBearing - bearing + 540) % 360) - 180;
                 const newBearing = bearing + Math.sign(bearingDiff) * Math.min(Math.abs(bearingDiff), 0.03 * delta);
 
-                // Only include zoom when NOT user zooming (let double-click zoom complete)
-                if (userZooming) {
-                    currentMap.jumpTo({ center: [newLng, newLat], bearing: newBearing });
-                } else {
-                    currentMap.jumpTo({ center: [newLng, newLat], bearing: newBearing, zoom: lockedZoom });
-                }
+                // ALWAYS force locked zoom - never let terrain affect altitude
+                currentMap.jumpTo({ center: [newLng, newLat], bearing: newBearing, zoom: lockedZoom });
             }
 
             lastTime = time;
