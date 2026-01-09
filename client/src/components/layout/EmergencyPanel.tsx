@@ -121,18 +121,18 @@ export function EmergencyPanel() {
             const cat = (props.category || '').toLowerCase();
             const tags = (props.tags || []).map((t: string) => t.toLowerCase());
 
-            const isFire = sub.includes('fire') || cat.includes('fire') || sub2.includes('fire') || tags.includes('fire');
-            const isFlood = sub.includes('flood') || sub.includes('storm') || sub.includes('rain') || sub.includes('tsunami') || cat.includes('weather') || sub2.includes('storm');
-            const isRoad = sub.includes('road') || sub.includes('traffic') || sub.includes('closure') || cat.includes('transport') || sub2.includes('road');
-            const isSpace = sub.includes('space') || sub.includes('sws') || cat.includes('space');
-            const isAviation = cat.includes('aviation') || sub.includes('aircraft') || sub2.includes('aircraft');
+            const isFire = sub.includes('fire') || cat.includes('fire') || sub2.includes('fire') || tags.includes('fire') || sub.includes('bushfire') || sub.includes('burn');
+            const isFlood = sub.includes('flood') || sub.includes('storm') || sub.includes('rain') || sub.includes('tsunami') || cat.includes('weather') || sub2.includes('storm') || sub.includes('tide') || sub.includes('meteorological');
+            const isRoad = sub.includes('road') || sub.includes('traffic') || sub.includes('closure') || cat.includes('transport') || sub2.includes('road') || sub.includes('crash') || sub.includes('incident');
+            const isSpace = sub.includes('space') || sub.includes('sws') || cat.includes('space') || sub.includes('solar') || sub.includes('geomagnetic');
+            const isAviation = cat.includes('aviation') || sub.includes('aircraft') || sub2.includes('aircraft') || tags.includes('aviation');
 
             // Assign icon based on hazard detection
             let markerIcon = 'icon-warning';
-            if (isAviation) markerIcon = 'icon-aviation';
-            else if (isFire) markerIcon = 'icon-fire';
+            if (isFire) markerIcon = 'icon-fire';
             else if (isFlood) markerIcon = 'icon-flood';
             else if (isRoad) markerIcon = 'icon-road';
+            else if (isAviation) markerIcon = 'icon-aviation';
             else if (isSpace) markerIcon = 'icon-space';
 
             const matchesFilter = (activeFilters.includes('fire') && isFire) ||
@@ -235,7 +235,7 @@ export function EmergencyPanel() {
             if (source) source.setData(alertsData as any);
         }
 
-        // 1. Add Severity Glow Layer (Fallback/Visibility safeguard)
+        // 1. Add Severity Glow Layer (Under-icon accent)
         const glowLayerId = 'emergency-alerts-glow';
         if (!map.getLayer(glowLayerId)) {
             map.addLayer({
@@ -245,21 +245,21 @@ export function EmergencyPanel() {
                 paint: {
                     'circle-radius': [
                         'interpolate', ['linear'], ['zoom'],
-                        3, 4,
-                        10, 8,
-                        15, 12
+                        3, 5,
+                        10, 9,
+                        15, 13
                     ],
                     'circle-color': [
                         'match',
                         ['coalesce', ['get', 'severity_rank'], 4],
-                        1, '#dc2626', // Emergency - Red
-                        2, '#f59e0b', // Watch & Act - Orange
-                        3, '#eab308', // Advice - Yellow
-                        '#3b82f6' // Info - Blue
+                        1, '#ef4444', // Red 500
+                        2, '#f97316', // Orange 500
+                        3, '#eab308', // Yellow 500
+                        '#3b82f6' // Blue 500
                     ],
-                    'circle-opacity': 0.8,
-                    'circle-stroke-width': 1.5,
-                    'circle-stroke-color': '#ffffff',
+                    'circle-opacity': 0.4, // Subtler glow
+                    'circle-stroke-width': 1,
+                    'circle-stroke-color': 'rgba(15, 23, 42, 0.5)',
                 },
             });
         }
@@ -274,9 +274,9 @@ export function EmergencyPanel() {
                     'icon-image': ['get', 'markerIcon'],
                     'icon-size': [
                         'interpolate', ['linear'], ['zoom'],
-                        3, 0.5,
-                        10, 0.7,
-                        15, 0.9
+                        3, 0.6,
+                        10, 0.75,
+                        15, 1.0
                     ],
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true,
@@ -320,9 +320,25 @@ export function EmergencyPanel() {
         };
 
         map.on('click', iconLayerId, handleAlertClick);
+        map.on('click', glowLayerId, handleAlertClick);
+
+        // Change cursor on hover
+        const setPointer = () => map.getCanvas().style.cursor = 'pointer';
+        const setGrab = () => map.getCanvas().style.cursor = '';
+
+        map.on('mouseenter', iconLayerId, setPointer);
+        map.on('mouseleave', iconLayerId, setGrab);
+        map.on('mouseenter', glowLayerId, setPointer);
+        map.on('mouseleave', glowLayerId, setGrab);
+
         return () => {
             if (map) {
                 map.off('click', iconLayerId, handleAlertClick);
+                map.off('click', glowLayerId, handleAlertClick);
+                map.off('mouseenter', iconLayerId, setPointer);
+                map.off('mouseleave', iconLayerId, setGrab);
+                map.off('mouseenter', glowLayerId, setPointer);
+                map.off('mouseleave', glowLayerId, setGrab);
                 if (map.getLayer(iconLayerId)) map.removeLayer(iconLayerId);
                 if (map.getLayer(glowLayerId)) map.removeLayer(glowLayerId);
                 if (map.getSource(sourceId)) map.removeSource(sourceId);
