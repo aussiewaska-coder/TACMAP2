@@ -266,6 +266,15 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
         onHeadingChange(getAngleFromEvent(nativeEvent as MouseEvent | TouchEvent));
     }, [getAngleFromEvent, onHeadingChange, heading, targetHeading]);
 
+    // Scroll wheel for fine ±1° adjustments (shift for ±5°)
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        e.preventDefault();
+        const step = e.shiftKey ? 5 : 1;
+        const direction = e.deltaY > 0 ? 1 : -1;
+        const current = targetHeading ?? heading;
+        onHeadingChange((current + direction * step + 360) % 360);
+    }, [heading, targetHeading, onHeadingChange]);
+
     useEffect(() => {
         const handleMove = (e: MouseEvent | TouchEvent) => {
             if (!isDragging.current) return;
@@ -302,6 +311,7 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
                 ref={compassRef}
                 onMouseDown={handleStart}
                 onTouchStart={handleStart}
+                onWheel={handleWheel}
                 className="relative w-24 h-24 cursor-grab active:cursor-grabbing"
             >
                 {/* Outer ring */}
@@ -373,8 +383,36 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
                 )}
             </div>
 
+            {/* Fine tune buttons */}
+            <div className="flex items-center gap-1">
+                <button
+                    onClick={() => onHeadingChange(((targetHeading ?? heading) - 5 + 360) % 360)}
+                    className="px-1.5 py-0.5 text-[10px] font-mono text-green-400/70 bg-black/60 border border-green-500/30 rounded hover:bg-green-500/20"
+                >
+                    -5°
+                </button>
+                <button
+                    onClick={() => onHeadingChange(((targetHeading ?? heading) - 1 + 360) % 360)}
+                    className="px-1.5 py-0.5 text-[10px] font-mono text-green-400/70 bg-black/60 border border-green-500/30 rounded hover:bg-green-500/20"
+                >
+                    -1°
+                </button>
+                <button
+                    onClick={() => onHeadingChange(((targetHeading ?? heading) + 1) % 360)}
+                    className="px-1.5 py-0.5 text-[10px] font-mono text-green-400/70 bg-black/60 border border-green-500/30 rounded hover:bg-green-500/20"
+                >
+                    +1°
+                </button>
+                <button
+                    onClick={() => onHeadingChange(((targetHeading ?? heading) + 5) % 360)}
+                    className="px-1.5 py-0.5 text-[10px] font-mono text-green-400/70 bg-black/60 border border-green-500/30 rounded hover:bg-green-500/20"
+                >
+                    +5°
+                </button>
+            </div>
+
             {/* Hint */}
-            <div className="text-green-400/30 text-[8px] font-mono">2x TAP TO SNAP</div>
+            <div className="text-green-400/30 text-[8px] font-mono">SCROLL ±1° | 2x TAP SNAP</div>
         </div>
     );
 }
