@@ -94,7 +94,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Source updated: ${sourceId}`);
         }
 
-        // Add HEATMAP layer - Time-weighted with large radius for proper blending
+        // Add HEATMAP layer - Classic thermal gradient (from waze-police-reporter)
         if (!map.getLayer(heatmapLayerId)) {
             map.addLayer({
                 id: heatmapLayerId,
@@ -102,54 +102,39 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 source: sourceId,
                 filter: ['==', ['geometry-type'], 'Point'],
                 paint: {
-                    // Time-based weight: newer alerts are hotter (exponential decay over 7 days)
-                    // age_s = 0 (now) -> weight = 1.0
-                    // age_s = 86400 (1 day) -> weight = 0.8
-                    // age_s = 604800 (7 days) -> weight = 0.3
-                    // age_s = 1209600+ (14 days) -> weight = 0.1
-                    'heatmap-weight': [
-                        'interpolate',
-                        ['exponential', 0.5],
-                        ['coalesce', ['get', 'age_s'], 0], // Default to 0 if age_s missing
-                        0, 1.0,        // Just now: full weight
-                        86400, 0.8,    // 1 day old: 80%
-                        259200, 0.6,   // 3 days old: 60%
-                        604800, 0.3,   // 7 days old: 30%
-                        1209600, 0.1   // 14 days old: 10%
-                    ],
-                    // High intensity across all zoom levels
+                    // Uniform weight (no time decay)
+                    'heatmap-weight': 1,
+                    // Moderate intensity scaling with zoom
                     'heatmap-intensity': [
                         'interpolate',
                         ['linear'],
                         ['zoom'],
-                        0, 2,
-                        9, 3,
-                        14, 5
+                        0, 1,
+                        18, 3
                     ],
-                    // Color ramp: transparent -> purple -> red -> orange -> yellow
+                    // Classic thermal gradient: blue -> cyan -> green -> yellow -> orange -> red
+                    // With 0.8 alpha for transparency
                     'heatmap-color': [
                         'interpolate',
                         ['linear'],
                         ['heatmap-density'],
-                        0, 'rgba(0, 0, 0, 0)',
-                        0.1, 'rgb(128, 0, 255)',
-                        0.3, 'rgb(255, 0, 0)',
-                        0.5, 'rgb(255, 100, 0)',
-                        0.7, 'rgb(255, 200, 0)',
-                        1, 'rgb(255, 255, 0)'
+                        0, 'rgba(0, 0, 255, 0)',        // Transparent blue
+                        0.2, 'rgba(0, 255, 255, 0.8)',  // Cyan
+                        0.4, 'rgba(0, 255, 0, 0.8)',    // Green
+                        0.6, 'rgba(255, 255, 0, 0.8)',  // Yellow
+                        0.8, 'rgba(255, 128, 0, 0.8)',  // Orange
+                        1, 'rgba(255, 0, 0, 0.8)'       // Red
                     ],
-                    // Much larger radius for smooth blending
+                    // Smaller radius for tighter hotspots
                     'heatmap-radius': [
                         'interpolate',
                         ['linear'],
                         ['zoom'],
-                        0, 60,
-                        5, 80,
-                        10, 100,
-                        14, 120
+                        10, 15,
+                        18, 30
                     ],
-                    // Full opacity
-                    'heatmap-opacity': 0.85
+                    // Lower opacity to see through to map
+                    'heatmap-opacity': 0.7
                 },
                 layout: { visibility: showHeatmap ? 'visible' : 'none' }
             });
