@@ -59,7 +59,7 @@ function AltitudeButtons({ currentZoom, onAltitudeChange }: { currentZoom: numbe
     );
 }
 
-// Military-style Vertical Slider Component
+// Military-style Vertical Slider Component with optional logarithmic scale
 function VerticalSlider({
     value,
     onChange,
@@ -69,7 +69,8 @@ function VerticalSlider({
     label,
     unit,
     color = 'green',
-    ticks
+    ticks,
+    logarithmic = false
 }: {
     value: number;
     onChange: (v: number) => void;
@@ -80,6 +81,7 @@ function VerticalSlider({
     unit: string;
     color?: 'green' | 'amber' | 'cyan';
     ticks: { value: number; label: string }[];
+    logarithmic?: boolean;
 }) {
     const sliderRef = useRef<HTMLDivElement>(null);
     const isDragging = useRef(false);
@@ -91,17 +93,38 @@ function VerticalSlider({
     };
     const colorClasses = colorMap[color];
 
-    const percentage = ((value - min) / (max - min)) * 100;
+    // Logarithmic scaling for large ranges
+    const valueToPercent = (v: number): number => {
+        if (logarithmic && min > 0) {
+            const logMin = Math.log(min);
+            const logMax = Math.log(max);
+            const logVal = Math.log(Math.max(min, Math.min(max, v)));
+            return ((logVal - logMin) / (logMax - logMin)) * 100;
+        }
+        return ((v - min) / (max - min)) * 100;
+    };
+
+    const percentToValue = (pct: number): number => {
+        if (logarithmic && min > 0) {
+            const logMin = Math.log(min);
+            const logMax = Math.log(max);
+            const logVal = logMin + (pct / 100) * (logMax - logMin);
+            return Math.exp(logVal);
+        }
+        return min + (pct / 100) * (max - min);
+    };
+
+    const percentage = valueToPercent(value);
 
     const getValueFromEvent = useCallback((e: MouseEvent | TouchEvent) => {
         if (!sliderRef.current) return value;
         const rect = sliderRef.current.getBoundingClientRect();
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
         // Inverted: top = max, bottom = min
-        const pct = 1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-        const rawValue = min + pct * (max - min);
+        const pct = (1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))) * 100;
+        const rawValue = percentToValue(pct);
         return Math.round(rawValue / step) * step;
-    }, [value, min, max, step]);
+    }, [value, min, max, step, logarithmic]);
 
     const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         e.preventDefault();
@@ -538,7 +561,7 @@ export function FlightDashboard() {
                     {/* CONTROLS - Military Layout */}
                     <div className="p-4">
                         <div className="flex items-start justify-between gap-2">
-                            {/* THROTTLE - Left side */}
+                            {/* THROTTLE - Left side, logarithmic scale */}
                             <VerticalSlider
                                 value={speed}
                                 onChange={setSpeed}
@@ -548,6 +571,7 @@ export function FlightDashboard() {
                                 label="THRTL"
                                 unit=""
                                 color="green"
+                                logarithmic={true}
                                 ticks={[
                                     { value: 12250, label: 'M10' },
                                     { value: 4900, label: 'M4' },
