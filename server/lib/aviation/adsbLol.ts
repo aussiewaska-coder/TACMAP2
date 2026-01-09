@@ -18,18 +18,17 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
     const icaoSet = new Set(icao24List.map(i => i.toLowerCase()));
 
     try {
-        // Query multiple populated regions to cover Australian emergency aircraft
-        // v2 API has 250nm max radius, so we query major city hubs
+        // Query 3 key populated regions to cover Australian emergency aircraft
+        // Reduced from 5 to 3 regions to avoid Vercel 10s timeout
+        // v2 API has 250nm max radius
         const regions = [
             { name: 'Sydney/NSW', lat: -33.87, lon: 151.21 },
             { name: 'Melbourne/VIC', lat: -37.81, lon: 144.96 },
             { name: 'Brisbane/QLD', lat: -27.47, lon: 153.03 },
-            { name: 'Perth/WA', lat: -31.95, lon: 115.86 },
-            { name: 'Adelaide/SA', lat: -34.93, lon: 138.60 },
         ];
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s total timeout
+        const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s total timeout (Vercel limit is 10s)
 
         try {
             // Query all regions in parallel
