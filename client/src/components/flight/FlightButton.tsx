@@ -108,11 +108,11 @@ export function FlightButton() {
                 }
 
                 // Zoom easing - graceful exponential ease like ascending/descending
+                // NEVER read from map - terrain causes zoom drift. Always use our tracked value.
                 if (store.targetAltitude !== null) {
                     currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
-                } else {
-                    currentZoom = currentMap.getZoom();
                 }
+                // else: keep currentZoom as-is, don't let terrain affect it
 
                 // Speed easing - fast response on throttle
                 if (store.targetSpeed !== null) {
@@ -218,11 +218,11 @@ export function FlightButton() {
                 }
 
                 // Zoom easing - graceful exponential ease like ascending/descending
+                // NEVER read from map - terrain causes zoom drift. Always use our tracked value.
                 if (store.targetAltitude !== null) {
                     currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
-                } else {
-                    currentZoom = currentMap.getZoom();
                 }
+                // else: keep currentZoom as-is, don't let terrain affect it
 
                 // Speed easing - fast response on throttle
                 if (store.targetSpeed !== null) {
