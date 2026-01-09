@@ -5,6 +5,69 @@ import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightSt
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
+// Altitude preset buttons (feet to meters conversion)
+const ALTITUDE_PRESETS = [
+    { ft: 100000, m: 30480, label: '100K' },
+    { ft: 50000, m: 15240, label: '50K' },
+    { ft: 20000, m: 6096, label: '20K' },
+    { ft: 10000, m: 3048, label: '10K' },
+    { ft: 7500, m: 2286, label: '7.5K' },
+    { ft: 3000, m: 914, label: '3K' },
+    { ft: 500, m: 152, label: '500' },
+];
+
+// Altitude Buttons Component
+function AltitudeButtons({ currentAltitude, onAltitudeChange }: {
+    currentAltitude: number; // in meters
+    onAltitudeChange: (meters: number) => void;
+}) {
+    // Find closest preset to current altitude
+    const closestPreset = ALTITUDE_PRESETS.reduce((prev, curr) =>
+        Math.abs(curr.m - currentAltitude) < Math.abs(prev.m - currentAltitude) ? curr : prev
+    );
+
+    return (
+        <div className="flex flex-col items-center gap-1 select-none">
+            {/* Label */}
+            <div className="text-amber-400/50 text-[10px] font-mono font-bold tracking-wider">ALT</div>
+
+            {/* Current altitude readout */}
+            <div className="text-amber-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-500/30">
+                {Math.round(currentAltitude * 3.28084).toLocaleString()}ft
+            </div>
+
+            {/* Preset buttons */}
+            <div className="flex flex-col gap-1 mt-1">
+                {ALTITUDE_PRESETS.map((preset) => {
+                    const isActive = Math.abs(preset.m - currentAltitude) < 100;
+                    const isClosest = preset === closestPreset;
+                    return (
+                        <button
+                            key={preset.ft}
+                            onClick={() => onAltitudeChange(preset.m)}
+                            className={`
+                                px-3 py-1 rounded font-mono text-xs font-bold transition-all
+                                border
+                                ${isActive
+                                    ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/50'
+                                    : isClosest
+                                        ? 'bg-amber-500/30 text-amber-300 border-amber-500/50'
+                                        : 'bg-black/60 text-amber-400/70 border-amber-500/30 hover:bg-amber-500/20 hover:text-amber-300'
+                                }
+                            `}
+                        >
+                            {preset.label}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* Unit indicator */}
+            <div className="text-amber-400/30 text-[8px] font-mono mt-1">FEET</div>
+        </div>
+    );
+}
+
 // Military-style Vertical Slider Component
 function VerticalSlider({
     value,
@@ -363,7 +426,7 @@ export function FlightDashboard() {
     // Derive altitude from zoom (two-way: zoom IS altitude)
     // zoom 18 = 500m, zoom 0 = ~130km
     const altitude = Math.round(500 * Math.pow(2, 18 - telemetry.zoom));
-    const clampedAltitude = Math.max(1000, Math.min(100000, altitude));
+    const clampedAltitude = Math.max(152, Math.min(30480, altitude)); // 500ft to 100,000ft in meters
 
     // Derive heading from bearing
     const heading = Math.round((telemetry.bearing + 360) % 360);
@@ -461,7 +524,7 @@ export function FlightDashboard() {
                         </div>
                         <div className="text-center">
                             <div className="text-amber-400/40 text-[8px] font-mono tracking-wider">ALT</div>
-                            <div className="text-amber-400 font-mono text-xs">{clampedAltitude.toLocaleString()}m</div>
+                            <div className="text-amber-400 font-mono text-xs">{Math.round(clampedAltitude * 3.28084).toLocaleString()}ft</div>
                         </div>
                         <div className="text-center">
                             <div className="text-cyan-400/40 text-[8px] font-mono tracking-wider">TILT</div>
@@ -496,23 +559,10 @@ export function FlightDashboard() {
                                 <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
                             </div>
 
-                            {/* ALTITUDE */}
-                            <VerticalSlider
-                                value={clampedAltitude}
-                                onChange={applyAltitude}
-                                min={1000}
-                                max={100000}
-                                step={1000}
-                                label="ALT"
-                                unit="m"
-                                color="amber"
-                                ticks={[
-                                    { value: 100000, label: '100K' },
-                                    { value: 75000, label: '' },
-                                    { value: 50000, label: '50K' },
-                                    { value: 25000, label: '25K' },
-                                    { value: 1000, label: '1K' },
-                                ]}
+                            {/* ALTITUDE - Preset buttons */}
+                            <AltitudeButtons
+                                currentAltitude={clampedAltitude}
+                                onAltitudeChange={applyAltitude}
                             />
 
                             {/* TILT / PITCH */}
