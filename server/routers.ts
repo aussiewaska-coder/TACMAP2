@@ -1,11 +1,7 @@
-import { COOKIE_NAME } from "../shared/const.js";
-import { getSessionCookieOptions } from "./_core/cookies.js";
 import { systemRouter } from "./_core/systemRouter.js";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc.js";
+import { publicProcedure, router } from "./_core/trpc.js";
 import { z } from "zod";
 import {
-  getMapSettingsByUserId,
-  upsertMapSettings,
   getAllMapFeatures,
   getMapFeatureByKey,
   upsertMapFeature,
@@ -13,71 +9,13 @@ import {
   getAllMapStyles,
   getMapStyleById,
   upsertMapStyle,
-  getCustomLayersByUserId,
-  getCustomLayerById,
-  upsertCustomLayer,
-  deleteCustomLayer,
   getPoliceReports,
   insertPoliceReports,
 } from "./db.js";
 import { TRPCError } from "@trpc/server";
 
-const adminProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') {
-    throw new TRPCError({ code: 'FORBIDDEN', message: 'Admin access required' });
-  }
-  return next({ ctx });
-});
-
 export const appRouter = router({
   system: systemRouter,
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      // Only clear cookie if we have Express response (not serverless)
-      if (ctx.res && 'clearCookie' in ctx.res) {
-        const cookieOptions = getSessionCookieOptions(ctx.req as any);
-        (ctx.res as any).clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      }
-      return {
-        success: true,
-      } as const;
-    }),
-  }),
-
-  mapSettings: router({
-    get: protectedProcedure.query(async ({ ctx }) => {
-      const settings = await getMapSettingsByUserId(ctx.user.id);
-      return settings || {
-        centerLat: "-25.2744",
-        centerLng: "133.7751",
-        zoom: 4,
-        pitch: 0,
-        bearing: 0,
-        activeStyleId: "streets",
-        layerVisibility: {},
-        layerOpacity: {},
-      };
-    }),
-    update: protectedProcedure
-      .input(z.object({
-        centerLat: z.string().max(50).optional(),
-        centerLng: z.string().max(50).optional(),
-        zoom: z.number().min(0).max(22).optional(),
-        pitch: z.number().min(0).max(85).optional(),
-        bearing: z.number().min(-180).max(180).optional(),
-        activeStyleId: z.string().max(100).optional(),
-        layerVisibility: z.record(z.string(), z.boolean()).optional(),
-        layerOpacity: z.record(z.string(), z.number()).optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await upsertMapSettings({
-          userId: ctx.user.id,
-          ...input,
-        });
-        return { success: true };
-      }),
-  }),
 
   mapFeatures: router({
     list: publicProcedure.query(async () => {
@@ -88,7 +26,7 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await getMapFeatureByKey(input.featureKey);
       }),
-    upsert: adminProcedure
+    upsert: publicProcedure
       .input(z.object({
         featureKey: z.string().max(100),
         featureName: z.string().max(200),
@@ -101,7 +39,7 @@ export const appRouter = router({
         await upsertMapFeature(input);
         return { success: true };
       }),
-    toggleEnabled: adminProcedure
+    toggleEnabled: publicProcedure
       .input(z.object({
         featureKey: z.string(),
         enabled: z.boolean(),
@@ -121,7 +59,7 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return await getMapStyleById(input.styleId);
       }),
-    upsert: adminProcedure
+    upsert: publicProcedure
       .input(z.object({
         styleId: z.string(),
         styleName: z.string(),
@@ -133,46 +71,6 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         await upsertMapStyle(input);
-        return { success: true };
-      }),
-  }),
-
-  customLayers: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return await getCustomLayersByUserId(ctx.user.id);
-    }),
-    upsert: protectedProcedure
-      .input(z.object({
-        id: z.number().optional(),
-        layerId: z.string().max(100),
-        layerName: z.string().max(200),
-        description: z.string().max(5000).optional(),
-        layerType: z.enum(["geojson", "raster", "vector", "heatmap", "cluster"]),
-        dataSource: z.string().max(5000).optional(),
-        styleConfig: z.record(z.string(), z.unknown()).optional(),
-        visible: z.boolean().optional(),
-        opacity: z.number().min(0).max(100).optional(),
-        zIndex: z.number().optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        await upsertCustomLayer({
-          userId: ctx.user.id,
-          ...input,
-        });
-        return { success: true };
-      }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .mutation(async ({ ctx, input }) => {
-        // SECURITY FIX: Check ownership before deleting
-        const layer = await getCustomLayerById(input.id);
-        if (!layer) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Layer not found' });
-        }
-        if (layer.userId !== ctx.user.id && ctx.user.role !== 'admin') {
-          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only delete your own layers' });
-        }
-        await deleteCustomLayer(input.id);
         return { success: true };
       }),
   }),

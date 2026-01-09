@@ -1,11 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -20,11 +12,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
-import { LayoutDashboard, LogOut, PanelLeft, Users, UserCircle } from "lucide-react";
+import { LayoutDashboard, PanelLeft, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
-import { MagicLinkLoginModal } from './MagicLinkLoginModal';
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Page 1", path: "/" },
@@ -45,17 +35,11 @@ export default function DashboardLayout({
     const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY);
     return saved ? parseInt(saved, 10) : DEFAULT_WIDTH;
   });
-  const { loading, user } = useAuth();
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
 
-  if (loading) {
-    return <DashboardLayoutSkeleton />
-  }
-
-  // CHANGED: Show content whether logged in or not - login is via modal now
   return (
     <SidebarProvider
       style={
@@ -64,7 +48,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth} user={user}>
+      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
       </DashboardLayoutContent>
     </SidebarProvider>
@@ -74,20 +58,16 @@ export default function DashboardLayout({
 type DashboardLayoutContentProps = {
   children: React.ReactNode;
   setSidebarWidth: (width: number) => void;
-  user: any; // User object or null
 };
 
 function DashboardLayoutContent({
   children,
   setSidebarWidth,
-  user,
 }: DashboardLayoutContentProps) {
-  const { logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = menuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
@@ -179,53 +159,7 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
-            {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <Avatar className="h-9 w-9 border shrink-0">
-                      <AvatarFallback className="text-xs font-medium">
-                        {user?.name?.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                      <p className="text-sm font-medium truncate leading-none">
-                        {user?.name || "-"}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate mt-1.5">
-                        {user?.email || "-"}
-                      </p>
-                    </div>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    onClick={logout}
-                    className="cursor-pointer text-destructive focus:text-destructive"
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Sign out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <button
-                onClick={() => setLoginModalOpen(true)}
-                className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <div className="h-9 w-9 border rounded-full flex items-center justify-center shrink-0 bg-muted">
-                  <UserCircle className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
-                  <p className="text-sm font-medium truncate leading-none">
-                    Sign in
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate mt-1.5">
-                    Click to login
-                  </p>
-                </div>
-              </button>
-            )}
+            {/* Visitors only - no auth */}
           </SidebarFooter>
         </Sidebar>
         <div
@@ -255,8 +189,6 @@ function DashboardLayoutContent({
         )}
         <main className="flex-1 p-4">{children}</main>
       </SidebarInset>
-
-      <MagicLinkLoginModal open={loginModalOpen} onOpenChange={setLoginModalOpen} />
     </>
   );
 }

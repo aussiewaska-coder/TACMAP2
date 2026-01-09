@@ -1,45 +1,32 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
-import { Link, useLocation } from "wouter";
-import { 
-  Map, 
-  Settings, 
-  Layers, 
-  Database, 
-  Users, 
+import { Link } from "wouter";
+import {
+  Map,
+  Settings,
+  Layers,
+  Database,
   Activity,
   ArrowLeft,
   Shield
 } from "lucide-react";
 import { toast } from "sonner";
-import { useEffect } from "react";
 
 /**
  * Admin Dashboard - Feature toggle and management interface
- * 
+ * Visitors only - no authentication required
+ *
  * Features:
  * - Enable/disable map plugins
  * - Manage map styles
  * - Configure global settings
  * - View system statistics
- * - User management (future)
  */
 export default function AdminDashboard() {
-  const { user, loading, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
-
-  // Redirect if not admin
-  useEffect(() => {
-    if (!loading && (!isAuthenticated || user?.role !== "admin")) {
-      toast.error("Admin access required");
-      setLocation("/");
-    }
-  }, [loading, isAuthenticated, user, setLocation]);
 
   const { data: features, refetch: refetchFeatures } = trpc.mapFeatures.list.useQuery();
   const { data: styles } = trpc.mapStyles.list.useQuery();
@@ -60,21 +47,6 @@ export default function AdminDashboard() {
       enabled: !currentEnabled,
     });
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated || user?.role !== "admin") {
-    return null;
-  }
 
   // Sample feature data if database is empty
   const sampleFeatures = features && features.length > 0 ? features : [
@@ -112,9 +84,6 @@ export default function AdminDashboard() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
-                Logged in as <strong>{user?.name}</strong>
-              </span>
               <Link href="/map">
                 <Button variant="default">
                   <Map className="w-4 h-4 mr-2" />

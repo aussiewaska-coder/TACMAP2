@@ -1,14 +1,8 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
-import { Map, Settings, Layers, Database, AlertTriangle } from "lucide-react";
-import { MagicLinkLoginModal } from "@/components/MagicLinkLoginModal";
-import { useState } from "react";
+import { Map, Layers, Database, AlertTriangle } from "lucide-react";
 
 export default function Home() {
-  const { user, loading, isAuthenticated, logout } = useAuth();
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       {/* Header */}
@@ -25,33 +19,11 @@ export default function Home() {
                 Emergency
               </Button>
             </Link>
-            {isAuthenticated ? (
-              <>
-                <span className="text-sm text-gray-600">Welcome, {user?.name}</span>
-                {user?.role === "admin" && (
-                  <Link href="/admin">
-                    <Button variant="outline" size="sm">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Admin
-                    </Button>
-                  </Link>
-                )}
-                <Button variant="outline" size="sm" onClick={logout}>
-                  Logout
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button onClick={() => setLoginModalOpen(true)}>
-                  Login
-                </Button>
-                <Link href="/map">
-                  <Button variant="outline">
-                    Enter Map
-                  </Button>
-                </Link>
-              </>
-            )}
+            <Link href="/map">
+              <Button>
+                Enter Map
+              </Button>
+            </Link>
           </div>
         </div>
       </header>
@@ -183,8 +155,6 @@ export default function Home() {
           <p className="text-sm mt-2">Ready for your custom data layers and integrations</p>
         </div>
       </footer>
-
-      <MagicLinkLoginModal open={loginModalOpen} onOpenChange={setLoginModalOpen} />
     </div>
   );
 }

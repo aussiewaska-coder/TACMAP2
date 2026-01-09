@@ -6,7 +6,6 @@ import { createServer } from "http";
 import net from "net";
 import { rateLimit } from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerAuthRoutes } from "./auth.js";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -45,7 +44,7 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  // SECURITY: Rate limiting to prevent DDoS and brute force attacks
+  // SECURITY: Rate limiting to prevent DDoS
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // Limit each IP to 100 requests per windowMs
@@ -54,24 +53,12 @@ async function startServer() {
     legacyHeaders: false,
   });
 
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // Limit auth requests to 5 per 15 minutes to prevent brute force
-    message: "Too many login attempts, please try again later.",
-    standardHeaders: true,
-    legacyHeaders: false,
-  });
-
   // Apply rate limiting to API routes
   app.use("/api/", apiLimiter);
-  app.use("/api/auth/send-magic-link", authLimiter);
 
-  // Configure body parser with reduced size limit for security (SECURITY FIX)
+  // Configure body parser with reduced size limit for security
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ limit: "10mb", extended: true }));
-
-  // New magic link authentication routes
-  registerAuthRoutes(app);
 
   // WMS Proxy to bypass CORS for Government Data (SSRF PROTECTION ADDED)
   app.get("/api/wms-proxy", async (req, res) => {
