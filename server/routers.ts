@@ -120,11 +120,11 @@ export const appRouter = router({
             );
           }
 
-          // Aggregate by rounded lat/lon (0.01 degree precision ~1km)
+          // Aggregate by rounded lat/lon (0.001 degree precision ~100m)
           const buckets = new Map<string, number>();
           filtered.forEach((r: any) => {
-            const lat = Math.round(r.latitude * 100) / 100;
-            const lon = Math.round(r.longitude * 100) / 100;
+            const lat = Math.round(r.latitude * 1000) / 1000;
+            const lon = Math.round(r.longitude * 1000) / 1000;
             const key = `${lat},${lon}`;
             buckets.set(key, (buckets.get(key) || 0) + 1);
           });
