@@ -632,6 +632,7 @@ const BUILDINGS_SOURCE_ID = 'flight-buildings-source';
 const BUILDINGS_LAYER_ID = 'flight-3d-buildings';
 
 export function FlightDashboard() {
+    const BUILD_STAMP = 'flight-dashboard:orbit-rebuild-1';
     const dashboardOpen = useFlightStore((s) => s.dashboardOpen);
     const closeDashboard = useFlightStore((s) => s.closeDashboard);
     const [flightMode, setFlightMode] = useState<'off' | 'manual' | 'orbit'>('off');
@@ -1151,6 +1152,7 @@ export function FlightDashboard() {
                             <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-lg shadow-green-500/50" />
                             <Plane className="w-5 h-5 text-green-400" />
                             <span className="text-green-400 font-mono font-bold tracking-widest text-sm">FLT CMD</span>
+                            <span className="text-green-400/40 font-mono text-[9px]">{BUILD_STAMP}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <div className={`
@@ -1161,6 +1163,15 @@ export function FlightDashboard() {
                             `}>
                                 {flightMode.toUpperCase()}
                             </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setDebugVisible((v) => !v)}
+                                title="Toggle debug"
+                                className="h-7 w-7 text-green-400/70 hover:bg-green-500/10 hover:text-green-300 rounded border border-green-500/30"
+                            >
+                                DBG
+                            </Button>
                             {/* Satellite toggle */}
                             <Button
                                 variant="ghost"
@@ -1343,46 +1354,29 @@ export function FlightDashboard() {
                             DISENGAGE
                         </Button>
                     </div>
+
+                    {debugVisible && (
+                        <div className="px-3 pb-3">
+                            <div className="bg-black/90 border border-green-500/30 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 shadow-lg">
+                                <div className="mb-1 text-green-400/70">FLIGHT DEBUG</div>
+                                <div>mode: {flightMode}</div>
+                                <div>lastAction: {lastAction}</div>
+                                <div>animationId: {useFlightStore.getState().animationId ?? 'null'}</div>
+                                <div>orbitCenter: {orbitCenter ? `${orbitCenter[0].toFixed(4)}, ${orbitCenter[1].toFixed(4)}` : 'null'}</div>
+                                <div>orbitRadiusKm: {orbitRadius.toFixed(2)}</div>
+                                <div>orbitAngle: {useFlightStore.getState().orbitAngle.toFixed(2)}</div>
+                                <div>orbitClockwise: {orbitClockwise ? 'true' : 'false'}</div>
+                                <div>orbitPaused: {orbitPaused ? 'true' : 'false'}</div>
+                                <div>lookAtCenter: {orbitLookAtCenter ? 'true' : 'false'}</div>
+                                <div>targetHeading: {targetHeading ?? 'null'}</div>
+                                <div>targetAltitude: {targetAltitude ?? 'null'}</div>
+                                <div>targetPitch: {targetPitch ?? 'null'}</div>
+                                <div>targetSpeed: {useFlightStore.getState().targetSpeed ?? 'null'}</div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
-
-            {/* Debug panel */}
-            {debugVisible && (
-                <div className="absolute bottom-4 left-4 pointer-events-auto">
-                    <div className="bg-black/90 border border-green-500/30 rounded-lg px-3 py-2 font-mono text-[10px] text-green-300 shadow-lg">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="text-green-400/70">FLIGHT DEBUG</span>
-                            <button
-                                onClick={() => setDebugVisible(false)}
-                                className="text-green-400/50 hover:text-green-300"
-                            >
-                                HIDE
-                            </button>
-                        </div>
-                        <div>mode: {flightMode}</div>
-                        <div>lastAction: {lastAction}</div>
-                        <div>animationId: {useFlightStore.getState().animationId ?? 'null'}</div>
-                        <div>orbitCenter: {orbitCenter ? `${orbitCenter[0].toFixed(4)}, ${orbitCenter[1].toFixed(4)}` : 'null'}</div>
-                        <div>orbitRadiusKm: {orbitRadius.toFixed(2)}</div>
-                        <div>orbitAngle: {useFlightStore.getState().orbitAngle.toFixed(2)}</div>
-                        <div>orbitClockwise: {orbitClockwise ? 'true' : 'false'}</div>
-                        <div>orbitPaused: {orbitPaused ? 'true' : 'false'}</div>
-                        <div>lookAtCenter: {orbitLookAtCenter ? 'true' : 'false'}</div>
-                        <div>targetHeading: {targetHeading ?? 'null'}</div>
-                        <div>targetAltitude: {targetAltitude ?? 'null'}</div>
-                        <div>targetPitch: {targetPitch ?? 'null'}</div>
-                        <div>targetSpeed: {useFlightStore.getState().targetSpeed ?? 'null'}</div>
-                    </div>
-                </div>
-            )}
-            {!debugVisible && (
-                <button
-                    onClick={() => setDebugVisible(true)}
-                    className="absolute bottom-4 left-4 pointer-events-auto bg-black/80 border border-green-500/30 text-green-300 font-mono text-[10px] px-2 py-1 rounded"
-                >
-                    DEBUG
-                </button>
-            )}
         </div>
     );
 }
