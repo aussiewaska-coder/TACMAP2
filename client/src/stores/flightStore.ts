@@ -6,6 +6,7 @@ interface FlightState {
     dashboardOpen: boolean;
     mode: FlightMode;
     animationId: number | null;
+    transitionTimeoutId: number | null; // For orbit transition setTimeout
     prevProjection: string | null;
     speed: number; // km/h (current smoothed value)
     userZooming: boolean; // Track when user is actively zooming (double-click, pinch, wheel)
@@ -26,6 +27,7 @@ interface FlightState {
     closeDashboard: () => void;
     setMode: (mode: FlightMode) => void;
     setAnimationId: (id: number | null) => void;
+    setTransitionTimeoutId: (id: number | null) => void;
     setPrevProjection: (proj: string | null) => void;
     setSpeed: (speed: number) => void;
     setUserZooming: (zooming: boolean) => void;
@@ -43,6 +45,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     dashboardOpen: false,
     mode: 'off',
     animationId: null,
+    transitionTimeoutId: null,
     prevProjection: null,
     speed: 250,
     userZooming: false,
@@ -59,6 +62,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     closeDashboard: () => set({ dashboardOpen: false }),
     setMode: (mode) => set({ mode, targetHeading: null, targetAltitude: null, targetPitch: null, targetSpeed: null }),
     setAnimationId: (id) => set({ animationId: id }),
+    setTransitionTimeoutId: (id) => set({ transitionTimeoutId: id }),
     setPrevProjection: (proj) => set({ prevProjection: proj }),
     setSpeed: (speed) => set({ speed }),
     setUserZooming: (zooming) => set({ userZooming: zooming }),

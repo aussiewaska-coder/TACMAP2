@@ -565,6 +565,7 @@ export function FlightDashboard() {
     const stopFlight = () => {
         const store = useFlightStore.getState();
         if (store.animationId) cancelAnimationFrame(store.animationId);
+        if (store.transitionTimeoutId) clearTimeout(store.transitionTimeoutId);
 
         // Restore projection
         const map = useMapStore.getState().map;
@@ -573,6 +574,7 @@ export function FlightDashboard() {
         }
 
         store.setAnimationId(null);
+        store.setTransitionTimeoutId(null);
         store.setPrevProjection(null);
         store.setMode('off');
     };

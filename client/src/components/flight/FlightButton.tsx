@@ -50,6 +50,7 @@ export function FlightButton() {
     const stopFlight = () => {
         const store = useFlightStore.getState();
         if (store.animationId) cancelAnimationFrame(store.animationId);
+        if (store.transitionTimeoutId) clearTimeout(store.transitionTimeoutId);
 
         const map = useMapStore.getState().map;
         if (map && store.prevProjection) {
@@ -57,6 +58,7 @@ export function FlightButton() {
         }
 
         store.setAnimationId(null);
+        store.setTransitionTimeoutId(null);
         store.setPrevProjection(null);
         store.setMode('off');
     };
@@ -154,7 +156,7 @@ export function FlightButton() {
     };
 
     // ORBIT MODE - circles around a center point
-    const startOrbit = (center?: [number, number]) => {
+    const startOrbit = (center?: [number, number], skipTransition = false) => {
         const map = useMapStore.getState().map;
         if (!map) {
             toast.error('Map not ready');
@@ -167,6 +169,14 @@ export function FlightButton() {
 
         // Use provided center, existing orbit center, or screen center
         const orbitCenter: [number, number] = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
+        const radius = store.orbitRadius;
+        const startAngle = store.orbitAngle;
+
+        // Calculate starting position on orbit circle
+        const startAngleRad = (startAngle * Math.PI) / 180;
+        const startLng = orbitCenter[0] + radius * Math.cos(startAngleRad);
+        const startLat = Math.max(-85, Math.min(85, orbitCenter[1] + radius * Math.sin(startAngleRad)));
+        const startHeading = (270 - startAngle + 360) % 360;
 
         store.setOrbitCenter(orbitCenter);
         store.setMode('orbit');
@@ -175,86 +185,111 @@ export function FlightButton() {
         store.setTargetSpeed(280);
         store.setTargetPitch(60);       // 60° tilt for good orbit view
 
-        let lastTime = 0;
-        let currentAngle = store.orbitAngle; // Resume from where we left off
-        let currentPitch = 60;
-        let currentZoom = 13;
-        let currentSpeed = 280;
+        // Ease to starting orbit position first (unless skipping transition)
+        if (!skipTransition) {
+            map.flyTo({
+                center: [startLng, startLat],
+                bearing: startHeading,
+                pitch: 60,
+                zoom: 13,
+                duration: 1500,
+                essential: true
+            });
+        }
 
-        const animate = (time: number) => {
-            const currentMap = useMapStore.getState().map;
-            const store = useFlightStore.getState();
+        // Start orbit animation after transition
+        const startDelay = skipTransition ? 0 : 1600;
 
-            if (!currentMap || store.mode !== 'orbit') {
-                useFlightStore.getState().setAnimationId(null);
-                return;
-            }
+        const timeoutId = window.setTimeout(() => {
+            // Clear the timeout ID since we're now executing
+            useFlightStore.getState().setTransitionTimeoutId(null);
+            // Re-check mode in case user cancelled during transition
+            if (useFlightStore.getState().mode !== 'orbit') return;
 
-            if (lastTime) {
-                const delta = Math.min(time - lastTime, 50);
-                const center = store.orbitCenter;
-                if (!center) return;
+            let lastTime = 0;
+            let currentAngle = store.orbitAngle;
+            let currentPitch = 60;
+            let currentZoom = 13;
+            let currentSpeed = 280;
 
-                // Read dynamic values from store (can be changed during flight)
-                const radius = store.orbitRadius;
-                const clockwise = store.orbitClockwise;
+            const animate = (time: number) => {
+                const currentMap = useMapStore.getState().map;
+                const store = useFlightStore.getState();
 
-                // Pitch easing
-                if (store.targetPitch !== null) {
-                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
+                if (!currentMap || store.mode !== 'orbit') {
+                    useFlightStore.getState().setAnimationId(null);
+                    return;
                 }
 
-                // Zoom easing
-                if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
+                if (lastTime) {
+                    const delta = Math.min(time - lastTime, 50);
+                    const center = store.orbitCenter;
+                    if (!center) return;
+
+                    // Read dynamic values from store (can be changed during flight)
+                    const radius = store.orbitRadius;
+                    const clockwise = store.orbitClockwise;
+
+                    // Pitch easing
+                    if (store.targetPitch !== null) {
+                        currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
+                    }
+
+                    // Zoom easing
+                    if (store.targetAltitude !== null) {
+                        currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
+                    }
+
+                    // Speed easing
+                    if (store.targetSpeed !== null) {
+                        currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
+                        store.setSpeed(currentSpeed);
+                    } else {
+                        currentSpeed = store.speed;
+                    }
+
+                    // Calculate angular velocity based on speed and radius
+                    // Speed in km/h, radius in degrees (~111km per degree at equator)
+                    const radiusKm = radius * 111; // Approximate km
+                    const circumference = 2 * Math.PI * radiusKm;
+                    const degreesPerMs = (currentSpeed / 3600000) / circumference * 360; // degrees per ms
+                    const angleIncrement = degreesPerMs * delta * (clockwise ? 1 : -1);
+
+                    currentAngle = (currentAngle + angleIncrement + 360) % 360;
+                    store.setOrbitAngle(currentAngle);
+
+                    // Calculate camera position on the orbit circle
+                    // Math coords: 0° = east, 90° = north (counter-clockwise from east)
+                    const angleRad = (currentAngle * Math.PI) / 180;
+                    const cameraLng = center[0] + radius * Math.cos(angleRad);
+                    const cameraLat = Math.max(-85, Math.min(85, center[1] + radius * Math.sin(angleRad)));
+
+                    // Heading always faces toward center point (cinematic orbit)
+                    // From angle position, look 180° opposite direction toward center
+                    // Math angle to compass bearing: bearing = 90° - angle (east=0° in math, but 90° in compass)
+                    // Plus 180° to face inward = (270° - angle)
+                    const headingToCenter = (270 - currentAngle + 360) % 360;
+
+                    currentMap.jumpTo({
+                        center: [cameraLng, cameraLat],
+                        bearing: headingToCenter,
+                        pitch: currentPitch,
+                        zoom: currentZoom
+                    });
                 }
 
-                // Speed easing
-                if (store.targetSpeed !== null) {
-                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
-                    store.setSpeed(currentSpeed);
-                } else {
-                    currentSpeed = store.speed;
-                }
+                lastTime = time;
+                const id = requestAnimationFrame(animate);
+                useFlightStore.getState().setAnimationId(id);
+            };
 
-                // Calculate angular velocity based on speed and radius
-                // Speed in km/h, radius in degrees (~111km per degree at equator)
-                const radiusKm = radius * 111; // Approximate km
-                const circumference = 2 * Math.PI * radiusKm;
-                const degreesPerMs = (currentSpeed / 3600000) / circumference * 360; // degrees per ms
-                const angleIncrement = degreesPerMs * delta * (clockwise ? 1 : -1);
-
-                currentAngle = (currentAngle + angleIncrement + 360) % 360;
-                store.setOrbitAngle(currentAngle);
-
-                // Calculate camera position on the orbit circle
-                // Math coords: 0° = east, 90° = north (counter-clockwise from east)
-                const angleRad = (currentAngle * Math.PI) / 180;
-                const cameraLng = center[0] + radius * Math.cos(angleRad);
-                const cameraLat = Math.max(-85, Math.min(85, center[1] + radius * Math.sin(angleRad)));
-
-                // Heading always faces toward center point (cinematic orbit)
-                // From angle position, look 180° opposite direction toward center
-                // Math angle to compass bearing: bearing = 90° - angle (east=0° in math, but 90° in compass)
-                // Plus 180° to face inward = (270° - angle)
-                const headingToCenter = (270 - currentAngle + 360) % 360;
-
-                currentMap.jumpTo({
-                    center: [cameraLng, cameraLat],
-                    bearing: headingToCenter,
-                    pitch: currentPitch,
-                    zoom: currentZoom
-                });
-            }
-
-            lastTime = time;
             const id = requestAnimationFrame(animate);
             useFlightStore.getState().setAnimationId(id);
-        };
+            toast.info('Flight: Orbit mode');
+        }, startDelay);
 
-        const id = requestAnimationFrame(animate);
-        useFlightStore.getState().setAnimationId(id);
-        toast.info('Flight: Orbit mode');
+        // Store timeout ID so it can be cancelled
+        store.setTransitionTimeoutId(timeoutId);
     };
 
     // Expose startOrbit globally so dashboard can trigger it
@@ -294,9 +329,9 @@ export function FlightButton() {
                 essential: true
             });
 
-            // After fly animation, start orbit
+            // After fly animation, start orbit (skip transition since we just flew there)
             setTimeout(() => {
-                startOrbitRef.current(clickedCenter);
+                startOrbitRef.current(clickedCenter, true);
             }, 2100);
 
             toast.info('Flying to orbit point...');
