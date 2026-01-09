@@ -138,9 +138,8 @@ export function useHeatmap(options: UseHeatmapOptions) {
     const features: any[] = [];
     sessionData.current.forEach((count, key) => {
       const [lat, lon] = key.split(',').map(Number);
-      // Use sqrt scaling so low counts still contribute significantly
-      // Min weight 0.3 ensures all points are visible and blend
-      const weight = Math.max(0.3, Math.min(Math.sqrt(count) / 4, 1));
+      // Use sqrt scaling so low counts still contribute to blending
+      const weight = Math.max(0.1, Math.min(Math.sqrt(count) / 5, 1));
       features.push({
         type: 'Feature',
         geometry: {
@@ -181,26 +180,25 @@ export function useHeatmap(options: UseHeatmapOptions) {
         source: HEATMAP_SOURCE_ID,
         paint: {
           'heatmap-weight': ['get', 'weight'],
-          'heatmap-intensity': ['interpolate', ['exponential', 1.5], ['zoom'],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'],
             0, 0.1,
-            6, 0.5,
-            10, 1.5,
-            14, 3,
-            18, 6,
-            22, 10
+            6, 0.2,
+            10, 0.3,
+            14, 0.4,
+            18, 0.5,
+            22, 0.6
           ],
           'heatmap-color': heatmapColorExpr,
-          // Use maximum supported radius with high intensity for blending
-          'heatmap-radius': ['interpolate', ['exponential', 1.8], ['zoom'],
+          'heatmap-radius': ['interpolate', ['exponential', 1.6], ['zoom'],
             0, 2,
-            6, 30,
-            10, 80,
-            12, 150,
-            14, 250,
-            16, 400,
-            20, 600
+            6, 20,
+            10, 60,
+            12, 100,
+            14, 160,
+            16, 250,
+            20, 400
           ],
-          'heatmap-opacity': 0.85
+          'heatmap-opacity': 0.75
         }
       });
       console.log('✅ Heatmap layer added');
