@@ -366,13 +366,14 @@ export function useFlight() {
         };
     }, [map, stopFlight]);
 
-    // Initialize telemetry from current map position
+    // Initialize telemetry from current map position (runs once when map is ready)
     useEffect(() => {
         if (!isMapValid(map)) return;
 
         try {
             const center = map.getCenter();
-            updateTelemetry({
+            // Use getState to avoid dependency on updateTelemetry
+            useFlightStore.getState().updateTelemetry({
                 currentPosition: [center.lng, center.lat],
                 currentHeading: map.getBearing(),
                 currentSpeed: 0,
@@ -381,7 +382,7 @@ export function useFlight() {
         } catch (e) {
             // Map may be in invalid state
         }
-    }, [map, updateTelemetry]);
+    }, [map]); // Only depend on map, not updateTelemetry
 
     return {
         stopFlight,
