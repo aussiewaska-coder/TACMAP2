@@ -41,6 +41,13 @@ export function UnifiedAlertsPanel() {
     const [showHeatmap, setShowHeatmap] = useState(false);
     const [showMarkers, setShowMarkers] = useState(true);
 
+    // Auto-disable markers when heatmap is enabled
+    useEffect(() => {
+        if (showHeatmap) {
+            setShowMarkers(false);
+        }
+    }, [showHeatmap]);
+
     // Emergency filters
     const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map(h => h.id));
     const [opsMode, setOpsMode] = useState<OpsMode>('all');

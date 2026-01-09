@@ -145,7 +145,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Heatmap layer added: ${heatmapLayerId}`);
         }
 
-        // Add CLUSTER CIRCLE layer
+        // Add CLUSTER CIRCLE layer - consistent small size
         if (!map.getLayer(clusterLayerId)) {
             map.addLayer({
                 id: clusterLayerId,
@@ -153,29 +153,9 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 source: sourceId,
                 filter: ['has', 'point_count'],
                 paint: {
-                    'circle-color': [
-                        'step',
-                        ['get', 'point_count'],
-                        '#fca5a5', // light red for small clusters
-                        10,
-                        '#f87171', // medium red
-                        50,
-                        '#ef4444', // bright red
-                        100,
-                        '#dc2626'  // dark red for large clusters
-                    ],
-                    'circle-radius': [
-                        'step',
-                        ['get', 'point_count'],
-                        20,  // 20px for < 10
-                        10,
-                        30,  // 30px for 10-50
-                        50,
-                        40,  // 40px for 50-100
-                        100,
-                        50   // 50px for 100+
-                    ],
-                    'circle-stroke-width': 3,
+                    'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
+                    'circle-radius': 12, // Fixed size for all clusters
+                    'circle-stroke-width': 2,
                     'circle-stroke-color': '#FFFFFF',
                     'circle-opacity': 0.9
                 },
@@ -184,7 +164,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Cluster layer added: ${clusterLayerId}`);
         }
 
-        // Add CLUSTER COUNT TEXT layer
+        // Add CLUSTER COUNT TEXT layer - smaller text
         if (!map.getLayer(clusterCountLayerId)) {
             map.addLayer({
                 id: clusterCountLayerId,
@@ -194,7 +174,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 layout: {
                     'text-field': '{point_count_abbreviated}',
                     'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-                    'text-size': 14,
+                    'text-size': 10,
                     visibility: showMarkers ? 'visible' : 'none'
                 },
                 paint: {
@@ -237,7 +217,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Polygon outline layer added`);
         }
 
-        // Add UNCLUSTERED POINTS layer (simple circles)
+        // Add UNCLUSTERED POINTS layer - consistent small size matching clusters
         if (!map.getLayer(layerId)) {
             map.addLayer({
                 id: layerId,
@@ -248,9 +228,9 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                     ['!', ['has', 'point_count']]
                 ],
                 paint: {
-                    'circle-radius': 10,
+                    'circle-radius': 12, // Same size as clusters
                     'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
-                    'circle-stroke-width': 3,
+                    'circle-stroke-width': 2, // Same stroke as clusters
                     'circle-stroke-color': '#FFFFFF',
                     'circle-opacity': 0.9
                 },
