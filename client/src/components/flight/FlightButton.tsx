@@ -6,11 +6,13 @@ import { useFlightStore, useFlightMode } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
 import { toast } from 'sonner';
 
-// Smooth easing for heading (handles wrap-around at 360°)
-const easeHeading = (current: number, target: number, delta: number, rate: number): number => {
+// Smooth easing for heading (handles wrap-around at 360°) - exponential ease for smooth start/stop
+const easeHeading = (current: number, target: number, delta: number, smoothing: number): number => {
     let diff = ((target - current + 540) % 360) - 180;
-    const maxTurn = rate * delta * 0.001;
-    const turn = Math.sign(diff) * Math.min(Math.abs(diff), maxTurn);
+    if (Math.abs(diff) < 0.5) return target; // Snap when very close
+    // Exponential ease - smooth acceleration and deceleration
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    const turn = diff * ease;
     return (current + turn + 360) % 360;
 };
 
@@ -93,9 +95,9 @@ export function FlightButton() {
                 const delta = Math.min(time - lastTime, 50);
                 const center = currentMap.getCenter();
 
-                // Heading easing - NEVER read from map, terrain causes drift
+                // Heading easing - smooth start/stop, NEVER read from map
                 if (store.targetHeading !== null) {
-                    currentHeading = easeHeading(currentHeading, store.targetHeading, delta, 45);
+                    currentHeading = easeHeading(currentHeading, store.targetHeading, delta, 0.15);
                 }
                 // else: keep currentHeading as-is
 
@@ -203,9 +205,9 @@ export function FlightButton() {
                     autoTargetBearing = (autoTargetBearing + Math.random() * 90 - 45 + 360) % 360;
                 }
 
-                // Heading - NEVER read from map, terrain causes drift
+                // Heading - smooth start/stop, NEVER read from map
                 const targetHeading = store.targetHeading !== null ? store.targetHeading : autoTargetBearing;
-                currentHeading = easeHeading(currentHeading, targetHeading, delta, 30);
+                currentHeading = easeHeading(currentHeading, targetHeading, delta, 0.12);
 
                 // Pitch - NEVER read from map, terrain causes drift
                 if (store.targetPitch !== null) {
