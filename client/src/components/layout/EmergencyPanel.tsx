@@ -285,7 +285,7 @@ export function EmergencyPanel() {
                     id: polygonLayerId,
                     type: 'fill',
                     source: sourceId,
-                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['$type'], 'Polygon'], ['==', ['$type'], 'MultiPolygon']]],
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
                     paint: {
                         'fill-color': [
                             'match',
@@ -306,7 +306,7 @@ export function EmergencyPanel() {
                     id: polygonOutlineLayerId,
                     type: 'line',
                     source: sourceId,
-                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['$type'], 'Polygon'], ['==', ['$type'], 'MultiPolygon']]],
+                    filter: ['all', ['!', ['has', 'point_count']], ['any', ['==', ['geometry-type'], 'Polygon'], ['==', ['geometry-type'], 'MultiPolygon']]],
                     paint: {
                         'line-color': [
                             'match',

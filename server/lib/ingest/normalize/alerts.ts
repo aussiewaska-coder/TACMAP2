@@ -30,6 +30,13 @@ export async function normalizeAlerts(
             case 'arcgis':
                 return normalizeArcGIS(data, sourceId, registryEntry);
 
+            case 'wms':
+            case 'wmts':
+            case 'tms':
+            case 'xyz':
+                // These are visual layers, not intended for feature-level aggregation here
+                return [];
+
             default:
                 console.warn(`Unknown stream type: ${streamType} for ${sourceId}`);
                 return [];

@@ -7,7 +7,15 @@ export async function normalizeRSS(
     sourceId: string,
     registryEntry: any
 ): Promise<CanonicalAlert[]> {
-    if (!xmlData || typeof xmlData !== 'string') return [];
+    if (!xmlData || typeof xmlData !== 'string' || xmlData.trim().length === 0) {
+        return [];
+    }
+
+    // Basic check for XML-like structure
+    if (!xmlData.trim().startsWith('<')) {
+        console.warn(`Source ${sourceId}: Data does not appear to be XML`);
+        return [];
+    }
 
     const parser = new XMLParser({
         ignoreAttributes: false,
@@ -22,7 +30,7 @@ export async function normalizeRSS(
         return [];
     }
 
-    if (!jsonObj) return [];
+    if (!jsonObj || typeof jsonObj !== 'object') return [];
 
     const channel = jsonObj.rss?.channel || jsonObj.feed;
     const items = channel?.item || channel?.entry || [];

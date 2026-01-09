@@ -71,18 +71,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                             const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per source
 
                             try {
-                                const response = await fetch(source.endpoint_url, { signal: controller.signal });
+                                const response = await fetch(source.endpoint_url, {
+                                    signal: controller.signal,
+                                    headers: {
+                                        'User-Agent': 'TAC-MAP Emergency Services Dashboard (AU); contact@tacmap.com.au',
+                                        'Accept': 'application/json, application/xml, text/xml, */*'
+                                    }
+                                });
                                 clearTimeout(timeoutId);
 
                                 if (!response.ok) {
                                     throw new Error(`HTTP ${response.status}`);
                                 }
 
+                                const text = await response.text();
+                                if (!text || text.trim().length === 0) {
+                                    return null;
+                                }
+
                                 const contentType = response.headers.get('content-type');
-                                if (contentType?.includes('json')) {
-                                    return await response.json();
+                                if (contentType?.includes('json') || text.trim().startsWith('{') || text.trim().startsWith('[')) {
+                                    try {
+                                        return JSON.parse(text);
+                                    } catch (e) {
+                                        return text; // Fallback to text if JSON parse fails
+                                    }
                                 } else {
-                                    return await response.text();
+                                    return text;
                                 }
                             } catch (e) {
                                 clearTimeout(timeoutId);
