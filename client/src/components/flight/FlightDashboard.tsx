@@ -14,6 +14,30 @@ const ALTITUDE_PRESETS = [
     { ft: 500, zoom: 16, label: '500', speed: 75 },      // Slow helicopter
 ];
 
+// Smooth easing for pitch - exponential ease for natural feel
+const easePitch = (current: number, target: number, delta: number, smoothing: number): number => {
+    const diff = target - current;
+    if (Math.abs(diff) < 0.5) return target;
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    return current + diff * ease;
+};
+
+// Smooth easing for zoom - graceful exponential ease-out like flying
+const easeZoom = (current: number, target: number, delta: number, smoothing: number): number => {
+    const diff = target - current;
+    if (Math.abs(diff) < 0.01) return target;
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    return current + diff * ease;
+};
+
+// Smooth easing for speed - exponential for natural throttle feel
+const easeSpeed = (current: number, target: number, delta: number, smoothing: number): number => {
+    const diff = target - current;
+    if (Math.abs(diff) < 1) return target;
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    return current + diff * ease;
+};
+
 // Altitude Buttons - DIRECTLY controls map zoom via flyTo
 function AltitudeButtons({ currentZoom, onAltitudeChange }: { currentZoom: number; onAltitudeChange: (zoom: number, speed: number) => void }) {
     // Find closest preset to current zoom
@@ -523,6 +547,8 @@ const BUILDINGS_SOURCE_ID = 'flight-buildings-source';
 const BUILDINGS_LAYER_ID = 'flight-3d-buildings';
 
 export function FlightDashboard() {
+    const dashboardOpen = useFlightStore((s) => s.dashboardOpen);
+    const closeDashboard = useFlightStore((s) => s.closeDashboard);
     const mode = useFlightMode();
     const speed = useFlightSpeed(); // From store
     const targetHeading = useFlightStore((s) => s.targetHeading);
@@ -540,7 +566,7 @@ export function FlightDashboard() {
 
     // Update telemetry from map (live) - this is the source of truth
     useEffect(() => {
-        if (mode === 'off') return;
+        if (!dashboardOpen && mode === 'off') return;
 
         const interval = setInterval(() => {
             const map = useMapStore.getState().map;
@@ -557,7 +583,7 @@ export function FlightDashboard() {
         }, 50); // Faster updates for responsive sliders
 
         return () => clearInterval(interval);
-    }, [mode]);
+    }, [dashboardOpen, mode]);
 
     // Derive altitude from zoom (two-way: zoom IS altitude)
     // zoom 18 = 500m, zoom 0 = ~130km
@@ -570,8 +596,7 @@ export function FlightDashboard() {
     // Current pitch (0-85°)
     const pitch = Math.round(telemetry.pitch);
 
-    // Don't render if flight is off
-    if (mode === 'off') return null;
+    if (!dashboardOpen) return null;
 
     const stopFlight = () => {
         const store = useFlightStore.getState();
@@ -588,6 +613,139 @@ export function FlightDashboard() {
         store.setTransitionTimeoutId(null);
         store.setPrevProjection(null);
         store.setMode('off');
+    };
+
+    const startOrbit = (center?: [number, number], skipTransition = false) => {
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        stopFlight();
+
+        const proj = map.getProjection();
+        const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
+
+        const store = useFlightStore.getState();
+        store.setPrevProjection(currentProj);
+        map.setProjection({ type: 'globe' });
+
+        map.setFog({
+            range: [2, 20],
+            color: '#ffffff',
+            'high-color': '#245cdf',
+            'horizon-blend': 0.02,
+            'space-color': '#000000',
+            'star-intensity': 0.2
+        });
+
+        const orbitCenter: [number, number] = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
+        const radius = store.orbitRadius;
+        const startAngle = store.orbitAngle;
+
+        const startAngleRad = (startAngle * Math.PI) / 180;
+        const startLng = orbitCenter[0] + radius * Math.cos(startAngleRad);
+        const startLat = Math.max(-85, Math.min(85, orbitCenter[1] + radius * Math.sin(startAngleRad)));
+        const startHeading = (270 - startAngle + 360) % 360;
+
+        store.setOrbitCenter(orbitCenter);
+        store.setMode('orbit');
+        store.setTargetAltitude(13);
+        store.setSpeed(280);
+        store.setTargetSpeed(280);
+        store.setTargetPitch(60);
+
+        if (!skipTransition) {
+            map.flyTo({
+                center: [startLng, startLat],
+                bearing: startHeading,
+                pitch: 60,
+                zoom: 13,
+                duration: 1500,
+                essential: true
+            });
+        }
+
+        const startDelay = skipTransition ? 0 : 1600;
+        const timeoutId = window.setTimeout(() => {
+            useFlightStore.getState().setTransitionTimeoutId(null);
+            if (useFlightStore.getState().mode !== 'orbit') return;
+
+            let lastTime = 0;
+            let currentAngle = store.orbitAngle;
+            let currentPitch = 60;
+            let currentZoom = 13;
+            let currentSpeed = 280;
+
+            const animate = (time: number) => {
+                const currentMap = useMapStore.getState().map;
+                const store = useFlightStore.getState();
+
+                if (!currentMap || store.mode !== 'orbit') {
+                    useFlightStore.getState().setAnimationId(null);
+                    return;
+                }
+
+                if (lastTime) {
+                    const delta = Math.min(time - lastTime, 50);
+                    const center = store.orbitCenter;
+                    if (!center) return;
+
+                    const radius = store.orbitRadius;
+                    const clockwise = store.orbitClockwise;
+
+                    if (store.targetPitch !== null) {
+                        currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
+                    }
+
+                    if (store.targetAltitude !== null) {
+                        currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
+                    }
+
+                    if (store.targetSpeed !== null) {
+                        currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
+                        store.setSpeed(currentSpeed);
+                    } else {
+                        currentSpeed = store.speed;
+                    }
+
+                    const radiusKm = radius * 111;
+                    const circumference = 2 * Math.PI * radiusKm;
+                    const degreesPerMs = (currentSpeed / 3600000) / circumference * 360;
+                    const angleIncrement = degreesPerMs * delta * (clockwise ? 1 : -1);
+
+                    currentAngle = (currentAngle + angleIncrement + 360) % 360;
+                    store.setOrbitAngle(currentAngle);
+
+                    const angleRad = (currentAngle * Math.PI) / 180;
+                    const cameraLng = center[0] + radius * Math.cos(angleRad);
+                    const cameraLat = Math.max(-85, Math.min(85, center[1] + radius * Math.sin(angleRad)));
+
+                    const headingToCenter = (270 - currentAngle + 360) % 360;
+
+                    currentMap.jumpTo({
+                        center: [cameraLng, cameraLat],
+                        bearing: headingToCenter,
+                        pitch: currentPitch,
+                        zoom: currentZoom
+                    });
+                }
+
+                lastTime = time;
+                const id = requestAnimationFrame(animate);
+                useFlightStore.getState().setAnimationId(id);
+            };
+
+            const id = requestAnimationFrame(animate);
+            useFlightStore.getState().setAnimationId(id);
+        }, startDelay);
+
+        store.setTransitionTimeoutId(timeoutId);
+    };
+
+    const handleClose = () => {
+        if (mode !== 'off') {
+            stopFlight();
+        }
+        closeDashboard();
     };
 
     // Apply heading change - set target for smooth easing
@@ -813,7 +971,7 @@ export function FlightDashboard() {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={stopFlight}
+                                onClick={handleClose}
                                 className="h-7 w-7 text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded border border-red-500/30"
                             >
                                 <X className="w-4 h-4" />
@@ -880,14 +1038,10 @@ export function FlightDashboard() {
                                 {/* ORBIT Button */}
                                 <button
                                     onClick={() => {
-                                        const startOrbit = (window as { startOrbit?: (center?: [number, number]) => void }).startOrbit;
-                                        if (startOrbit) {
-                                            // Use screen center as orbit point
-                                            const map = useMapStore.getState().map;
-                                            if (map) {
-                                                const center = map.getCenter();
-                                                startOrbit([center.lng, center.lat]);
-                                            }
+                                        const map = useMapStore.getState().map;
+                                        if (map) {
+                                            const center = map.getCenter();
+                                            startOrbit([center.lng, center.lat]);
                                         }
                                     }}
                                     className={`
@@ -906,7 +1060,7 @@ export function FlightDashboard() {
                                 {mode === 'orbit' ? (
                                     <OrbitControls />
                                 ) : (
-                                    <div className="text-orange-400/30 text-[8px] font-mono">DBL-CLICK MAP TO SET</div>
+                                    <div className="text-orange-400/30 text-[8px] font-mono">CENTERED ON MAP</div>
                                 )}
                             </div>
 
