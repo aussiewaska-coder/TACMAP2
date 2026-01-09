@@ -10,9 +10,9 @@ export const categoryEnum = pgEnum("feature_category", ["plugin", "control", "la
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
-  openId: varchar("open_id", { length: 64 }).notNull().unique(),
+  openId: varchar("open_id", { length: 64 }).unique(), // Optional for backwards compatibility
   name: text("name"),
-  email: varchar("email", { length: 320 }),
+  email: varchar("email", { length: 320 }).unique(), // Now unique for magic link auth
   loginMethod: varchar("login_method", { length: 64 }),
   role: roleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -136,3 +136,16 @@ export const emergencyRegistry = pgTable("emergency_registry", {
 
 export type EmergencyRegistry = typeof emergencyRegistry.$inferSelect;
 export type InsertEmergencyRegistry = typeof emergencyRegistry.$inferInsert;
+
+// Magic Link Tokens for passwordless authentication
+export const magicLinkTokens = pgTable("magic_link_tokens", {
+  id: serial("id").primaryKey(),
+  email: varchar("email", { length: 320 }).notNull(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  usedAt: timestamp("used_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type MagicLinkToken = typeof magicLinkTokens.$inferSelect;
+export type InsertMagicLinkToken = typeof magicLinkTokens.$inferInsert;

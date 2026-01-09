@@ -24,25 +24,32 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
-  // const shouldSetDomain =
-  //   hostname &&
-  //   !LOCAL_HOSTS.has(hostname) &&
-  //   !isIpAddress(hostname) &&
-  //   hostname !== "127.0.0.1" &&
-  //   hostname !== "::1";
+  const hostname = req.hostname;
+  const isProduction = process.env.NODE_ENV === "production";
+  const isLocalHost = LOCAL_HOSTS.has(hostname) || hostname === "127.0.0.1" || hostname === "::1";
 
-  // const domain =
-  //   shouldSetDomain && !hostname.startsWith(".")
-  //     ? `.${hostname}`
-  //     : shouldSetDomain
-  //       ? hostname
-  //       : undefined;
+  // Enable domain setting for production (commented out domain logic preserved but improved)
+  const shouldSetDomain =
+    hostname &&
+    !LOCAL_HOSTS.has(hostname) &&
+    !isIpAddress(hostname);
+
+  const domain = shouldSetDomain && !hostname.startsWith(".")
+    ? `.${hostname}`
+    : shouldSetDomain
+      ? hostname
+      : undefined;
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
-    secure: isSecureRequest(req),
+    // SECURITY FIX: Use "lax" instead of "none" to prevent CSRF
+    // "lax" allows cookies on top-level navigations (like following links)
+    // but not on cross-site requests, providing good security/usability balance
+    sameSite: "lax",
+    // SECURITY FIX: Force secure in production, allow http for localhost dev
+    secure: isProduction ? true : isSecureRequest(req),
+    // Use domain for production to work across subdomains if needed
+    ...(domain && { domain }),
   };
 }

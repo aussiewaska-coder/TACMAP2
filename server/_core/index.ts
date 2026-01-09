@@ -4,8 +4,9 @@ dotenv.config({ path: "env.local", override: true });
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import { rateLimit } from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
+import { registerAuthRoutes } from "./auth.js";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -29,16 +30,50 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+// Whitelist of allowed WMS hosts for SSRF protection
+const ALLOWED_WMS_HOSTS = [
+  'services.ga.gov.au',
+  'portal.geoserver.sa.gov.au',
+  'mapprod3.environment.nsw.gov.au',
+  'data.gov.au',
+  'maps.six.nsw.gov.au',
+  'gis.drm.vic.gov.au',
+  'localhost', // For development
+];
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
-  // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  // OAuth callback under /api/oauth/callback
-  registerOAuthRoutes(app);
 
-  // WMS Proxy to bypass CORS for Government Data
+  // SECURITY: Rate limiting to prevent DDoS and brute force attacks
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per windowMs
+    message: "Too many requests from this IP, please try again later.",
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Limit auth requests to 5 per 15 minutes to prevent brute force
+    message: "Too many login attempts, please try again later.",
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Apply rate limiting to API routes
+  app.use("/api/", apiLimiter);
+  app.use("/api/auth/send-magic-link", authLimiter);
+
+  // Configure body parser with reduced size limit for security (SECURITY FIX)
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+  // New magic link authentication routes
+  registerAuthRoutes(app);
+
+  // WMS Proxy to bypass CORS for Government Data (SSRF PROTECTION ADDED)
   app.get("/api/wms-proxy", async (req, res) => {
     const { url, ...params } = req.query;
     if (!url || typeof url !== "string") {
@@ -47,9 +82,19 @@ async function startServer() {
     }
 
     try {
+      // SECURITY: Validate URL against whitelist (SSRF protection)
+      const urlObj = new URL(url);
+      const isAllowed = ALLOWED_WMS_HOSTS.some(host =>
+        urlObj.hostname === host || urlObj.hostname.endsWith(`.${host}`)
+      );
+
+      if (!isAllowed) {
+        console.warn(`[Security] Blocked WMS proxy request to unauthorized host: ${urlObj.hostname}`);
+        res.status(403).send("Forbidden: Host not in whitelist");
+        return;
+      }
+
       // Reconstruct target URL with all standard WMS params (bbox, width, height, etc.)
-      // We do NOT use URLSearchParams for 'params' directly in the axios call because
-      // we want to control the exact string format if needed, but passing them as params is cleaner.
       const response = await fetch(`${url}?${new URLSearchParams(params as any).toString()}`);
 
       if (!response.ok) {
@@ -61,8 +106,6 @@ async function startServer() {
       if (contentType) res.setHeader("Content-Type", contentType);
 
       // Stream the image back
-      // Node 18+ global fetch returns a web stream, we need to convert to node stream for express response
-      // or just use arrayBuffer. For images, arrayBuffer is fine/fast enough.
       const buffer = await response.arrayBuffer();
       res.send(Buffer.from(buffer));
 

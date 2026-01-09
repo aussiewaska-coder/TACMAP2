@@ -14,6 +14,7 @@ import {
   getMapStyleById,
   upsertMapStyle,
   getCustomLayersByUserId,
+  getCustomLayerById,
   upsertCustomLayer,
   deleteCustomLayer,
   getPoliceReports,
@@ -60,12 +61,12 @@ export const appRouter = router({
     }),
     update: protectedProcedure
       .input(z.object({
-        centerLat: z.string().optional(),
-        centerLng: z.string().optional(),
-        zoom: z.number().optional(),
-        pitch: z.number().optional(),
-        bearing: z.number().optional(),
-        activeStyleId: z.string().optional(),
+        centerLat: z.string().max(50).optional(),
+        centerLng: z.string().max(50).optional(),
+        zoom: z.number().min(0).max(22).optional(),
+        pitch: z.number().min(0).max(85).optional(),
+        bearing: z.number().min(-180).max(180).optional(),
+        activeStyleId: z.string().max(100).optional(),
         layerVisibility: z.record(z.string(), z.boolean()).optional(),
         layerOpacity: z.record(z.string(), z.number()).optional(),
       }))
@@ -89,9 +90,9 @@ export const appRouter = router({
       }),
     upsert: adminProcedure
       .input(z.object({
-        featureKey: z.string(),
-        featureName: z.string(),
-        description: z.string().optional(),
+        featureKey: z.string().max(100),
+        featureName: z.string().max(200),
+        description: z.string().max(5000).optional(),
         enabled: z.boolean(),
         category: z.enum(["plugin", "control", "layer", "example"]),
         config: z.record(z.string(), z.unknown()).optional(),
@@ -143,14 +144,14 @@ export const appRouter = router({
     upsert: protectedProcedure
       .input(z.object({
         id: z.number().optional(),
-        layerId: z.string(),
-        layerName: z.string(),
-        description: z.string().optional(),
+        layerId: z.string().max(100),
+        layerName: z.string().max(200),
+        description: z.string().max(5000).optional(),
         layerType: z.enum(["geojson", "raster", "vector", "heatmap", "cluster"]),
-        dataSource: z.string().optional(),
+        dataSource: z.string().max(5000).optional(),
         styleConfig: z.record(z.string(), z.unknown()).optional(),
         visible: z.boolean().optional(),
-        opacity: z.number().optional(),
+        opacity: z.number().min(0).max(100).optional(),
         zIndex: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -162,7 +163,15 @@ export const appRouter = router({
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        // SECURITY FIX: Check ownership before deleting
+        const layer = await getCustomLayerById(input.id);
+        if (!layer) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Layer not found' });
+        }
+        if (layer.userId !== ctx.user.id && ctx.user.role !== 'admin') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'You can only delete your own layers' });
+        }
         await deleteCustomLayer(input.id);
         return { success: true };
       }),

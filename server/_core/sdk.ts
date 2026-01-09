@@ -19,9 +19,12 @@ const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
 export type SessionPayload = {
-  openId: string;
-  appId: string;
+  userId: string;  // User database ID as string
   name: string;
+  email: string;
+  // Legacy fields for backwards compatibility
+  openId?: string;
+  appId?: string;
 };
 
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
@@ -160,19 +163,21 @@ class SDKServer {
   }
 
   /**
-   * Create a session token for a Manus user openId
+   * Create a session token for a user
    * @example
-   * const sessionToken = await sdk.createSessionToken(userInfo.openId);
+   * const sessionToken = await sdk.createSessionToken(user.id.toString(), { name: user.name, email: user.email });
    */
   async createSessionToken(
-    openId: string,
-    options: { expiresInMs?: number; name?: string } = {}
+    userId: string,
+    options: { expiresInMs?: number; name?: string; email?: string; openId?: string } = {}
   ): Promise<string> {
     return this.signSession(
       {
-        openId,
-        appId: ENV.appId,
+        userId,
         name: options.name || "",
+        email: options.email || "",
+        openId: options.openId,  // Legacy support
+        appId: ENV.appId,
       },
       options
     );
@@ -188,9 +193,12 @@ class SDKServer {
     const secretKey = this.getSessionSecret();
 
     return new SignJWT({
+      userId: payload.userId,
+      name: payload.name,
+      email: payload.email,
+      // Legacy support
       openId: payload.openId,
       appId: payload.appId,
-      name: payload.name,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setExpirationTime(expirationSeconds)
@@ -199,7 +207,7 @@ class SDKServer {
 
   async verifySession(
     cookieValue: string | undefined | null
-  ): Promise<{ openId: string; appId: string; name: string } | null> {
+  ): Promise<SessionPayload | null> {
     if (!cookieValue) {
       console.warn("[Auth] Missing session cookie");
       return null;
@@ -210,22 +218,32 @@ class SDKServer {
       const { payload } = await jwtVerify(cookieValue, secretKey, {
         algorithms: ["HS256"],
       });
-      const { openId, appId, name } = payload as Record<string, unknown>;
+      const { userId, name, email, openId, appId } = payload as Record<string, unknown>;
 
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
-      ) {
-        console.warn("[Auth] Session payload missing required fields");
-        return null;
+      // Support both new (userId/email) and legacy (openId) tokens
+      if (isNonEmptyString(userId)) {
+        // New token format
+        return {
+          userId,
+          name: isNonEmptyString(name) ? name : "",
+          email: isNonEmptyString(email) ? email : "",
+          openId: isNonEmptyString(openId) ? openId : undefined,
+          appId: isNonEmptyString(appId) ? appId : undefined,
+        };
+      } else if (isNonEmptyString(openId)) {
+        // Legacy token format - convert to new format
+        console.warn("[Auth] Legacy token format detected, converting...");
+        return {
+          userId: openId,  // Use openId as userId for legacy tokens
+          name: isNonEmptyString(name) ? name : "",
+          email: "",
+          openId,
+          appId: isNonEmptyString(appId) ? appId : undefined,
+        };
       }
 
-      return {
-        openId,
-        appId,
-        name,
-      };
+      console.warn("[Auth] Session payload missing required fields");
+      return null;
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));
       return null;
@@ -266,25 +284,35 @@ class SDKServer {
       throw ForbiddenError("Invalid session cookie");
     }
 
-    const sessionUserId = session.openId;
     const signedInAt = new Date();
-    let user = await db.getUserByOpenId(sessionUserId);
+    let user: User | undefined;
 
-    // If user not in DB, sync from OAuth server automatically
-    if (!user) {
-      try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
-        await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: signedInAt,
-        });
-        user = await db.getUserByOpenId(userInfo.openId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
-        throw ForbiddenError("Failed to sync user info");
+    // Try to get user by userId (new format)
+    const userId = parseInt(session.userId, 10);
+    if (!isNaN(userId)) {
+      user = await db.getUserById(userId);
+    }
+
+    // Fallback to openId for legacy tokens
+    if (!user && session.openId) {
+      user = await db.getUserByOpenId(session.openId);
+
+      // If user not in DB with openId, sync from OAuth server automatically
+      if (!user) {
+        try {
+          const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
+          await db.upsertUser({
+            openId: userInfo.openId,
+            name: userInfo.name || null,
+            email: userInfo.email ?? null,
+            loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+            lastSignedIn: signedInAt,
+          });
+          user = await db.getUserByOpenId(userInfo.openId);
+        } catch (error) {
+          console.error("[Auth] Failed to sync user from OAuth:", error);
+          throw ForbiddenError("Failed to sync user info");
+        }
       }
     }
 
@@ -292,10 +320,8 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
+    // Update last signed in
+    await db.updateUserLastSignedIn(user.id);
 
     return user;
   }

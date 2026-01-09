@@ -10,6 +10,7 @@ import { useEmergencyAlerts } from '@/hooks/useEmergencyAlerts';
 import { Badge } from '@/components/ui/badge';
 import { useMapStore } from '@/stores';
 import maplibregl from 'maplibre-gl';
+import DOMPurify from 'isomorphic-dompurify';
 
 const HAZARD_TYPES = [
     { id: 'fire', label: 'Fire', icon: Flame, color: 'text-red-500', bg: 'bg-red-500/10', activeBg: 'bg-red-500', activeText: 'text-white' },
@@ -28,6 +29,7 @@ export function EmergencyPanel() {
     const [alertsEnabled, setAlertsEnabled] = useState(true);
     const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map(h => h.id));
     const [opsMode, setOpsMode] = useState<'all' | 'warning' | 'ground_truth'>('all');
+    const [selectedStates, setSelectedStates] = useState<string[]>(['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT', 'AUS']);
 
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
@@ -152,7 +154,11 @@ export function EmergencyPanel() {
                 (activeFilters.includes('general') && !isFire && !isFlood && !isRoad && !isSpace && !isAviation)
             );
 
-            if (!matchesFilter) return null;
+            // Filter by state
+            const alertState = props.state?.toUpperCase() || 'AUS';
+            const matchesState = selectedStates.includes(alertState);
+
+            if (!matchesFilter || !matchesState) return null;
 
             return {
                 ...f,
@@ -171,12 +177,39 @@ export function EmergencyPanel() {
                 total_alerts: filteredFeatures.length
             }
         };
-    }, [rawAlertsData, activeFilters, opsMode]);
+    }, [rawAlertsData, activeFilters, opsMode, selectedStates]);
+
+    // Get state breakdown
+    const stateBreakdown = useMemo(() => {
+        if (!rawAlertsData) return [];
+        const counts: Record<string, number> = {};
+        rawAlertsData.features.forEach((f: any) => {
+            const state = f.properties.state?.toUpperCase() || 'AUS';
+            counts[state] = (counts[state] || 0) + 1;
+        });
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1]);
+    }, [rawAlertsData]);
 
     const toggleFilter = (id: string) => {
         setActiveFilters(prev =>
             prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
         );
+    };
+
+    const toggleState = (state: string) => {
+        setSelectedStates(prev =>
+            prev.includes(state) ? prev.filter(s => s !== state) : [...prev, state]
+        );
+    };
+
+    const toggleAllStates = () => {
+        const allStates = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT', 'AUS'];
+        if (selectedStates.length === allStates.length) {
+            setSelectedStates([]);
+        } else {
+            setSelectedStates(allStates);
+        }
     };
 
     // --- EFFECT: Aircraft Layer Management ---
@@ -400,28 +433,38 @@ export function EmergencyPanel() {
         const handleAlertClick = (e: any) => {
             if (!e.features?.length) return;
             const props = e.features[0].properties;
+
+            // SECURITY FIX: Sanitize all user-supplied data to prevent XSS attacks
+            const safeTitle = DOMPurify.sanitize(props?.title || '', { ALLOWED_TAGS: [] });
+            const safeDescription = DOMPurify.sanitize(props?.description || 'No detailed description available.', { ALLOWED_TAGS: [] });
+            const safeSourceId = DOMPurify.sanitize(props?.source_id || '', { ALLOWED_TAGS: [] });
+            const safeSeverity = DOMPurify.sanitize(props?.severity || '', { ALLOWED_TAGS: [] });
+            const safeState = DOMPurify.sanitize(props?.state || '', { ALLOWED_TAGS: [] });
+            const safeUrl = props?.url && typeof props.url === 'string' ? DOMPurify.sanitize(props.url, { ALLOWED_TAGS: [] }) : null;
+            const safeIssuedAt = props?.issued_at ? new Date(props.issued_at).toLocaleString() : '';
+
             const html = `
                 <div style="padding: 12px; max-width: 320px; background: #0f172a; color: white; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
                         <span style="font-size: 24px;">${props?.hazard_type?.toLowerCase()?.includes('fire') ? '🔥' : (props?.hazard_type?.toLowerCase()?.includes('flood') ? '🌊' : '⚠️')}</span>
                         <div>
                             <h3 style="margin: 0; font-weight: bold; font-size: 14px; color: ${getSeverityColor(props?.severity_rank)}; line-height: 1.2;">
-                                ${props?.title}
+                                ${safeTitle}
                             </h3>
-                            <div style="font-size: 10px; opacity: 0.6; margin-top: 2px;">${props?.source_id}</div>
+                            <div style="font-size: 10px; opacity: 0.6; margin-top: 2px;">${safeSourceId}</div>
                         </div>
                     </div>
                     <div style="font-size: 12px; line-height: 1.5;">
                         <div style="opacity: 0.9; margin-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; max-height: 200px; overflow-y: auto;">
-                            ${props?.description || 'No detailed description available.'}
+                            ${safeDescription}
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: rgba(0,0,0,0.2); padding: 8px; rounded: 8px;">
-                            <div><span style="opacity: 0.5; font-size: 10px; display: block;">Severity</span> <span style="font-weight: bold; color: ${getSeverityColor(props?.severity_rank)};">${props?.severity}</span></div>
-                            <div><span style="opacity: 0.5; font-size: 10px; display: block;">Region</span> <span style="font-weight: bold;">${props?.state}</span></div>
+                            <div><span style="opacity: 0.5; font-size: 10px; display: block;">Severity</span> <span style="font-weight: bold; color: ${getSeverityColor(props?.severity_rank)};">${safeSeverity}</span></div>
+                            <div><span style="opacity: 0.5; font-size: 10px; display: block;">Region</span> <span style="font-weight: bold;">${safeState}</span></div>
                         </div>
-                        ${props?.url ? `<div style="margin-top: 15px;"><a href="${props.url}" target="_blank" style="display: block; background: #3b82f6; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px; transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);">VIEW OFFICIAL NOTICE</a></div>` : ''}
+                        ${safeUrl ? `<div style="margin-top: 15px;"><a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="display: block; background: #3b82f6; color: white; text-align: center; padding: 10px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 12px; transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);">VIEW OFFICIAL NOTICE</a></div>` : ''}
                         <div style="margin-top: 12px; font-size: 10px; opacity: 0.4; text-align: left; font-style: italic;">
-                            Issued: ${new Date(props?.issued_at).toLocaleString()}
+                            Issued: ${safeIssuedAt}
                         </div>
                     </div>
                 </div>
@@ -598,6 +641,38 @@ export function EmergencyPanel() {
                                     })}
                                 </div>
                             </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest pl-1">State Filters</label>
+                                    <button
+                                        onClick={toggleAllStates}
+                                        className="text-[9px] text-white/40 hover:text-white/80 uppercase font-bold"
+                                    >
+                                        {selectedStates.length === 9 ? 'None' : 'All'}
+                                    </button>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT', 'AUS'].map((state) => {
+                                        const isActive = selectedStates.includes(state);
+                                        return (
+                                            <button
+                                                key={state}
+                                                onClick={() => toggleState(state)}
+                                                className={`
+                                                    px-2.5 py-1 rounded-md text-[10px] font-bold transition-all
+                                                    ${isActive
+                                                        ? 'bg-blue-500 text-white shadow-lg scale-105 ring-1 ring-white/20'
+                                                        : 'bg-white/5 text-white/40 hover:bg-white/10'
+                                                    }
+                                                `}
+                                            >
+                                                {state}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 mt-4">
@@ -657,6 +732,20 @@ export function EmergencyPanel() {
                                 )}
                             </div>
                         </div>
+
+                        {stateBreakdown.length > 0 && (
+                            <div className="pt-3 border-t border-white/10">
+                                <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">By State</h4>
+                                <div className="space-y-1.5 max-h-[120px] overflow-y-auto custom-scrollbar">
+                                    {stateBreakdown.map(([state, count]) => (
+                                        <div key={state} className="flex items-center justify-between bg-black/20 px-2.5 py-1.5 rounded-lg">
+                                            <span className="text-[11px] font-bold text-white/80">{state}</span>
+                                            <span className="text-[11px] font-mono bg-white/10 px-2 py-0.5 rounded text-white/90">{count}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="pt-3 border-t border-white/10">
                             <h4 className="text-[10px] font-bold text-white/40 uppercase tracking-widest mb-3">Severity Key</h4>

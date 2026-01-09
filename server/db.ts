@@ -18,7 +18,8 @@ import {
   CustomLayer,
   InsertCustomLayer,
   policeReports,
-  PoliceReport
+  PoliceReport,
+  magicLinkTokens
 } from "../drizzle/schema.js";
 import { ENV } from './_core/env.js';
 
@@ -42,9 +43,12 @@ export async function getDb() {
   return _db;
 }
 
+// REMOVED: Broken db wrapper that returned Promises instead of builders
+
 export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
+  // Support both openId (OAuth) and email (magic link) based auth
+  if (!user.openId && !user.email) {
+    throw new Error("User openId or email is required for upsert");
   }
 
   const db = await getDb();
@@ -56,10 +60,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   try {
     const values: InsertUser = {
       openId: user.openId,
+      email: user.email ? user.email.toLowerCase().trim() : undefined,
     };
     const updateSet: Record<string, unknown> = {};
 
-    const textFields = ["name", "email", "loginMethod"] as const;
+    const textFields = ["name", "loginMethod"] as const;
     type TextField = (typeof textFields)[number];
 
     const assignNullable = (field: TextField) => {
@@ -72,6 +77,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
     textFields.forEach(assignNullable);
 
+    // Handle email separately with normalization
+    if (user.email !== undefined) {
+      const normalized = user.email ? user.email.toLowerCase().trim() : null;
+      values.email = normalized;
+      updateSet.email = normalized;
+    }
+
     if (user.lastSignedIn !== undefined) {
       values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
@@ -79,7 +91,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
+    } else if (user.openId === ENV.ownerOpenId || user.email === ENV.ownerEmail) {
       values.role = 'admin';
       updateSet.role = 'admin';
     }
@@ -92,9 +104,10 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    // Postgres upsert (onConflictDoUpdate)
+    // Postgres upsert (onConflictDoUpdate) - use email if openId not available
+    const conflictTarget = user.openId ? users.openId : users.email;
     await db.insert(users).values(values).onConflictDoUpdate({
-      target: users.openId,
+      target: conflictTarget,
       set: updateSet,
     });
   } catch (error) {
@@ -113,6 +126,60 @@ export async function getUserByOpenId(openId: string) {
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
 
   return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const result = await db.select().from(users).where(eq(users.email, normalizedEmail)).limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot get user: database not available");
+    return undefined;
+  }
+
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createUserWithEmail(email: string, name?: string): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create user: database not available");
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  try {
+    await db.insert(users).values({
+      email: normalizedEmail,
+      name: name || null,
+      loginMethod: 'magic_link',
+      lastSignedIn: new Date(),
+    });
+  } catch (error) {
+    console.error("[Database] Failed to create user:", error);
+    throw error;
+  }
+}
+
+export async function updateUserLastSignedIn(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, userId));
 }
 
 // Map Settings Queries
@@ -249,6 +316,14 @@ export async function upsertCustomLayer(layer: InsertCustomLayer): Promise<void>
   }
 }
 
+
+export async function getCustomLayerById(id: number): Promise<CustomLayer | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(customLayers).where(eq(customLayers.id, id)).limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
 
 export async function deleteCustomLayer(id: number): Promise<void> {
   const db = await getDb();

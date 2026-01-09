@@ -28,6 +28,13 @@ export function useAuth(options?: UseAuthOptions) {
     try {
       await logoutMutation.mutateAsync();
     } catch (error: unknown) {
+      // Fallback to REST API if tRPC fails
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch (fetchError) {
+        console.error('Logout failed:', fetchError);
+      }
+
       if (
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
@@ -38,6 +45,8 @@ export function useAuth(options?: UseAuthOptions) {
     } finally {
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      // Force reload to clear any cached state
+      window.location.reload();
     }
   }, [logoutMutation, utils]);
 
