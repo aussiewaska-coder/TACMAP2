@@ -123,7 +123,9 @@ function VerticalSlider({
         // Inverted: top = max, bottom = min
         const pct = (1 - Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))) * 100;
         const rawValue = percentToValue(pct);
-        return Math.round(rawValue / step) * step;
+        // Round to step and clamp to range
+        const stepped = Math.round(rawValue / step) * step;
+        return Math.max(min, Math.min(max, Math.round(stepped)));
     }, [value, min, max, step, logarithmic]);
 
     const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -154,8 +156,9 @@ function VerticalSlider({
         };
     }, [getValueFromEvent, onChange]);
 
-    // Format display value
-    const displayValue = value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toString();
+    // Format display value - always integers
+    const roundedValue = Math.round(value);
+    const displayValue = roundedValue >= 1000 ? `${(roundedValue / 1000).toFixed(1)}k` : roundedValue.toString();
 
     return (
         <div className="flex flex-col items-center gap-1 select-none">
