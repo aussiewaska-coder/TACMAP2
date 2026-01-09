@@ -2,9 +2,12 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Map, Settings, Layers, Database, AlertTriangle } from "lucide-react";
+import { MagicLinkLoginModal } from "@/components/MagicLinkLoginModal";
+import { useState } from "react";
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -38,9 +41,16 @@ export default function Home() {
                 </Button>
               </>
             ) : (
-              <Link href="/map">
-                <Button>Enter Map</Button>
-              </Link>
+              <>
+                <Button onClick={() => setLoginModalOpen(true)}>
+                  Login
+                </Button>
+                <Link href="/map">
+                  <Button variant="outline">
+                    Enter Map
+                  </Button>
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -173,6 +183,8 @@ export default function Home() {
           <p className="text-sm mt-2">Ready for your custom data layers and integrations</p>
         </div>
       </footer>
+
+      <MagicLinkLoginModal open={loginModalOpen} onOpenChange={setLoginModalOpen} />
     </div>
   );
 }
