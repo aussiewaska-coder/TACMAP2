@@ -8,7 +8,6 @@ import { StatusIndicator } from './StatusIndicator';
 import { KeyboardControls } from '@/components/controls/KeyboardControls';
 import { PluginLoader } from '@/plugins/PluginLoader';
 import { UserLocationLayer } from '@/layers/live/UserLocationLayer';
-import { FlightDashboard } from '@/components/overlays/FlightDashboard';
 
 interface MapLayoutProps {
     /** Additional CSS classes */
@@ -43,8 +42,6 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
             {/* Police alerts are now in the sidebar's "Alerts" tab */}
             <UnifiedSidebar />
 
-            {/* Tactical Flight Dashboard - HUD overlay */}
-            <FlightDashboard />
 
             {/* User location with heading indicator */}
             <UserLocationLayer />
