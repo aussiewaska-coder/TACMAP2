@@ -3,6 +3,9 @@
 
 import type { CanonicalAlert } from '../types.js';
 import { normalizeGeoJSON } from './geojson.js';
+import { normalizeRSS } from './rss.js';
+import { normalizeCAP } from './cap.js';
+import { normalizeArcGIS } from './arcgis.js';
 
 export async function normalizeAlerts(
     data: any,
@@ -18,19 +21,13 @@ export async function normalizeAlerts(
 
             case 'rss':
             case 'georss':
-                // TODO: Implement RSS/GeoRSS normalizer
-                console.warn(`RSS/GeoRSS normalizer not yet implemented for ${sourceId}`);
-                return [];
+                return normalizeRSS(data as string, sourceId, registryEntry);
 
             case 'cap':
-                // TODO: Implement CAP-AU normalizer
-                console.warn(`CAP normalizer not yet implemented for ${sourceId}`);
-                return [];
+                return normalizeCAP(data as string, sourceId, registryEntry);
 
             case 'arcgis':
-                // TODO: Implement ArcGIS normalizer
-                console.warn(`ArcGIS normalizer not yet implemented for ${sourceId}`);
-                return [];
+                return normalizeArcGIS(data, sourceId, registryEntry);
 
             default:
                 console.warn(`Unknown stream type: ${streamType} for ${sourceId}`);

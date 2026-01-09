@@ -55,38 +55,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const allAlerts: CanonicalAlert[] = [];
         let stale = false;
 
-        for (const source of alertSources.slice(0, 5)) { // Limit to first 5 sources for now
-            try {
-                const result = await fetchWithCache(
-                    `emergency:alerts:${source.source_id}`,
-                    async () => {
-                        const response = await fetch(source.endpoint_url);
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
+        // Process in batches or limit to avoid timeout
+        const MAX_SOURCES = 50;
+        const processingSources = alertSources.slice(0, MAX_SOURCES);
+
+        console.log(`Processing ${processingSources.length} alert sources...`);
+
+        const results = await Promise.all(
+            processingSources.map(async (source) => {
+                try {
+                    const result = await fetchWithCache(
+                        `emergency:alerts:${source.source_id}`,
+                        async () => {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per source
+
+                            try {
+                                const response = await fetch(source.endpoint_url, { signal: controller.signal });
+                                clearTimeout(timeoutId);
+
+                                if (!response.ok) {
+                                    throw new Error(`HTTP ${response.status}`);
+                                }
+
+                                const contentType = response.headers.get('content-type');
+                                if (contentType?.includes('json')) {
+                                    return await response.json();
+                                } else {
+                                    return await response.text();
+                                }
+                            } catch (e) {
+                                clearTimeout(timeoutId);
+                                throw e;
+                            }
+                        },
+                        {
+                            ttlSeconds: 60, // 1 minute cache for alerts
+                            staleWhileRevalidateSeconds: 300,
                         }
-                        const contentType = response.headers.get('content-type');
-                        if (contentType?.includes('json')) {
-                            return await response.json();
-                        } else {
-                            return await response.text();
-                        }
-                    },
-                    {
-                        ttlSeconds: 30, // 30 second cache for alerts
-                        staleWhileRevalidateSeconds: 120,
+                    );
+
+                    if (result.stale) stale = true;
+
+                    if (result.data) {
+                        const normalized = await normalizeAlerts(result.data, source.source_id, source);
+                        console.log(`Source ${source.source_id}: Found ${normalized.length} alerts (${source.stream_type})`);
+                        return normalized;
                     }
-                );
-
-                if (result.stale) stale = true;
-
-                if (result.data) {
-                    const normalized = await normalizeAlerts(result.data, source.source_id, source);
-                    allAlerts.push(...normalized);
+                } catch (error) {
+                    console.error(`Failed to fetch alerts from ${source.source_id}:`, error);
                 }
-            } catch (error) {
-                console.error(`Failed to fetch alerts from ${source.source_id}:`, error);
-            }
+                return [];
+            })
+        );
+
+        for (const alerts of results) {
+            if (alerts) allAlerts.push(...alerts);
         }
+        console.log(`Final aggregation: ${allAlerts.length} total alerts from ${processingSources.length} sources`);
 
         // Sort by severity and recency
         allAlerts.sort((a, b) => {

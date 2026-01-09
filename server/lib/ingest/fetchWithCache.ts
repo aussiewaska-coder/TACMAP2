@@ -71,10 +71,14 @@ export async function fetchWithCache<T>(
     } catch (error) {
         console.error('fetchWithCache error:', error);
 
-        // Try to return stale data on error
+        // Try to return stale data on error only if we haven't already failed here
         try {
-            const redis = await getRedisClient();
-            if (redis) {
+            const redisUrl = process.env.KV_REST_API_URL;
+            const redisToken = process.env.KV_REST_API_TOKEN;
+
+            if (redisUrl && redisToken) {
+                const { createClient } = await import('@vercel/kv');
+                const redis = createClient({ url: redisUrl, token: redisToken });
                 const cached = await redis.get(cacheKey);
                 if (cached) {
                     return {
@@ -85,7 +89,7 @@ export async function fetchWithCache<T>(
                 }
             }
         } catch (cacheError) {
-            console.error('Failed to retrieve stale cache:', cacheError);
+            // Silently fail cache retrieval on error
         }
 
         return {
@@ -121,22 +125,16 @@ async function refreshCache<T>(
  */
 async function getRedisClient() {
     try {
-        // Check if Redis URL is configured
-        const redisUrl = process.env.KV_REST_API_URL || process.env.REDIS_URL;
+        const url = process.env.KV_REST_API_URL;
+        const token = process.env.KV_REST_API_TOKEN;
 
-        if (!redisUrl) {
-            console.warn('No Redis URL configured, caching disabled');
+        if (!url || !token) {
             return null;
         }
 
-        // Use Vercel KV
         const { createClient } = await import('@vercel/kv');
-        return createClient({
-            url: process.env.KV_REST_API_URL!,
-            token: process.env.KV_REST_API_TOKEN!,
-        });
+        return createClient({ url, token });
     } catch (error) {
-        console.error('Failed to create Redis client:', error);
         return null;
     }
 }
