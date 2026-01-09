@@ -73,8 +73,14 @@ export function FlightButton() {
 
         stopFlight();
 
+        // Switch to globe projection
+        const proj = map.getProjection();
+        const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
+
         // Set default flight parameters: 3K altitude, 280 speed, 70° tilt, keep current heading
         const store = useFlightStore.getState();
+        store.setPrevProjection(currentProj);
+        map.setProjection({ type: 'globe' });
         store.setMode('pan');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
         store.setSpeed(280);            // Set actual speed
@@ -165,7 +171,13 @@ export function FlightButton() {
 
         stopFlight();
 
+        // Switch to globe projection
+        const proj = map.getProjection();
+        const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
+
         const store = useFlightStore.getState();
+        store.setPrevProjection(currentProj);
+        map.setProjection({ type: 'globe' });
 
         // Use provided center, existing orbit center, or screen center
         const orbitCenter: [number, number] = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
