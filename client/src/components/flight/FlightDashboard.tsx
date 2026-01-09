@@ -1,4 +1,4 @@
-import { X, Plane, RotateCw, Satellite, Building2 } from 'lucide-react';
+import { X, Plane, RotateCw, Satellite, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
@@ -341,6 +341,11 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
         onHeadingChange((current + direction * step + 360) % 360);
     }, [heading, targetHeading, onHeadingChange]);
 
+    const nudgeHeading = useCallback((delta: number) => {
+        const current = targetHeading ?? heading;
+        onHeadingChange((current + delta + 360) % 360);
+    }, [heading, targetHeading, onHeadingChange]);
+
     useEffect(() => {
         const handleMove = (e: MouseEvent | TouchEvent) => {
             if (!isDragging.current) return;
@@ -431,10 +436,36 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
                     <div className="w-0 h-0 border-l-[5px] border-r-[5px] border-b-[10px] border-l-transparent border-r-transparent border-b-green-400 -translate-y-3 drop-shadow-[0_0_3px_rgba(74,222,128,0.5)]" />
                 </div>
 
-                {/* Center dot */}
+                {/* Center plane icon */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-lg shadow-green-400/50" />
+                    <Plane className="w-4 h-4 text-green-300 drop-shadow-[0_0_6px_rgba(74,222,128,0.6)] -rotate-90" />
                 </div>
+
+                {/* Heading nudge buttons */}
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        nudgeHeading(-15);
+                    }}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-black/80 border border-green-500/40 text-green-300 shadow-lg shadow-green-500/20 hover:bg-green-500/20 active:scale-95 flex items-center justify-center"
+                    title="Turn left 15°"
+                >
+                    <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        nudgeHeading(15);
+                    }}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-6 h-6 rounded-full bg-black/80 border border-green-500/40 text-green-300 shadow-lg shadow-green-500/20 hover:bg-green-500/20 active:scale-95 flex items-center justify-center"
+                    title="Turn right 15°"
+                >
+                    <ChevronRight className="w-4 h-4" />
+                </button>
             </div>
 
             {/* Heading readout - show target if turning */}
