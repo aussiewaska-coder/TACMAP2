@@ -223,25 +223,81 @@ export function EmergencyPanel() {
 
         const sourceId = 'emergency-alerts-source';
         const iconLayerId = 'emergency-alerts-icons';
+        const glowLayerId = 'emergency-alerts-glow';
+        const clusterLayerId = 'emergency-clusters';
+        const clusterCountLayerId = 'emergency-cluster-count';
 
-        // Add or update source
+        // Add or update source with clustering
         if (!map.getSource(sourceId)) {
             map.addSource(sourceId, {
                 type: 'geojson',
                 data: alertsData as any,
+                cluster: true,
+                clusterMaxZoom: 14,
+                clusterRadius: 50,
             });
         } else {
             const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
             if (source) source.setData(alertsData as any);
         }
 
-        // 1. Add Severity Glow Layer (Under-icon accent)
-        const glowLayerId = 'emergency-alerts-glow';
+        // 1. Clusters Layer
+        if (!map.getLayer(clusterLayerId)) {
+            map.addLayer({
+                id: clusterLayerId,
+                type: 'circle',
+                source: sourceId,
+                filter: ['has', 'point_count'],
+                paint: {
+                    'circle-color': [
+                        'step',
+                        ['get', 'point_count'],
+                        '#fbbf24', // Yellow 400
+                        10,
+                        '#f59e0b', // Amber 500
+                        50,
+                        '#ef4444' // Red 500
+                    ],
+                    'circle-radius': [
+                        'step',
+                        ['get', 'point_count'],
+                        15,
+                        10,
+                        20,
+                        50,
+                        25
+                    ],
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#ffffff',
+                }
+            });
+        }
+
+        // 2. Cluster Count Layer
+        if (!map.getLayer(clusterCountLayerId)) {
+            map.addLayer({
+                id: clusterCountLayerId,
+                type: 'symbol',
+                source: sourceId,
+                filter: ['has', 'point_count'],
+                layout: {
+                    'text-field': '{point_count_abbreviated}',
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    'text-size': 12,
+                },
+                paint: {
+                    'text-color': '#ffffff'
+                }
+            });
+        }
+
+        // 3. Unclustered: Severity Glow Layer (Under-icon accent)
         if (!map.getLayer(glowLayerId)) {
             map.addLayer({
                 id: glowLayerId,
                 type: 'circle',
                 source: sourceId,
+                filter: ['!', ['has', 'point_count']],
                 paint: {
                     'circle-radius': [
                         'interpolate', ['linear'], ['zoom'],
@@ -264,12 +320,13 @@ export function EmergencyPanel() {
             });
         }
 
-        // 2. Add Alert Icons Symbol Layer
+        // 4. Unclustered: Alert Icons Symbol Layer
         if (!map.getLayer(iconLayerId)) {
             map.addLayer({
                 id: iconLayerId,
                 type: 'symbol',
                 source: sourceId,
+                filter: ['!', ['has', 'point_count']],
                 layout: {
                     'icon-image': ['get', 'markerIcon'],
                     'icon-size': [
@@ -319,28 +376,48 @@ export function EmergencyPanel() {
                 .addTo(map);
         };
 
+        const handleClusterClick = (e: any) => {
+            const features = map.queryRenderedFeatures(e.point, { layers: [clusterLayerId] });
+            const clusterId = features[0].properties.cluster_id;
+            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            if (source && (source as any).getClusterExpansionZoom) {
+                (source as any).getClusterExpansionZoom(clusterId, (err: any, zoom?: number) => {
+                    if (err) return;
+                    map.easeTo({
+                        center: (features[0].geometry as any).coordinates,
+                        zoom: (zoom || 0) + 1
+                    });
+                });
+            }
+        };
+
         map.on('click', iconLayerId, handleAlertClick);
         map.on('click', glowLayerId, handleAlertClick);
+        map.on('click', clusterLayerId, handleClusterClick);
 
         // Change cursor on hover
-        const setPointer = () => map.getCanvas().style.cursor = 'pointer';
-        const setGrab = () => map.getCanvas().style.cursor = '';
+        const setPointer = () => { if (map) map.getCanvas().style.cursor = 'pointer'; };
+        const setGrab = () => { if (map) map.getCanvas().style.cursor = ''; };
 
-        map.on('mouseenter', iconLayerId, setPointer);
-        map.on('mouseleave', iconLayerId, setGrab);
-        map.on('mouseenter', glowLayerId, setPointer);
-        map.on('mouseleave', glowLayerId, setGrab);
+        const interactiveLayers = [iconLayerId, glowLayerId, clusterLayerId];
+        interactiveLayers.forEach(lyr => {
+            map.on('mouseenter', lyr, setPointer);
+            map.on('mouseleave', lyr, setGrab);
+        });
 
         return () => {
             if (map) {
                 map.off('click', iconLayerId, handleAlertClick);
                 map.off('click', glowLayerId, handleAlertClick);
-                map.off('mouseenter', iconLayerId, setPointer);
-                map.off('mouseleave', iconLayerId, setGrab);
-                map.off('mouseenter', glowLayerId, setPointer);
-                map.off('mouseleave', glowLayerId, setGrab);
+                map.off('click', clusterLayerId, handleClusterClick);
+                interactiveLayers.forEach(lyr => {
+                    map.off('mouseenter', lyr, setPointer);
+                    map.off('mouseleave', lyr, setGrab);
+                });
                 if (map.getLayer(iconLayerId)) map.removeLayer(iconLayerId);
                 if (map.getLayer(glowLayerId)) map.removeLayer(glowLayerId);
+                if (map.getLayer(clusterLayerId)) map.removeLayer(clusterLayerId);
+                if (map.getLayer(clusterCountLayerId)) map.removeLayer(clusterCountLayerId);
                 if (map.getSource(sourceId)) map.removeSource(sourceId);
             }
         };
