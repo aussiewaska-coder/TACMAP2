@@ -1,5 +1,5 @@
 // PluginLoader - Handles plugin initialization and lifecycle
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMapStore } from '@/stores';
 import { pluginRegistry } from '@/plugins/registry';
 import { registerAllPlugins } from '@/plugins';
@@ -36,8 +36,14 @@ export function PluginLoader() {
         enableDefaults();
 
         return () => {
-            console.log('[Plugins] Cleaning up plugins...');
-            pluginRegistry.disableAll();
+            // Check if we should cleanup - if map is null, MapCore already signaled destruction
+            const currentMap = useMapStore.getState().map;
+            if (currentMap) {
+                console.log('[Plugins] Cleaning up plugins...');
+                pluginRegistry.disableAll();
+            } else {
+                console.log('[Plugins] Map already destroyed, skipping cleanup');
+            }
             pluginRegistry.setMap(null);
         };
     }, [map, isLoaded]);

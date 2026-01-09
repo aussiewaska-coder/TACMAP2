@@ -5,6 +5,7 @@ import type { Map as MapLibreGLMap, StyleSpecification } from 'maplibre-gl';
 import { definePlugin, type PluginInstance, type PluginConfig } from '../registry';
 import { MAP_CONFIG } from '@/core/constants';
 import { eventBus } from '@/events/EventBus';
+import { isMapValid } from '@/utils/mapUtils';
 
 export interface BasemapStyle {
     id: string;
@@ -214,6 +215,8 @@ class BasemapPluginInstance implements PluginInstance {
      * Set the basemap style
      */
     async setStyle(styleId: string): Promise<void> {
+        if (!isMapValid(this.map)) return;
+
         const style = this.styles.find((s) => s.id === styleId);
         if (!style) {
             console.warn(`[BasemapPlugin] Style "${styleId}" not found`);

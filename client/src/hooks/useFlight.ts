@@ -13,21 +13,11 @@ import {
     speedToDegreesPerMs,
     destinationPoint,
 } from '@/utils/geodesic';
+import { isMapValid, safeRemoveLayer, safeRemoveSource } from '@/utils/mapUtils';
 
 // Route layer configuration
 const ROUTE_SOURCE_ID = 'flight-route-source';
 const ROUTE_LAYER_ID = 'flight-route-layer';
-
-// Helper to check if map is valid and ready for operations
-function isMapReady(map: maplibregl.Map | null): map is maplibregl.Map {
-    if (!map) return false;
-    try {
-        // Check if map is not removed and has a valid style
-        return !!map.getStyle();
-    } catch {
-        return false;
-    }
-}
 
 export function useFlight() {
     const map = useMapStore((state) => state.map);
@@ -57,21 +47,11 @@ export function useFlight() {
         };
     }, []);
 
-    // Remove route layer from map - reads map directly from store to avoid stale closures
+    // Remove route layer from map - uses safe utilities
     const removeRouteLayer = useCallback(() => {
         const currentMap = useMapStore.getState().map;
-        if (!isMapReady(currentMap)) return;
-
-        try {
-            if (currentMap.getLayer(ROUTE_LAYER_ID)) {
-                currentMap.removeLayer(ROUTE_LAYER_ID);
-            }
-            if (currentMap.getSource(ROUTE_SOURCE_ID)) {
-                currentMap.removeSource(ROUTE_SOURCE_ID);
-            }
-        } catch (e) {
-            // Ignore errors - map may be in invalid state
-        }
+        safeRemoveLayer(currentMap, ROUTE_LAYER_ID);
+        safeRemoveSource(currentMap, ROUTE_SOURCE_ID);
 
         if (isMountedRef.current) {
             setRouteGeometry(null);
@@ -91,7 +71,7 @@ export function useFlight() {
         const prevProj = useFlightStore.getState().previousProjection;
 
         // Restore previous projection
-        if (prevProj && isMapReady(currentMap)) {
+        if (prevProj && isMapValid(currentMap)) {
             try {
                 currentMap.setProjection({ type: prevProj as any });
             } catch (e) {
@@ -113,7 +93,7 @@ export function useFlight() {
     // Add route layer to map
     const addRouteLayer = useCallback((geometry: GeoJSON.LineString) => {
         const currentMap = useMapStore.getState().map;
-        if (!isMapReady(currentMap)) return;
+        if (!isMapValid(currentMap)) return;
 
         // Remove existing layer if any
         removeRouteLayer();
@@ -153,7 +133,7 @@ export function useFlight() {
     // Manual flight animation
     const startManualFlight = useCallback(() => {
         const currentMap = useMapStore.getState().map;
-        if (!isMapReady(currentMap) || isStartingRef.current) return;
+        if (!isMapValid(currentMap) || isStartingRef.current) return;
         isStartingRef.current = true;
 
         // Cancel any existing animation
@@ -165,7 +145,7 @@ export function useFlight() {
 
         const go = (timestamp: number) => {
             const mapNow = useMapStore.getState().map;
-            if (!isMapReady(mapNow) || !isMountedRef.current) {
+            if (!isMapValid(mapNow) || !isMountedRef.current) {
                 flightRef.current = null;
                 return;
             }
@@ -225,7 +205,7 @@ export function useFlight() {
     const startAutopilotFlight = useCallback(() => {
         const currentMap = useMapStore.getState().map;
         const dest = useFlightStore.getState().destination;
-        if (!isMapReady(currentMap) || !dest || isStartingRef.current) return;
+        if (!isMapValid(currentMap) || !dest || isStartingRef.current) return;
         isStartingRef.current = true;
 
         // Cancel any existing animation
@@ -238,7 +218,8 @@ export function useFlight() {
 
         try {
             // Save current projection and switch to globe
-            const currentProj = currentMap.getProjection()?.type || 'mercator';
+            const projType = currentMap.getProjection()?.type;
+            const currentProj = typeof projType === 'string' ? projType : 'mercator';
             setPreviousProjection(currentProj);
             currentMap.setProjection({ type: 'globe' });
         } catch (e) {
@@ -257,7 +238,7 @@ export function useFlight() {
         const go = (timestamp: number) => {
             const mapNow = useMapStore.getState().map;
             const destNow = useFlightStore.getState().destination;
-            if (!isMapReady(mapNow) || !isMountedRef.current) {
+            if (!isMapValid(mapNow) || !isMountedRef.current) {
                 flightRef.current = null;
                 return;
             }
@@ -329,7 +310,7 @@ export function useFlight() {
     useEffect(() => {
         // Don't do anything if map isn't ready
         const currentMap = useMapStore.getState().map;
-        if (!isMapReady(currentMap)) return;
+        if (!isMapValid(currentMap)) return;
 
         // Skip if already animating (prevents re-entry)
         if (flightRef.current && mode !== 'off') return;
@@ -356,7 +337,7 @@ export function useFlight() {
 
     // Stop flight on user map interaction
     useEffect(() => {
-        if (!isMapReady(map)) return;
+        if (!isMapValid(map)) return;
 
         const stop = () => {
             if (flightRef.current) {
@@ -387,7 +368,7 @@ export function useFlight() {
 
     // Initialize telemetry from current map position
     useEffect(() => {
-        if (!isMapReady(map)) return;
+        if (!isMapValid(map)) return;
 
         try {
             const center = map.getCenter();

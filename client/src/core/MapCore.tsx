@@ -248,12 +248,15 @@ export function MapCore({ className = '' }: MapCoreProps) {
         initializeMap();
 
         // Cleanup on unmount
+        // IMPORTANT: Set store to null BEFORE destroying map
+        // This allows other components' cleanup effects to see null and skip map operations
         return () => {
             if (mapRef.current) {
-                mapRef.current.remove();
+                const mapToDestroy = mapRef.current;
                 mapRef.current = null;
-                setMap(null);
+                setMap(null);       // Signal to other components first
                 setLoaded(false);
+                mapToDestroy.remove();  // Then destroy the map
             }
         };
     }, [initializeMap, setMap, setLoaded]);

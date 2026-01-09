@@ -6,6 +6,7 @@ import maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import { definePlugin, type PluginInstance, type PluginConfig } from '../registry';
 import { eventBus } from '@/events/EventBus';
+import { isMapValid, safeRemoveLayer, safeRemoveSource } from '@/utils/mapUtils';
 
 export type MeasurementMode = 'none' | 'distance' | 'area';
 
@@ -157,7 +158,13 @@ class MeasurementPluginInstance implements PluginInstance {
     stopMeasurement(): void {
         this.mode = 'none';
         this.points = [];
-        this.map.getCanvas().style.cursor = '';
+        if (isMapValid(this.map)) {
+            try {
+                this.map.getCanvas().style.cursor = '';
+            } catch {
+                // Ignore if canvas not accessible
+            }
+        }
         this.detachHandlers();
         this.updateDisplay();
     }
@@ -311,17 +318,28 @@ class MeasurementPluginInstance implements PluginInstance {
      * Detach event handlers
      */
     private detachHandlers(): void {
-        if (this.clickHandler) {
-            this.map.off('click', this.clickHandler);
+        if (!isMapValid(this.map)) {
+            // Map is gone, just clear refs
             this.clickHandler = null;
-        }
-        if (this.dblClickHandler) {
-            this.map.off('dblclick', this.dblClickHandler);
             this.dblClickHandler = null;
-        }
-        if (this.moveHandler) {
-            this.map.off('mousemove', this.moveHandler);
             this.moveHandler = null;
+            return;
+        }
+        try {
+            if (this.clickHandler) {
+                this.map.off('click', this.clickHandler);
+                this.clickHandler = null;
+            }
+            if (this.dblClickHandler) {
+                this.map.off('dblclick', this.dblClickHandler);
+                this.dblClickHandler = null;
+            }
+            if (this.moveHandler) {
+                this.map.off('mousemove', this.moveHandler);
+                this.moveHandler = null;
+            }
+        } catch {
+            // Ignore errors during cleanup
         }
     }
 
@@ -329,7 +347,13 @@ class MeasurementPluginInstance implements PluginInstance {
      * Update map display
      */
     private updateDisplay(): void {
-        const source = this.map.getSource(this.sourceId) as GeoJSONSource;
+        if (!isMapValid(this.map)) return;
+        let source: GeoJSONSource | undefined;
+        try {
+            source = this.map.getSource(this.sourceId) as GeoJSONSource;
+        } catch {
+            return;
+        }
         if (!source) return;
 
         const features: GeoJSON.Feature[] = [];
@@ -402,18 +426,11 @@ class MeasurementPluginInstance implements PluginInstance {
     async destroy(): Promise<void> {
         this.stopMeasurement();
 
-        if (this.map.getLayer(this.pointLayerId)) {
-            this.map.removeLayer(this.pointLayerId);
-        }
-        if (this.map.getLayer(this.lineLayerId)) {
-            this.map.removeLayer(this.lineLayerId);
-        }
-        if (this.map.getLayer(this.areaLayerId)) {
-            this.map.removeLayer(this.areaLayerId);
-        }
-        if (this.map.getSource(this.sourceId)) {
-            this.map.removeSource(this.sourceId);
-        }
+        // Use safe utilities to avoid errors if map is already destroyed
+        safeRemoveLayer(this.map, this.pointLayerId);
+        safeRemoveLayer(this.map, this.lineLayerId);
+        safeRemoveLayer(this.map, this.areaLayerId);
+        safeRemoveSource(this.map, this.sourceId);
     }
 }
 

@@ -3,6 +3,7 @@
 
 import type { Map as MapLibreGLMap } from 'maplibre-gl';
 import { definePlugin, type PluginInstance, type PluginConfig } from '../registry';
+import { isMapValid, safeRemoveLayer, safeRemoveSource } from '@/utils/mapUtils';
 
 export interface WeatherPluginConfig extends PluginConfig {
     /** Auto-refresh interval in ms (0 = disabled) */
@@ -153,12 +154,9 @@ class WeatherPluginInstance implements PluginInstance {
 
         this.stopAutoRefresh();
 
-        if (this.map.getLayer(this.layerId)) {
-            this.map.removeLayer(this.layerId);
-        }
-        if (this.map.getSource(this.sourceId)) {
-            this.map.removeSource(this.sourceId);
-        }
+        // Use safe utilities to avoid errors if map is destroyed
+        safeRemoveLayer(this.map, this.layerId);
+        safeRemoveSource(this.map, this.sourceId);
 
         this.isVisible = false;
     }
@@ -179,16 +177,22 @@ class WeatherPluginInstance implements PluginInstance {
      * Refresh the radar tiles with latest metadata
      */
     async refresh(): Promise<void> {
+        if (!isMapValid(this.map)) return;
+
         const metadata = await this.fetchMetadata();
         if (!metadata || metadata.timestamp === this.currentTimestamp) return;
 
         this.currentTimestamp = metadata.timestamp;
         const tileUrl = `${metadata.host}/v2/radar/${metadata.timestamp}/256/{z}/{x}/{y}/2/1_1.png`;
 
-        const source = this.map.getSource(this.sourceId) as any;
-        if (source && 'setTiles' in source) {
-            source.setTiles([tileUrl]);
-            console.log('[WeatherPlugin] Radar tiles updated:', metadata.timestamp);
+        try {
+            const source = this.map.getSource(this.sourceId) as any;
+            if (source && 'setTiles' in source) {
+                source.setTiles([tileUrl]);
+                console.log('[WeatherPlugin] Radar tiles updated:', metadata.timestamp);
+            }
+        } catch {
+            // Ignore errors if map is destroyed
         }
     }
 
@@ -220,8 +224,13 @@ class WeatherPluginInstance implements PluginInstance {
     setOpacity(opacity: number): void {
         this.config.opacity = Math.max(0, Math.min(1, opacity));
 
-        if (this.map.getLayer(this.layerId)) {
-            this.map.setPaintProperty(this.layerId, 'raster-opacity', this.config.opacity);
+        if (!isMapValid(this.map)) return;
+        try {
+            if (this.map.getLayer(this.layerId)) {
+                this.map.setPaintProperty(this.layerId, 'raster-opacity', this.config.opacity);
+            }
+        } catch {
+            // Ignore errors if map is destroyed
         }
     }
 

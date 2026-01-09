@@ -4,6 +4,7 @@
 import type { Map as MapLibreGLMap, GeoJSONSource } from 'maplibre-gl';
 import { definePlugin, type PluginInstance, type PluginConfig } from '../registry';
 import { eventBus } from '@/events/EventBus';
+import { isMapValid, safeRemoveLayer, safeRemoveSource } from '@/utils/mapUtils';
 
 export interface RouteStep {
     instruction: string;
@@ -201,27 +202,32 @@ class DirectionsPluginInstance implements PluginInstance {
      * Display route on map
      */
     private displayRoute(route: Route): void {
-        const source = this.map.getSource(this.sourceId) as GeoJSONSource;
-        if (source) {
-            source.setData({
-                type: 'Feature',
-                properties: {},
-                geometry: route.geometry,
-            });
-        }
+        if (!isMapValid(this.map)) return;
+        try {
+            const source = this.map.getSource(this.sourceId) as GeoJSONSource;
+            if (source) {
+                source.setData({
+                    type: 'Feature',
+                    properties: {},
+                    geometry: route.geometry,
+                });
+            }
 
-        // Fit bounds to route
-        const coords = route.geometry.coordinates as [number, number][];
-        if (coords.length > 0) {
-            const bounds = coords.reduce(
-                (bounds, coord) => bounds.extend(coord),
-                new maplibregl.LngLatBounds(coords[0], coords[0])
-            );
+            // Fit bounds to route
+            const coords = route.geometry.coordinates as [number, number][];
+            if (coords.length > 0) {
+                const bounds = coords.reduce(
+                    (bounds, coord) => bounds.extend(coord),
+                    new maplibregl.LngLatBounds(coords[0], coords[0])
+                );
 
-            this.map.fitBounds(bounds, {
-                padding: 50,
-                duration: 1000,
-            });
+                this.map.fitBounds(bounds, {
+                    padding: 50,
+                    duration: 1000,
+                });
+            }
+        } catch {
+            // Ignore errors if map is destroyed
         }
     }
 
@@ -229,12 +235,17 @@ class DirectionsPluginInstance implements PluginInstance {
      * Clear the current route from the map
      */
     clearRoute(): void {
-        const source = this.map.getSource(this.sourceId) as GeoJSONSource;
-        if (source) {
-            source.setData({
-                type: 'FeatureCollection',
-                features: [],
-            });
+        if (!isMapValid(this.map)) return;
+        try {
+            const source = this.map.getSource(this.sourceId) as GeoJSONSource;
+            if (source) {
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: [],
+                });
+            }
+        } catch {
+            // Ignore errors if map is destroyed
         }
     }
 
@@ -265,13 +276,18 @@ class DirectionsPluginInstance implements PluginInstance {
         this.config = { ...this.config, ...config };
 
         // Update layer style if needed
-        if (this.map.getLayer(this.layerId)) {
-            if (config.routeColor) {
-                this.map.setPaintProperty(this.layerId, 'line-color', config.routeColor);
+        if (!isMapValid(this.map)) return;
+        try {
+            if (this.map.getLayer(this.layerId)) {
+                if (config.routeColor) {
+                    this.map.setPaintProperty(this.layerId, 'line-color', config.routeColor);
+                }
+                if (config.routeWidth) {
+                    this.map.setPaintProperty(this.layerId, 'line-width', config.routeWidth);
+                }
             }
-            if (config.routeWidth) {
-                this.map.setPaintProperty(this.layerId, 'line-width', config.routeWidth);
-            }
+        } catch {
+            // Ignore errors if map is destroyed
         }
     }
 
@@ -282,12 +298,9 @@ class DirectionsPluginInstance implements PluginInstance {
     async destroy(): Promise<void> {
         this.clearRoute();
 
-        if (this.map.getLayer(this.layerId)) {
-            this.map.removeLayer(this.layerId);
-        }
-        if (this.map.getSource(this.sourceId)) {
-            this.map.removeSource(this.sourceId);
-        }
+        // Use safe utilities to avoid errors if map is already destroyed
+        safeRemoveLayer(this.map, this.layerId);
+        safeRemoveSource(this.map, this.sourceId);
     }
 }
 
