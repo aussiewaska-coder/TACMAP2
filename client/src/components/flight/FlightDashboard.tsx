@@ -1,4 +1,4 @@
-import { X, Plane, Globe, RotateCw, Satellite, Building2 } from 'lucide-react';
+import { X, Plane, RotateCw, Satellite, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
@@ -13,6 +13,15 @@ const ALTITUDE_PRESETS = [
     { ft: 3000, zoom: 13, label: '3K', speed: 280 },     // Fast helicopter
     { ft: 500, zoom: 16, label: '500', speed: 75 },      // Slow helicopter
 ];
+
+// Smooth easing for heading (handles wrap-around at 360°)
+const easeHeading = (current: number, target: number, delta: number, smoothing: number): number => {
+    let diff = ((target - current + 540) % 360) - 180;
+    if (Math.abs(diff) < 0.5) return target;
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    const turn = diff * ease;
+    return (current + turn + 360) % 360;
+};
 
 // Smooth easing for pitch - exponential ease for natural feel
 const easePitch = (current: number, target: number, delta: number, smoothing: number): number => {
@@ -585,6 +594,90 @@ export function FlightDashboard() {
         return () => clearInterval(interval);
     }, [dashboardOpen, mode]);
 
+    useEffect(() => {
+        if (!dashboardOpen) return;
+        const store = useFlightStore.getState();
+        if (store.mode !== 'off') return;
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        store.setMode('manual');
+        store.setTargetHeading(map.getBearing());
+        store.setTargetPitch(map.getPitch());
+        store.setTargetAltitude(map.getZoom());
+        store.setTargetSpeed(store.speed);
+    }, [dashboardOpen]);
+
+    useEffect(() => {
+        if (!dashboardOpen || mode !== 'manual') return;
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        let lastTime = 0;
+        let currentHeading = map.getBearing();
+        let currentPitch = map.getPitch();
+        let currentZoom = map.getZoom();
+        let currentSpeed = useFlightStore.getState().speed;
+
+        const animate = (time: number) => {
+            const currentMap = useMapStore.getState().map;
+            const store = useFlightStore.getState();
+
+            if (!currentMap || store.mode !== 'manual') {
+                useFlightStore.getState().setAnimationId(null);
+                return;
+            }
+
+            if (lastTime) {
+                const delta = Math.min(time - lastTime, 50);
+                const center = currentMap.getCenter();
+
+                if (store.targetHeading !== null) {
+                    currentHeading = easeHeading(currentHeading, store.targetHeading, delta, 0.12);
+                }
+                if (store.targetPitch !== null) {
+                    currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
+                }
+                if (store.targetAltitude !== null) {
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
+                }
+                if (store.targetSpeed !== null) {
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 0.2);
+                    store.setSpeed(currentSpeed);
+                } else {
+                    currentSpeed = store.speed;
+                }
+
+                const bearingRad = (currentHeading * Math.PI) / 180;
+                const zoomScale = Math.pow(2, (currentZoom - 10) * 0.5);
+                const speedFactor = (currentSpeed / 250) * 0.000001 * zoomScale;
+                const moveDist = speedFactor * delta;
+                const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
+                const newLng = center.lng + Math.sin(bearingRad) * moveDist;
+
+                currentMap.jumpTo({
+                    center: [newLng, newLat],
+                    bearing: currentHeading,
+                    pitch: currentPitch,
+                    zoom: currentZoom
+                });
+            }
+
+            lastTime = time;
+            const id = requestAnimationFrame(animate);
+            useFlightStore.getState().setAnimationId(id);
+        };
+
+        const id = requestAnimationFrame(animate);
+        useFlightStore.getState().setAnimationId(id);
+
+        return () => {
+            const store = useFlightStore.getState();
+            if (store.animationId) cancelAnimationFrame(store.animationId);
+            store.setAnimationId(null);
+        };
+    }, [dashboardOpen, mode]);
+
     // Derive altitude from zoom (two-way: zoom IS altitude)
     // zoom 18 = 500m, zoom 0 = ~130km
     const altitude = Math.round(500 * Math.pow(2, 18 - telemetry.zoom));
@@ -750,19 +843,31 @@ export function FlightDashboard() {
 
     // Apply heading change - set target for smooth easing
     const applyHeading = (newHeading: number) => {
-        useFlightStore.getState().setTargetHeading(newHeading);
+        const store = useFlightStore.getState();
+        if (store.mode !== 'orbit') {
+            store.setMode('manual');
+        }
+        store.setTargetHeading(newHeading);
     };
 
     // Apply altitude change - set target altitude AND speed for smooth easing
     const applyAltitude = (newAlt: number, newSpeed: number) => {
         const store = useFlightStore.getState();
+        if (store.mode !== 'orbit') {
+            store.setMode('manual');
+        }
         store.setTargetAltitude(newAlt);
         store.setTargetSpeed(newSpeed);
+        store.setSpeed(newSpeed);
     };
 
     // Apply pitch/tilt change - set target for smooth easing
     const applyPitch = (newPitch: number) => {
-        useFlightStore.getState().setTargetPitch(newPitch);
+        const store = useFlightStore.getState();
+        if (store.mode !== 'orbit') {
+            store.setMode('manual');
+        }
+        store.setTargetPitch(newPitch);
     };
 
     // Toggle satellite layer on map
@@ -911,7 +1016,12 @@ export function FlightDashboard() {
 
     // Update speed directly (from throttle slider) - also sets target for easing
     const setSpeed = (newSpeed: number) => {
-        useFlightStore.getState().setTargetSpeed(newSpeed);
+        const store = useFlightStore.getState();
+        if (store.mode !== 'orbit') {
+            store.setMode('manual');
+        }
+        store.setTargetSpeed(newSpeed);
+        store.setSpeed(newSpeed);
     };
 
     return (
@@ -1069,10 +1179,14 @@ export function FlightDashboard() {
                                 currentZoom={telemetry.zoom}
                                 onAltitudeChange={(zoom, defaultSpeed) => {
                                     const store = useFlightStore.getState();
+                                    if (store.mode !== 'orbit') {
+                                        store.setMode('manual');
+                                    }
                                     // Set target altitude (zoom level) - animation loop will ease to it
                                     store.setTargetAltitude(zoom);
                                     // Set speed preset for this altitude
                                     store.setSpeed(defaultSpeed);
+                                    store.setTargetSpeed(defaultSpeed);
                                 }}
                             />
 
@@ -1096,16 +1210,6 @@ export function FlightDashboard() {
                             />
                         </div>
                     </div>
-
-                    {/* Projection indicator for sightseeing */}
-                    {mode === 'sightseeing' && (
-                        <div className="px-3 pb-2">
-                            <div className="bg-purple-500/10 border border-purple-500/30 rounded px-2 py-1 flex items-center gap-2">
-                                <Globe className="w-3 h-3 text-purple-400" />
-                                <span className="text-purple-400 text-[10px] font-mono">GLOBE MODE</span>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Stop button - Military style */}
                     <div className="p-3 pt-1">
