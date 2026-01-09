@@ -18,7 +18,7 @@ export interface UseUnifiedAlertsOptions {
 }
 
 export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
-    const { enabled, alertSource, data, showMarkers = true, layerPrefix } = options;
+    const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
 
@@ -63,23 +63,86 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
         }
 
         const sourceId = `${layerPrefix}-source`;
+        const clusterLayerId = `${layerPrefix}-clusters`;
+        const clusterCountLayerId = `${layerPrefix}-cluster-count`;
         const layerId = `${layerPrefix}-dots`;
         const polygonLayerId = `${layerPrefix}-polygons`;
         const polygonOutlineLayerId = `${layerPrefix}-outline`;
 
         console.log(`🎯 RENDERING ${layerPrefix}: ${geoJsonData.features.length} features`);
 
-        // Add source
+        // Add source with clustering enabled
         if (!map.getSource(sourceId)) {
             map.addSource(sourceId, {
                 type: 'geojson',
                 data: geoJsonData as any,
-                cluster: false // NO CLUSTERING - KEEP IT SIMPLE
+                cluster: true,
+                clusterMaxZoom: clusterMaxZoom,
+                clusterRadius: clusterRadius
             });
-            console.log(`✅ Source added: ${sourceId}`);
+            console.log(`✅ Source added: ${sourceId} (clustering enabled: radius=${clusterRadius}, maxZoom=${clusterMaxZoom})`);
         } else {
             (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
             console.log(`✅ Source updated: ${sourceId}`);
+        }
+
+        // Add CLUSTER CIRCLE layer
+        if (!map.getLayer(clusterLayerId)) {
+            map.addLayer({
+                id: clusterLayerId,
+                type: 'circle',
+                source: sourceId,
+                filter: ['has', 'point_count'],
+                paint: {
+                    'circle-color': [
+                        'step',
+                        ['get', 'point_count'],
+                        '#fca5a5', // light red for small clusters
+                        10,
+                        '#f87171', // medium red
+                        50,
+                        '#ef4444', // bright red
+                        100,
+                        '#dc2626'  // dark red for large clusters
+                    ],
+                    'circle-radius': [
+                        'step',
+                        ['get', 'point_count'],
+                        20,  // 20px for < 10
+                        10,
+                        30,  // 30px for 10-50
+                        50,
+                        40,  // 40px for 50-100
+                        100,
+                        50   // 50px for 100+
+                    ],
+                    'circle-stroke-width': 3,
+                    'circle-stroke-color': '#FFFFFF',
+                    'circle-opacity': 0.9
+                },
+                layout: { visibility: showMarkers ? 'visible' : 'none' }
+            });
+            console.log(`✅ Cluster layer added: ${clusterLayerId}`);
+        }
+
+        // Add CLUSTER COUNT TEXT layer
+        if (!map.getLayer(clusterCountLayerId)) {
+            map.addLayer({
+                id: clusterCountLayerId,
+                type: 'symbol',
+                source: sourceId,
+                filter: ['has', 'point_count'],
+                layout: {
+                    'text-field': '{point_count_abbreviated}',
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+                    'text-size': 14,
+                    visibility: showMarkers ? 'visible' : 'none'
+                },
+                paint: {
+                    'text-color': '#FFFFFF'
+                }
+            });
+            console.log(`✅ Cluster count layer added: ${clusterCountLayerId}`);
         }
 
         // Add POLYGON layer (for fire perimeters)
@@ -115,13 +178,16 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             console.log(`✅ Polygon outline layer added`);
         }
 
-        // Add SIMPLE CIRCLE DOTS layer
+        // Add UNCLUSTERED POINTS layer (simple circles)
         if (!map.getLayer(layerId)) {
             map.addLayer({
                 id: layerId,
                 type: 'circle',
                 source: sourceId,
-                filter: ['==', ['geometry-type'], 'Point'],
+                filter: ['all',
+                    ['==', ['geometry-type'], 'Point'],
+                    ['!', ['has', 'point_count']]
+                ],
                 paint: {
                     'circle-radius': 10,
                     'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
@@ -131,10 +197,16 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 },
                 layout: { visibility: showMarkers ? 'visible' : 'none' }
             });
-            console.log(`✅ Circle layer added: ${layerId}`);
+            console.log(`✅ Unclustered points layer added: ${layerId}`);
         }
 
-        // Update visibility
+        // Update visibility for all layers
+        if (map.getLayer(clusterLayerId)) {
+            map.setLayoutProperty(clusterLayerId, 'visibility', showMarkers ? 'visible' : 'none');
+        }
+        if (map.getLayer(clusterCountLayerId)) {
+            map.setLayoutProperty(clusterCountLayerId, 'visibility', showMarkers ? 'visible' : 'none');
+        }
         if (map.getLayer(layerId)) {
             map.setLayoutProperty(layerId, 'visibility', showMarkers ? 'visible' : 'none');
         }
@@ -145,7 +217,26 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             map.setLayoutProperty(polygonOutlineLayerId, 'visibility', showMarkers ? 'visible' : 'none');
         }
 
-        // POPUP CLICK HANDLER
+        // CLUSTER CLICK HANDLER - Zoom into cluster
+        const handleClusterClick = (e: any) => {
+            const features = map.queryRenderedFeatures(e.point, {
+                layers: [clusterLayerId]
+            });
+            if (!features.length) return;
+
+            const clusterId = features[0].properties?.cluster_id;
+            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+
+            source.getClusterExpansionZoom(clusterId, (err, zoom) => {
+                if (err) return;
+                map.easeTo({
+                    center: (features[0].geometry as any).coordinates,
+                    zoom: zoom
+                });
+            });
+        };
+
+        // POPUP CLICK HANDLER - Show details for individual points
         const handleClick = (e: any) => {
             if (!e.features?.length) return;
             const props = e.features[0].properties;
@@ -170,15 +261,22 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 .addTo(map);
         };
 
+        // Add event listeners for clusters
+        map.on('click', clusterLayerId, handleClusterClick);
+
+        // Add event listeners for individual points
         map.on('click', layerId, handleClick);
         if (alertSource === 'emergency') {
             map.on('click', polygonLayerId, handleClick);
         }
 
-        // Cursor
+        // Cursor handlers
         const setCursor = (cursor: string) => () => {
             if (map) map.getCanvas().style.cursor = cursor;
         };
+
+        map.on('mouseenter', clusterLayerId, setCursor('pointer'));
+        map.on('mouseleave', clusterLayerId, setCursor(''));
         map.on('mouseenter', layerId, setCursor('pointer'));
         map.on('mouseleave', layerId, setCursor(''));
         if (alertSource === 'emergency') {
@@ -188,6 +286,15 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
 
         // Cleanup
         return () => {
+            if (map.getLayer(clusterCountLayerId)) {
+                map.removeLayer(clusterCountLayerId);
+            }
+            if (map.getLayer(clusterLayerId)) {
+                map.off('click', clusterLayerId, handleClusterClick);
+                map.off('mouseenter', clusterLayerId, setCursor('pointer'));
+                map.off('mouseleave', clusterLayerId, setCursor(''));
+                map.removeLayer(clusterLayerId);
+            }
             if (map.getLayer(layerId)) {
                 map.off('click', layerId, handleClick);
                 map.off('mouseenter', layerId, setCursor('pointer'));
@@ -207,7 +314,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 map.removeSource(sourceId);
             }
         };
-    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource]);
+    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
 
     return {
         alertCount: geoJsonData.features.length

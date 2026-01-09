@@ -283,7 +283,7 @@ export function UnifiedAlertsPanel() {
         showHeatmap,
         showMarkers,
         layerPrefix: `unified-${alertMode}`,
-        clusterRadius: alertMode === 'emergency' ? 50 : 80,
+        clusterRadius: 60,
         clusterMaxZoom: 14
     });
 
