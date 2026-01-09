@@ -15,34 +15,7 @@ export function FlightDashboard() {
         zoom: 0,
     });
 
-    // Local controls state - initialized from map ONCE when flight starts
-    const [heading, setHeading] = useState(0);
-    const [altitude, setAltitude] = useState(10000);
-    const [initialized, setInitialized] = useState(false);
-
-    // Initialize controls from current map state when dashboard opens (ONCE)
-    useEffect(() => {
-        if (mode === 'off') {
-            setInitialized(false);
-            return;
-        }
-
-        const map = useMapStore.getState().map;
-        if (!map || initialized) return;
-
-        // Sync heading with current bearing
-        setHeading(Math.round((map.getBearing() + 360) % 360));
-
-        // Sync altitude with current zoom
-        // zoom 18 = 500m, zoom 1 = 50000m (inverse log scale)
-        const zoom = map.getZoom();
-        const alt = Math.round(500 * Math.pow(2, 18 - zoom));
-        setAltitude(Math.max(1000, Math.min(50000, alt)));
-
-        setInitialized(true);
-    }, [mode, initialized]);
-
-    // Update telemetry display only (no control sync)
+    // Update telemetry from map (live) - this is the source of truth
     useEffect(() => {
         if (mode === 'off') return;
 
@@ -57,10 +30,18 @@ export function FlightDashboard() {
                 bearing: map.getBearing(),
                 zoom: map.getZoom(),
             });
-        }, 100);
+        }, 50); // Faster updates for responsive sliders
 
         return () => clearInterval(interval);
     }, [mode]);
+
+    // Derive altitude from zoom (two-way: zoom IS altitude)
+    // zoom 18 = 500m, zoom 1 = 50000m
+    const altitude = Math.round(500 * Math.pow(2, 18 - telemetry.zoom));
+    const clampedAltitude = Math.max(1000, Math.min(50000, altitude));
+
+    // Derive heading from bearing
+    const heading = Math.round((telemetry.bearing + 360) % 360);
 
     // Don't render if flight is off
     if (mode === 'off') return null;
@@ -80,24 +61,22 @@ export function FlightDashboard() {
         store.setMode('off');
     };
 
-    // Apply heading change
+    // Apply heading change - just change map bearing
     const applyHeading = (newHeading: number) => {
-        setHeading(newHeading);
         const map = useMapStore.getState().map;
         if (map) {
-            map.easeTo({ bearing: newHeading, duration: 300 });
+            map.setBearing(newHeading); // Instant, no animation fighting
         }
     };
 
-    // Apply altitude change (affects zoom)
+    // Apply altitude change - just change map zoom
     const applyAltitude = (newAlt: number) => {
-        setAltitude(newAlt);
         // Convert altitude to zoom: higher altitude = lower zoom
         // 1000m = zoom 15, 50000m = zoom 3
         const zoom = 18 - (Math.log(newAlt / 500) / Math.log(2));
         const map = useMapStore.getState().map;
         if (map) {
-            map.easeTo({ zoom: Math.max(1, Math.min(18, zoom)), duration: 300 });
+            map.setZoom(Math.max(1, Math.min(18, zoom))); // Instant, no animation fighting
         }
     };
 
@@ -157,7 +136,7 @@ export function FlightDashboard() {
                         </div>
                         <div className="text-center">
                             <div className="text-cyan-400/50 text-[10px] font-mono">ALT</div>
-                            <div className="text-cyan-400 font-mono text-sm">{altitude.toLocaleString()}m</div>
+                            <div className="text-cyan-400 font-mono text-sm">{clampedAltitude.toLocaleString()}m</div>
                         </div>
                     </div>
 
@@ -246,14 +225,14 @@ export function FlightDashboard() {
                                     <Navigation className="w-3 h-3 -rotate-45" />
                                     ALTITUDE
                                 </label>
-                                <span className="text-cyan-400 font-mono text-sm font-bold">{altitude.toLocaleString()}m</span>
+                                <span className="text-cyan-400 font-mono text-sm font-bold">{clampedAltitude.toLocaleString()}m</span>
                             </div>
                             <input
                                 type="range"
                                 min="1000"
                                 max="50000"
                                 step="1000"
-                                value={altitude}
+                                value={clampedAltitude}
                                 onChange={(e) => applyAltitude(Number(e.target.value))}
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                                     [&::-webkit-slider-thumb]:appearance-none
