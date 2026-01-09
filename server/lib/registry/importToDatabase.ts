@@ -1,9 +1,13 @@
 // Import emergency registry data from Excel to database
 
+import dotenv from 'dotenv';
+dotenv.config();
+dotenv.config({ path: 'env.local', override: true });
+
 import { readFile } from 'fs/promises';
 import * as XLSX from 'xlsx';
-import { getDb } from '../db.js';
-import { emergencyRegistry } from '../../drizzle/schema.js';
+import { getDb } from '../../db.js';
+import { emergencyRegistry } from '../../../drizzle/schema.js';
 
 const XLSX_PATH = '*REF_DATA/EmergServe Dashboad/AU_TacMap_Master_Reference_Table_v7.xlsx';
 
@@ -25,28 +29,51 @@ async function importRegistry() {
         }
 
         const entries = rawData
-            .filter(row => row['Source ID'] && row['Endpoint URL'])
-            .map(row => ({
-                sourceId: String(row['Source ID'] || ''),
-                category: String(row['Category'] || ''),
-                subcategory: String(row['Subcategory'] || ''),
-                tags: row['Tags'] ? String(row['Tags']).split(',').map((t: string) => t.trim()) : [],
-                jurisdictionState: String(row['Jurisdiction (State)'] || 'AUS'),
-                endpointUrl: String(row['Endpoint URL'] || ''),
-                streamType: String(row['Stream Type'] || ''),
-                format: String(row['Format'] || ''),
-                accessLevel: String(row['Access Level'] || ''),
-                certainlyOpen: row['Certainly Open?'] === 'Yes',
-                machineReadable: row['Machine Readable?'] === 'Yes',
+            .filter(row => row.item_id && (row.endpoint_url || row.category === 'Aviation'))
+            .map(row => {
+                // Parse tags
+                const tags = row.tags ? String(row.tags).split('|').map((t: string) => t.trim()) : [];
 
-                // Aviation fields
-                icao24: row['ICAO24'] ? String(row['ICAO24']) : null,
-                registration: row['Registration'] ? String(row['Registration']) : null,
-                trackingKeys: row['Tracking Keys'] ? String(row['Tracking Keys']).split(',').map((k: string) => k.trim()) : null,
-                aircraftType: row['Aircraft Type'] ? String(row['Aircraft Type']) : null,
-                operator: row['Operator'] ? String(row['Operator']) : null,
-                role: row['Role'] ? String(row['Role']) : null,
-            }));
+                // Parse tracking keys
+                const trackingKeys = row.tracking_keys
+                    ? String(row.tracking_keys).split(',').map((k: string) => k.trim()).filter(Boolean)
+                    : null;
+
+                // Extract registration and icao24
+                let registration = row.registration || '';
+                let icao24 = row.icao24 || '';
+
+                if (!registration && row.name) {
+                    const regMatch = String(row.name).match(/([A-Z]{2}-[A-Z0-9]+)/);
+                    if (regMatch) registration = regMatch[1];
+                }
+                if (!icao24 && row.name) {
+                    const hexMatch = String(row.name).match(/\(([A-F0-9]{6})\)/i);
+                    if (hexMatch) icao24 = hexMatch[1].toLowerCase();
+                }
+
+                return {
+                    sourceId: String(row.item_id || ''),
+                    category: String(row.category || 'Alerts'),
+                    subcategory: String(row.subcategory || ''),
+                    tags,
+                    jurisdictionState: String(row.jurisdiction || 'AUS'),
+                    endpointUrl: String(row.endpoint_url || ''),
+                    streamType: String(row.stream_type || ''),
+                    format: String(row.format || ''),
+                    accessLevel: String(row.access_level || 'Open'),
+                    certainlyOpen: row.certainly_open === 1 || row.certainly_open === true,
+                    machineReadable: row.machine_readable === 1 || row.machine_readable === true,
+
+                    // Aviation fields
+                    icao24: icao24 || null,
+                    registration: registration || null,
+                    trackingKeys,
+                    aircraftType: row.aircraft_type_guess ? String(row.aircraft_type_guess) : null,
+                    operator: row.operator_guess ? String(row.operator_guess) : null,
+                    role: row.category === 'Aviation' && row.subcategory ? String(row.subcategory) : null,
+                };
+            });
 
         console.log(`✅ Parsed ${entries.length} valid entries`);
         console.log('💾 Importing to database...');

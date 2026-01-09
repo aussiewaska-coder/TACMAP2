@@ -1,55 +1,45 @@
-// Load and filter the emergency services registry
+// Load and filter the emergency services registry from database
 
 import type { RegistryEntry, RegistryFilters } from './types.js';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-let cachedRegistry: RegistryEntry[] | null = null;
+import { getDb } from '../../db.js';
+import { emergencyRegistry } from '../../../drizzle/schema.js';
+import { eq, and, sql } from 'drizzle-orm';
 
 /**
- * Load the registry from the compiled JSON file
+ * Load the registry from the database
  */
 export async function loadRegistry(): Promise<RegistryEntry[]> {
-    if (cachedRegistry) {
-        return cachedRegistry;
-    }
-
     try {
-        // Try multiple paths where registry.json might be located
-        const possiblePaths = [
-            // Vercel serverless: files are in /var/task
-            join(process.cwd(), 'public/registry.json'),
-            join(process.cwd(), 'registry.json'),
-            join('/var/task', 'public/registry.json'),
-            join('/var/task', 'registry.json'),
-            // Relative to this file
-            join(import.meta.dirname, '../../../public/registry.json'),
-        ];
-
-        let registryData: string | null = null;
-        let loadedFrom: string | null = null;
-
-        for (const path of possiblePaths) {
-            try {
-                registryData = readFileSync(path, 'utf-8');
-                loadedFrom = path;
-                break;
-            } catch (e) {
-                // Try next path
-            }
-        }
-
-        if (!registryData) {
-            console.error('Failed to load registry from any path. Tried:', possiblePaths);
+        const db = await getDb();
+        if (!db) {
+            console.error('Database not available');
             return [];
         }
 
-        cachedRegistry = JSON.parse(registryData) as RegistryEntry[];
-        console.log(`Registry loaded from ${loadedFrom}: ${cachedRegistry.length} entries`);
+        const results = await db.select().from(emergencyRegistry);
 
-        return cachedRegistry;
+        // Convert database records to RegistryEntry format
+        return results.map(row => ({
+            source_id: row.sourceId,
+            category: row.category as any,
+            subcategory: row.subcategory || '',
+            tags: Array.isArray(row.tags) ? row.tags : [],
+            jurisdiction_state: row.jurisdictionState as any,
+            endpoint_url: row.endpointUrl,
+            stream_type: row.streamType as any,
+            format: row.format || '',
+            access_level: row.accessLevel as any,
+            certainly_open: row.certainlyOpen,
+            machine_readable: row.machineReadable,
+            icao24: row.icao24 || undefined,
+            registration: row.registration || undefined,
+            tracking_keys: Array.isArray(row.trackingKeys) ? row.trackingKeys : undefined,
+            aircraft_type: row.aircraftType || undefined,
+            operator: row.operator || undefined,
+            role: row.role || undefined,
+        }));
     } catch (error) {
-        console.error('Failed to load registry:', error);
+        console.error('Failed to load registry from database:', error);
         return [];
     }
 }
