@@ -43,8 +43,8 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
             {/* Police alerts are now in the sidebar's "Alerts" tab */}
             <UnifiedSidebar />
 
-            {/* Tactical Flight Dashboard - HUD overlay */}
-            <FlightDashboard />
+            {/* Tactical Flight Dashboard - HUD overlay - TEMPORARILY DISABLED */}
+            {/* <FlightDashboard /> */}
 
             {/* User location with heading indicator */}
             <UserLocationLayer />
