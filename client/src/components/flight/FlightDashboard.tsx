@@ -616,32 +616,64 @@ export function FlightDashboard() {
                 map.addSource(SATELLITE_SOURCE_ID, {
                     type: 'raster',
                     tiles: [SATELLITE_TILES_URL],
-                    tileSize: 256
+                    tileSize: 256,
+                    maxzoom: 14
                 });
             }
 
             // Add satellite layer if not exists
             if (!map.getLayer(SATELLITE_LAYER_ID)) {
-                // Find the first non-fill, non-background layer to insert before
+                // Find the first fill layer to insert satellite before it
+                // This puts satellite ABOVE background but BELOW fills
                 const layers = map.getStyle()?.layers || [];
-                const firstOverlayLayer = layers.find(layer =>
-                    layer.type !== 'fill' && layer.type !== 'background' && layer.type !== 'hillshade'
-                );
+                const firstFillLayer = layers.find(layer => layer.type === 'fill');
 
                 map.addLayer({
                     id: SATELLITE_LAYER_ID,
                     type: 'raster',
                     source: SATELLITE_SOURCE_ID,
                     paint: { 'raster-opacity': 1 }
-                }, firstOverlayLayer?.id);
+                }, firstFillLayer?.id); // Insert before first fill (above background)
+
+                // Make fill layers semi-transparent so satellite shows through
+                layers.forEach(layer => {
+                    if (layer.type === 'fill' && layer.id !== SATELLITE_LAYER_ID) {
+                        try {
+                            const currentOpacity = map.getPaintProperty(layer.id, 'fill-opacity');
+                            if (currentOpacity === undefined || currentOpacity === 1) {
+                                map.setPaintProperty(layer.id, 'fill-opacity', 0.3);
+                            }
+                        } catch (e) {
+                            // Some layers may not support this
+                        }
+                    }
+                });
             } else {
                 map.setLayoutProperty(SATELLITE_LAYER_ID, 'visibility', 'visible');
+                // Reduce fill opacity
+                const layers = map.getStyle()?.layers || [];
+                layers.forEach(layer => {
+                    if (layer.type === 'fill' && layer.id !== SATELLITE_LAYER_ID) {
+                        try {
+                            map.setPaintProperty(layer.id, 'fill-opacity', 0.3);
+                        } catch (e) {}
+                    }
+                });
             }
         } else {
-            // Hide satellite layer
+            // Hide satellite layer and restore fill opacity
             if (map.getLayer(SATELLITE_LAYER_ID)) {
                 map.setLayoutProperty(SATELLITE_LAYER_ID, 'visibility', 'none');
             }
+            // Restore fill opacity
+            const layers = map.getStyle()?.layers || [];
+            layers.forEach(layer => {
+                if (layer.type === 'fill' && layer.id !== SATELLITE_LAYER_ID) {
+                    try {
+                        map.setPaintProperty(layer.id, 'fill-opacity', 1);
+                    } catch (e) {}
+                }
+            });
         }
     };
 
