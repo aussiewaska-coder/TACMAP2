@@ -18,13 +18,11 @@ if (typeof window !== 'undefined') {
     };
 }
 
-// Altitude preset buttons - DIRECT zoom control, no bullshit
+// Altitude preset buttons - DIRECT zoom control
 const ALTITUDE_PRESETS = [
-    { ft: 100000, zoom: 3, label: '100K', speed: 2000 },
     { ft: 50000, zoom: 5, label: '50K', speed: 1500 },
     { ft: 20000, zoom: 8, label: '20K', speed: 1000 },
     { ft: 10000, zoom: 10, label: '10K', speed: 500 },
-    { ft: 7500, zoom: 11, label: '7.5K', speed: 350 },
     { ft: 3000, zoom: 13, label: '3K', speed: 150 },
     { ft: 500, zoom: 16, label: '500', speed: 25 },
 ];
