@@ -3,6 +3,7 @@ import { useEffect, useMemo } from 'react';
 import { useMapStore } from '@/stores';
 import maplibregl from 'maplibre-gl';
 import DOMPurify from 'isomorphic-dompurify';
+import { isMapValid } from '@/utils/mapUtils';
 
 export type AlertSource = 'emergency' | 'police';
 
@@ -275,32 +276,38 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
 
         // Cleanup
         return () => {
-            if (map.getLayer(clusterCountLayerId)) {
-                map.removeLayer(clusterCountLayerId);
-            }
-            if (map.getLayer(clusterLayerId)) {
-                map.off('click', clusterLayerId, handleClusterClick);
-                map.off('mouseenter', clusterLayerId, setCursor('pointer'));
-                map.off('mouseleave', clusterLayerId, setCursor(''));
-                map.removeLayer(clusterLayerId);
-            }
-            if (map.getLayer(layerId)) {
-                map.off('click', layerId, handleClick);
-                map.off('mouseenter', layerId, setCursor('pointer'));
-                map.off('mouseleave', layerId, setCursor(''));
-                map.removeLayer(layerId);
-            }
-            if (map.getLayer(polygonLayerId)) {
-                map.off('click', polygonLayerId, handleClick);
-                map.off('mouseenter', polygonLayerId, setCursor('pointer'));
-                map.off('mouseleave', polygonLayerId, setCursor(''));
-                map.removeLayer(polygonLayerId);
-            }
-            if (map.getLayer(polygonOutlineLayerId)) {
-                map.removeLayer(polygonOutlineLayerId);
-            }
-            if (map.getSource(sourceId)) {
-                map.removeSource(sourceId);
+            // Check if map is still valid before cleanup
+            if (!isMapValid(map)) return;
+            try {
+                if (map.getLayer(clusterCountLayerId)) {
+                    map.removeLayer(clusterCountLayerId);
+                }
+                if (map.getLayer(clusterLayerId)) {
+                    map.off('click', clusterLayerId, handleClusterClick);
+                    map.off('mouseenter', clusterLayerId, setCursor('pointer'));
+                    map.off('mouseleave', clusterLayerId, setCursor(''));
+                    map.removeLayer(clusterLayerId);
+                }
+                if (map.getLayer(layerId)) {
+                    map.off('click', layerId, handleClick);
+                    map.off('mouseenter', layerId, setCursor('pointer'));
+                    map.off('mouseleave', layerId, setCursor(''));
+                    map.removeLayer(layerId);
+                }
+                if (map.getLayer(polygonLayerId)) {
+                    map.off('click', polygonLayerId, handleClick);
+                    map.off('mouseenter', polygonLayerId, setCursor('pointer'));
+                    map.off('mouseleave', polygonLayerId, setCursor(''));
+                    map.removeLayer(polygonLayerId);
+                }
+                if (map.getLayer(polygonOutlineLayerId)) {
+                    map.removeLayer(polygonOutlineLayerId);
+                }
+                if (map.getSource(sourceId)) {
+                    map.removeSource(sourceId);
+                }
+            } catch {
+                // Map may be destroyed
             }
         };
     }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);

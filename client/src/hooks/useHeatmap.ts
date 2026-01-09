@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
 import maplibregl from 'maplibre-gl';
+import { isMapValid } from '@/utils/mapUtils';
 
 interface HeatmapData {
   count: number;
@@ -209,11 +210,16 @@ export function useHeatmap(options: UseHeatmapOptions) {
 
     // Cleanup function
     return () => {
-      if (map.getLayer(HEATMAP_LAYER_ID)) {
-        map.removeLayer(HEATMAP_LAYER_ID);
-      }
-      if (map.getSource(HEATMAP_SOURCE_ID)) {
-        map.removeSource(HEATMAP_SOURCE_ID);
+      if (!isMapValid(map)) return;
+      try {
+        if (map.getLayer(HEATMAP_LAYER_ID)) {
+          map.removeLayer(HEATMAP_LAYER_ID);
+        }
+        if (map.getSource(HEATMAP_SOURCE_ID)) {
+          map.removeSource(HEATMAP_SOURCE_ID);
+        }
+      } catch {
+        // Map may be destroyed
       }
     };
   }, [map, isLoaded, enabled, renderTrigger, colorScheme]);

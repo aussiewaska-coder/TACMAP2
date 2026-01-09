@@ -4,6 +4,7 @@
 import { useEffect, useCallback } from 'react';
 import { useMapStore } from '@/stores';
 import { toast } from 'sonner';
+import { isMapValid } from '@/utils/mapUtils';
 
 interface KeyboardControlsProps {
     enabled?: boolean;
@@ -164,8 +165,13 @@ export function KeyboardControls({ enabled = true }: KeyboardControlsProps) {
         window.addEventListener('mouseup', onMouseUp);
 
         return () => {
-            map.off('mousedown', onMouseDown);
             window.removeEventListener('mouseup', onMouseUp);
+            if (!isMapValid(map)) return;
+            try {
+                map.off('mousedown', onMouseDown);
+            } catch {
+                // Map may be destroyed
+            }
         };
     }, [map, isLoaded, enabled]);
 
