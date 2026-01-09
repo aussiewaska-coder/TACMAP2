@@ -93,26 +93,23 @@ export function FlightButton() {
                 const delta = Math.min(time - lastTime, 50);
                 const center = currentMap.getCenter();
 
-                // Heading easing
+                // Heading easing - NEVER read from map, terrain causes drift
                 if (store.targetHeading !== null) {
                     currentHeading = easeHeading(currentHeading, store.targetHeading, delta, 45);
-                } else {
-                    currentHeading = currentMap.getBearing();
                 }
+                // else: keep currentHeading as-is
 
-                // Pitch easing
+                // Pitch easing - NEVER read from map, terrain causes drift
                 if (store.targetPitch !== null) {
                     currentPitch = easePitch(currentPitch, store.targetPitch, delta, 30);
-                } else {
-                    currentPitch = currentMap.getPitch();
                 }
+                // else: keep currentPitch as-is
 
-                // Zoom easing - graceful exponential ease like ascending/descending
-                // NEVER read from map - terrain causes zoom drift. Always use our tracked value.
+                // Zoom easing - NEVER read from map, terrain causes drift
                 if (store.targetAltitude !== null) {
                     currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
                 }
-                // else: keep currentZoom as-is, don't let terrain affect it
+                // else: keep currentZoom as-is
 
                 // Speed easing - fast response on throttle
                 if (store.targetSpeed !== null) {
@@ -206,23 +203,21 @@ export function FlightButton() {
                     autoTargetBearing = (autoTargetBearing + Math.random() * 90 - 45 + 360) % 360;
                 }
 
-                // Heading
+                // Heading - NEVER read from map, terrain causes drift
                 const targetHeading = store.targetHeading !== null ? store.targetHeading : autoTargetBearing;
                 currentHeading = easeHeading(currentHeading, targetHeading, delta, 30);
 
-                // Pitch
+                // Pitch - NEVER read from map, terrain causes drift
                 if (store.targetPitch !== null) {
                     currentPitch = easePitch(currentPitch, store.targetPitch, delta, 30);
-                } else {
-                    currentPitch = currentMap.getPitch();
                 }
+                // else: keep currentPitch as-is
 
-                // Zoom easing - graceful exponential ease like ascending/descending
-                // NEVER read from map - terrain causes zoom drift. Always use our tracked value.
+                // Zoom easing - NEVER read from map, terrain causes drift
                 if (store.targetAltitude !== null) {
                     currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.012);
                 }
-                // else: keep currentZoom as-is, don't let terrain affect it
+                // else: keep currentZoom as-is
 
                 // Speed easing - fast response on throttle
                 if (store.targetSpeed !== null) {
