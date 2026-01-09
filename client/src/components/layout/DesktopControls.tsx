@@ -1,7 +1,7 @@
 // DesktopControls - Desktop-specific UI controls
 // Uses desktopUIStore - INDEPENDENT from mobile
 
-import { MapPin, Settings, Layers, Search, Menu, ChevronLeft, Wrench, Cloud } from 'lucide-react';
+import { MapPin, Settings, Layers, Search, Menu, ChevronLeft, Wrench, Cloud, Plane } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useDesktopUIStore, useMapStore } from '@/stores';
 import { Z_INDEX } from '@/core/constants';
@@ -10,7 +10,8 @@ import { LayersList } from './LayersList';
 import { SettingsPanel } from './SettingsPanel';
 import { ToolsPanel } from './ToolsPanel';
 import { SearchBox } from './SearchBox';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Desktop control elements
@@ -26,6 +27,31 @@ export function DesktopControls() {
     const sidebarWidth = useDesktopUIStore((state) => state.sidebarWidth);
 
     const [searchOpen, setSearchOpen] = useState(false);
+
+    const map = useMapStore((state) => state.map);
+    const [flightMode, setFlightMode] = useState<'off' | 'pan' | 'sightseeing'>('off');
+    const flightRef = useRef<number | null>(null);
+    const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const prevProjRef = useRef<string | null>(null);
+
+    const stopFlight = () => {
+        if (flightRef.current) { cancelAnimationFrame(flightRef.current); flightRef.current = null; }
+        if (prevProjRef.current && map) { map.setProjection({ type: prevProjRef.current as 'mercator' | 'globe' }); prevProjRef.current = null; }
+        setFlightMode('off');
+    };
+    const startPan = () => {
+        if (!map) return; stopFlight(); setFlightMode('pan'); let last = 0;
+        const go = (t: number) => { if (!map) return; if (last) { const c = map.getCenter(); map.setCenter([c.lng, Math.min(85, c.lat + 0.00008 * (t - last))]); } last = t; flightRef.current = requestAnimationFrame(go); };
+        flightRef.current = requestAnimationFrame(go); toast.info('Flight: Pan north');
+    };
+    const startSightseeing = () => {
+        if (!map) return; stopFlight(); prevProjRef.current = map.getProjection()?.type || 'mercator'; map.setProjection({ type: 'globe' }); setFlightMode('sightseeing');
+        let last = 0, tb = map.getBearing(), wp = { lng: map.getCenter().lng, lat: map.getCenter().lat };
+        const go = (t: number) => { if (!map) return; if (last) { const d = Math.min(t - last, 50), c = map.getCenter(), dx = wp.lng - c.lng, dy = wp.lat - c.lat; if (Math.sqrt(dx*dx + dy*dy) < 0.02) { const a = Math.random() * 6.28; wp = { lng: ((c.lng + Math.cos(a) * 0.15 + 180) % 360) - 180, lat: Math.max(-85, Math.min(85, c.lat + Math.sin(a) * 0.15)) }; tb = (tb + Math.random() * 90 - 45 + 360) % 360; } const ma = Math.atan2(dy, dx), b = map.getBearing(), bd = ((tb - b + 540) % 360) - 180; map.jumpTo({ center: [c.lng + Math.cos(ma) * 0.00012 * d, Math.max(-85, Math.min(85, c.lat + Math.sin(ma) * 0.00012 * d))], bearing: b + Math.sign(bd) * Math.min(Math.abs(bd), 0.03 * d) }); } last = t; flightRef.current = requestAnimationFrame(go); };
+        flightRef.current = requestAnimationFrame(go); toast.info('Flight: Sightseeing');
+    };
+    const flightDown = () => { pressTimerRef.current = setTimeout(() => { startSightseeing(); pressTimerRef.current = null; }, 500); };
+    const flightUp = () => { if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; if (flightMode === 'off') startPan(); else stopFlight(); } };
 
     return (
         <>
@@ -147,6 +173,20 @@ export function DesktopControls() {
                     </Button>
                 )}
             </div>
+
+            {/* Flight button - bottom right */}
+            <Button
+                variant={flightMode !== 'off' ? 'default' : 'outline'}
+                size="icon"
+                onMouseDown={flightDown}
+                onMouseUp={flightUp}
+                onMouseLeave={() => { if (pressTimerRef.current) { clearTimeout(pressTimerRef.current); pressTimerRef.current = null; } }}
+                title="Flight (click: pan, hold: sightseeing)"
+                className={`fixed bottom-4 right-4 shadow-xl w-14 h-14 rounded-2xl select-none ${flightMode === 'pan' ? 'bg-blue-600 text-white' : flightMode === 'sightseeing' ? 'bg-purple-600 text-white animate-pulse' : 'bg-white text-gray-800 hover:bg-gray-100 border'}`}
+                style={{ zIndex: Z_INDEX.CONTROLS }}
+            >
+                <Plane className="w-6 h-6" />
+            </Button>
         </>
     );
 }
