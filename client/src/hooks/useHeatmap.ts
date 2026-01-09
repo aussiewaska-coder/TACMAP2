@@ -5,7 +5,6 @@ import { useEffect, useState, useRef } from 'react';
 import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
 import maplibregl from 'maplibre-gl';
-import { toast } from 'sonner';
 
 interface HeatmapData {
   count: number;
@@ -37,18 +36,9 @@ export function useHeatmap(options: UseHeatmapOptions) {
       refetchInterval: 60000, // Refresh every minute
       onSuccess: (data) => {
         console.log(`🔥 Heatmap data received: ${data.count} locations`);
-        toast.dismiss('heatmap-toggle');
-        toast.success("[✓] heatmap.loaded", {
-          description: `[INFO] ${data.count} hotspot locations aggregated`,
-          duration: 3000
-        });
       },
       onError: (error) => {
         console.error('Heatmap fetch error:', error);
-        toast.error('[✗] heatmap.error', {
-          description: `[ERROR] ${error.message}`,
-          duration: 5000
-        });
       }
     }
   );
