@@ -52,19 +52,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const result = await fetchWithCache(
             'emergency:aircraft:tracks',
             async () => {
-                // Primary: fetch from adsb.lol
-                console.log('Fetching from adsb.lol...');
+                // Primary: fetch from adsb.lol (Regional Bulk)
+                console.log('Fetching regional aircraft from adsb.lol...');
                 const adsbTracks = await fetchAdsbLol(icao24List);
-                console.log(`adsb.lol returned ${adsbTracks.length} tracks`);
+                console.log(`adsb.lol returned ${adsbTracks.length} active tracks for registry`);
 
                 // Identify missing/stale aircraft
                 const missing = identifyMissingAircraft(icao24List, adsbTracks, 15);
 
                 let openskyTracks: any[] = [];
                 if (missing.length > 0) {
-                    console.log(`${missing.length} aircraft missing/stale, querying OpenSky...`);
+                    console.log(`${missing.length} aircraft missing from adsb.lol, querying OpenSky (Regional BBox)...`);
                     openskyTracks = await fetchOpenSky(missing);
-                    console.log(`OpenSky returned ${openskyTracks.length} tracks`);
+                    console.log(`OpenSky returned ${openskyTracks.length} fallback tracks`);
                 }
 
                 // Merge tracks with precedence

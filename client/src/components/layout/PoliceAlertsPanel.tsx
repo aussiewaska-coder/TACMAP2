@@ -118,11 +118,14 @@ export function PoliceAlertsPanel() {
         const addHeatmapLayers = () => {
             if (!map || !heatmapMode) return;
 
-            if (!map.getSource(heatmapSourceId)) {
+            let source = map.getSource(heatmapSourceId) as maplibregl.GeoJSONSource;
+            if (!source) {
                 map.addSource(heatmapSourceId, {
                     type: 'geojson',
                     data: geoJsonData as any
                 });
+            } else if (geoJsonData) {
+                source.setData(geoJsonData as any);
             }
 
             if (!map.getLayer(heatmapLayerId)) {
@@ -162,7 +165,7 @@ export function PoliceAlertsPanel() {
             if (map.getLayer(heatmapLayerId)) map.removeLayer(heatmapLayerId);
             if (map.getSource(heatmapSourceId)) map.removeSource(heatmapSourceId);
         };
-    }, [map, isLoaded, enabled, heatmapMode]);
+    }, [map, isLoaded, enabled, heatmapMode, geoJsonData]);
 
     // Update heatmap data
     useEffect(() => {
@@ -184,7 +187,8 @@ export function PoliceAlertsPanel() {
         const addClusterLayers = () => {
             if (!map) return;
 
-            if (!map.getSource(sourceId)) {
+            let source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            if (!source) {
                 map.addSource(sourceId, {
                     type: 'geojson',
                     data: (geoJsonData as any) || { type: 'FeatureCollection', features: [] },
@@ -192,6 +196,8 @@ export function PoliceAlertsPanel() {
                     clusterMaxZoom: 14,
                     clusterRadius: 80
                 });
+            } else if (geoJsonData) {
+                source.setData(geoJsonData as any);
             }
 
             const visibility = (enabled && (!heatmapMode || showMarkersOverlay)) ? 'visible' : 'none';

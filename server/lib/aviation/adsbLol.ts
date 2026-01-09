@@ -6,7 +6,7 @@ import type { AircraftTrack, AdsbLolResponse } from './types.js';
 const ADSB_LOL_BASE_URL = 'https://api.adsb.lol';
 
 /**
- * Fetch aircraft positions from adsb.lol by ICAO24 hex codes
+ * Fetch aircraft positions from adsb.lol using a bulk regional query
  */
 export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[]> {
     if (icao24List.length === 0) {
@@ -14,87 +14,67 @@ export async function fetchAdsbLol(icao24List: string[]): Promise<AircraftTrack[
     }
 
     const tracks: AircraftTrack[] = [];
-    const now = Date.now() / 1000; // Unix timestamp in seconds
+    const now = Date.now() / 1000;
+    const icaoSet = new Set(icao24List.map(i => i.toLowerCase()));
 
     try {
-        // Limit concurrency to avoid timeouts and IP blocks
-        const BATCH_SIZE = 5;
-        for (let i = 0; i < icao24List.length; i += BATCH_SIZE) {
-            const chunk = icao24List.slice(i, i + BATCH_SIZE);
-            const promises = chunk.map(async (icao24) => {
-                try {
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s individual timeout
+        // Query the bulk Australia region (Center of AU, 1200nm radius)
+        // This is much more efficient than 137 individual calls
+        const url = `${ADSB_LOL_BASE_URL}/api/aircraft/lat/-25/lon/135/dist/1200/`;
 
-                    const url = `${ADSB_LOL_BASE_URL}/api/aircraft/icao/${icao24.toUpperCase()}/`;
-                    const response = await fetch(url, {
-                        headers: {
-                            'User-Agent': 'TAC-MAP Emergency Services Dashboard',
-                        },
-                        signal: controller.signal
-                    });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-                    clearTimeout(timeoutId);
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'TAC-MAP Emergency Services Dashboard',
+            },
+            signal: controller.signal
+        });
 
-                    if (!response.ok) {
-                        console.warn(`adsb.lol returned ${response.status} for ${icao24}`);
-                        return null;
-                    }
+        clearTimeout(timeoutId);
 
-                    const data: AdsbLolResponse = await response.json();
-
-                    // Parse aircraft data
-                    if (data.ac && data.ac.length > 0) {
-                        const ac = data.ac[0]; // First aircraft in response
-
-                        // Validate required fields
-                        if (ac.lat === undefined || ac.lon === undefined) {
-                            return null;
-                        }
-
-                        // Calculate age
-                        const lastSeen = data.now || now;
-                        const age_s = Math.floor(now - lastSeen);
-
-                        // Parse altitude (can be string like "ground")
-                        let alt_m = 0;
-                        if (typeof ac.alt_baro === 'number') {
-                            alt_m = ac.alt_baro * 0.3048; // feet to meters
-                        }
-
-                        // Parse ground speed (knots to m/s)
-                        const ground_speed_mps = (ac.gs || 0) * 0.514444;
-
-                        const track: AircraftTrack = {
-                            icao24: ac.hex.toLowerCase(),
-                            lat: ac.lat,
-                            lon: ac.lon,
-                            alt_m,
-                            ground_speed_mps,
-                            track_deg: ac.track || 0,
-                            age_s,
-                            stale: age_s > 15,
-                            source: 'adsb_lol',
-                            callsign: ac.flight?.trim() || undefined,
-                            vertical_rate: ac.baro_rate,
-                        };
-
-                        return track;
-                    }
-
-                    return null;
-                } catch (error) {
-                    console.error(`Error fetching ${icao24} from adsb.lol:`, error);
-                    return null;
-                }
-            });
-
-            const results = await Promise.all(promises);
-            tracks.push(...results.filter((t): t is AircraftTrack => t !== null));
+        if (!response.ok) {
+            console.warn(`adsb.lol bulk query returned ${response.status}`);
+            return [];
         }
 
+        const data: AdsbLolResponse = await response.json();
+
+        if (data.ac) {
+            for (const ac of data.ac) {
+                const hex = ac.hex.toLowerCase();
+
+                // Only include if it was in our requested list
+                if (!icaoSet.has(hex)) continue;
+                if (ac.lat === undefined || ac.lon === undefined) continue;
+
+                const lastSeen = data.now || now;
+                const age_s = Math.floor(now - lastSeen);
+
+                let alt_m = 0;
+                if (typeof ac.alt_baro === 'number') {
+                    alt_m = ac.alt_baro * 0.3048;
+                }
+
+                const track: AircraftTrack = {
+                    icao24: hex,
+                    lat: ac.lat,
+                    lon: ac.lon,
+                    alt_m,
+                    ground_speed_mps: (ac.gs || 0) * 0.514444,
+                    track_deg: ac.track || 0,
+                    age_s,
+                    stale: age_s > 15,
+                    source: 'adsb_lol',
+                    callsign: ac.flight?.trim() || undefined,
+                    vertical_rate: ac.baro_rate,
+                };
+                tracks.push(track);
+            }
+        }
     } catch (error) {
-        console.error('adsb.lol fetch error:', error);
+        console.error('adsb.lol bulk fetch error:', error);
     }
 
     return tracks;

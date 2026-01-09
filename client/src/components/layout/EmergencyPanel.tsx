@@ -269,7 +269,8 @@ export function EmergencyPanel() {
             if (!map) return;
 
             // 1. Source
-            if (!map.getSource(sourceId)) {
+            let source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            if (!source) {
                 map.addSource(sourceId, {
                     type: 'geojson',
                     data: { type: 'FeatureCollection', features: alertsData?.features || [] } as any,
@@ -277,6 +278,14 @@ export function EmergencyPanel() {
                     clusterMaxZoom: 14,
                     clusterRadius: 50,
                 });
+                source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            } else if (alertsData) {
+                // If style changed, we need to re-push the data because 
+                // MapLibre clears the source data on style change
+                source.setData({
+                    type: 'FeatureCollection',
+                    features: alertsData.features
+                } as any);
             }
 
             // 2. Polygonal Fills (Lowest)
@@ -471,7 +480,7 @@ export function EmergencyPanel() {
                 if (map.getSource(sourceId)) map.removeSource(sourceId);
             }
         };
-    }, [map, isLoaded, alertsEnabled]);
+    }, [map, isLoaded, alertsEnabled, alertsData]); // Added alertsData to fix stale closure
 
     // Update data separately
     useEffect(() => {
