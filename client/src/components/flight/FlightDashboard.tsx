@@ -5,68 +5,57 @@ import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightSt
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
-// Altitude preset buttons (feet to meters conversion)
+// Altitude preset buttons - DIRECT zoom control, no bullshit
 const ALTITUDE_PRESETS = [
-    { ft: 100000, m: 30480, label: '100K', speed: 2000 },
-    { ft: 50000, m: 15240, label: '50K', speed: 1500 },
-    { ft: 20000, m: 6096, label: '20K', speed: 1000 },
-    { ft: 10000, m: 3048, label: '10K', speed: 500 },
-    { ft: 7500, m: 2286, label: '7.5K', speed: 350 },
-    { ft: 3000, m: 914, label: '3K', speed: 150 },
-    { ft: 500, m: 152, label: '500', speed: 25 },
+    { ft: 100000, zoom: 3, label: '100K', speed: 2000 },
+    { ft: 50000, zoom: 5, label: '50K', speed: 1500 },
+    { ft: 20000, zoom: 8, label: '20K', speed: 1000 },
+    { ft: 10000, zoom: 10, label: '10K', speed: 500 },
+    { ft: 7500, zoom: 11, label: '7.5K', speed: 350 },
+    { ft: 3000, zoom: 13, label: '3K', speed: 150 },
+    { ft: 500, zoom: 16, label: '500', speed: 25 },
 ];
 
-// Map altitude (meters) to appropriate speed (km/h) using logarithmic interpolation
-const altitudeToSpeed = (altMeters: number): number => {
-    const minAlt = 152;   // 500ft
-    const maxAlt = 30480; // 100,000ft
-    const minSpeed = 25;
-    const maxSpeed = 2000;
+// Altitude Buttons - DIRECTLY controls map zoom
+function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
+    const map = useMapStore.getState().map;
 
-    // Clamp altitude to range
-    const clampedAlt = Math.max(minAlt, Math.min(maxAlt, altMeters));
-
-    // Logarithmic interpolation for natural feel
-    const logMin = Math.log(minAlt);
-    const logMax = Math.log(maxAlt);
-    const logAlt = Math.log(clampedAlt);
-
-    const t = (logAlt - logMin) / (logMax - logMin);
-    return Math.round(minSpeed + t * (maxSpeed - minSpeed));
-};
-
-// Altitude Buttons Component
-function AltitudeButtons({ currentAltitude, onAltitudeChange }: {
-    currentAltitude: number; // in meters
-    onAltitudeChange: (meters: number, speed: number) => void;
-}) {
-    // Find closest preset to current altitude
+    // Find closest preset to current zoom
     const closestPreset = ALTITUDE_PRESETS.reduce((prev, curr) =>
-        Math.abs(curr.m - currentAltitude) < Math.abs(prev.m - currentAltitude) ? curr : prev
+        Math.abs(curr.zoom - currentZoom) < Math.abs(prev.zoom - currentZoom) ? curr : prev
     );
+
+    const handleClick = (preset: typeof ALTITUDE_PRESETS[0]) => {
+        const currentMap = useMapStore.getState().map;
+        if (!currentMap) return;
+
+        // DIRECT map control - flyTo with easing
+        currentMap.flyTo({
+            zoom: preset.zoom,
+            duration: 1500,
+            easing: (t) => t * (2 - t) // ease out quad
+        });
+
+        // Update speed to match altitude
+        useFlightStore.getState().setSpeed(preset.speed);
+    };
 
     return (
         <div className="flex flex-col items-center gap-1 select-none">
-            {/* Label */}
             <div className="text-amber-400/50 text-[10px] font-mono font-bold tracking-wider">ALT</div>
-
-            {/* Current altitude readout */}
             <div className="text-amber-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-500/30">
-                {Math.round(currentAltitude * 3.28084).toLocaleString()}ft
+                {closestPreset.label}ft
             </div>
-
-            {/* Preset buttons */}
             <div className="flex flex-col gap-1 mt-1">
                 {ALTITUDE_PRESETS.map((preset) => {
-                    const isActive = Math.abs(preset.m - currentAltitude) < 100;
+                    const isActive = Math.abs(preset.zoom - currentZoom) < 0.5;
                     const isClosest = preset === closestPreset;
                     return (
                         <button
                             key={preset.ft}
-                            onClick={() => onAltitudeChange(preset.m, preset.speed)}
+                            onClick={() => handleClick(preset)}
                             className={`
-                                px-3 py-1 rounded font-mono text-xs font-bold transition-all
-                                border
+                                px-3 py-1 rounded font-mono text-xs font-bold transition-all border
                                 ${isActive
                                     ? 'bg-amber-500 text-black border-amber-400 shadow-lg shadow-amber-500/50'
                                     : isClosest
@@ -80,8 +69,6 @@ function AltitudeButtons({ currentAltitude, onAltitudeChange }: {
                     );
                 })}
             </div>
-
-            {/* Unit indicator */}
             <div className="text-amber-400/30 text-[8px] font-mono mt-1">FEET</div>
         </div>
     );
@@ -580,11 +567,8 @@ export function FlightDashboard() {
                                 <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
                             </div>
 
-                            {/* ALTITUDE - Preset buttons */}
-                            <AltitudeButtons
-                                currentAltitude={clampedAltitude}
-                                onAltitudeChange={applyAltitude}
-                            />
+                            {/* ALTITUDE - DIRECT zoom control */}
+                            <AltitudeButtons currentZoom={telemetry.zoom} />
 
                             {/* TILT / PITCH */}
                             <VerticalSlider
