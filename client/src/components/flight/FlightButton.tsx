@@ -107,17 +107,18 @@ export function FlightButton() {
                     currentZoom = currentMap.getZoom();
                 }
 
-                // Speed easing - ease toward targetSpeed, update store
+                // Speed easing - fast response on throttle
                 if (store.targetSpeed !== null) {
-                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 500);
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 1500);
                     store.setSpeed(currentSpeed);
                 } else {
                     currentSpeed = store.speed;
                 }
 
-                // Move forward based on speed
+                // Move forward based on speed - scale by zoom (higher zoom = need more speed to see movement)
                 const bearingRad = (currentHeading * Math.PI) / 180;
-                const speedFactor = (currentSpeed / 250) * 0.000001;
+                const zoomScale = Math.pow(2, (currentZoom - 10) * 0.5); // Scale speed at high zoom
+                const speedFactor = (currentSpeed / 250) * 0.000001 * zoomScale;
                 const moveDist = speedFactor * delta;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
@@ -210,18 +211,19 @@ export function FlightButton() {
                     currentZoom = currentMap.getZoom();
                 }
 
-                // Speed easing - ease toward targetSpeed, update store
+                // Speed easing - fast response on throttle
                 if (store.targetSpeed !== null) {
-                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 500);
+                    currentSpeed = easeSpeed(currentSpeed, store.targetSpeed, delta, 1500);
                     store.setSpeed(currentSpeed);
                 } else {
                     currentSpeed = store.speed;
                 }
 
-                // Move toward waypoint
+                // Move toward waypoint - scale by zoom (higher zoom = need more speed to see movement)
                 const moveAngle = Math.atan2(dy, dx);
+                const zoomScale = Math.pow(2, (currentZoom - 10) * 0.5);
                 const speedFactor = currentSpeed / 250;
-                const moveSpeed = 0.0000012 * delta * speedFactor;
+                const moveSpeed = 0.0000012 * delta * speedFactor * zoomScale;
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
