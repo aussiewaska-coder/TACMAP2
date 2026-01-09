@@ -52,13 +52,18 @@ function AltitudeButtons({ currentZoom }: { currentZoom: number }) {
                                 e.stopPropagation();
                                 const map = useMapStore.getState().map;
                                 if (map) {
-                                    // Smooth zoom with easing
-                                    map.easeTo({
-                                        zoom: preset.zoom,
-                                        duration: 800,
-                                        easing: (t) => 1 - Math.pow(1 - t, 3) // ease out cubic
-                                    });
-                                    useFlightStore.getState().setSpeed(preset.speed);
+                                    // Stop flight, zoom, restart
+                                    const store = useFlightStore.getState();
+                                    const wasMode = store.mode;
+                                    if (store.animationId) {
+                                        cancelAnimationFrame(store.animationId);
+                                        store.setAnimationId(null);
+                                    }
+
+                                    // Instant zoom
+                                    map.setZoom(preset.zoom);
+
+                                    // DON'T change speed - user controls that separately
                                 }
                             }}
                             className={`

@@ -90,12 +90,11 @@ export function FlightButton() {
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
-                // Preserve zoom - explicitly pass current zoom to prevent any reset
+                // Never touch zoom - let user/altitude buttons control it
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
-                    pitch: currentPitch,
-                    zoom: currentMap.getZoom()
+                    pitch: currentPitch
                 });
             }
 
@@ -177,12 +176,11 @@ export function FlightButton() {
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
-                // Preserve zoom - explicitly pass current zoom to prevent any reset
+                // Never touch zoom - let user/altitude buttons control it
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
-                    pitch: currentPitch,
-                    zoom: currentMap.getZoom()
+                    pitch: currentPitch
                 });
             }
 
