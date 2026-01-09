@@ -21,11 +21,13 @@ const easePitch = (current: number, target: number, delta: number, rate: number)
     return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
 };
 
-// Smooth easing for zoom (rate = zoom levels per second)
-const easeZoom = (current: number, target: number, delta: number, rate: number): number => {
+// Smooth easing for zoom - graceful exponential ease-out like flying
+const easeZoom = (current: number, target: number, delta: number, smoothing: number): number => {
     const diff = target - current;
-    const maxChange = rate * delta * 0.001;
-    return current + Math.sign(diff) * Math.min(Math.abs(diff), maxChange);
+    if (Math.abs(diff) < 0.01) return target; // Snap when close
+    // Exponential ease-out: moves fast at start, slows gracefully as it approaches target
+    const ease = 1 - Math.pow(1 - smoothing, delta * 0.06);
+    return current + diff * ease;
 };
 
 // Smooth easing for speed (rate = km/h change per second)
@@ -98,9 +100,9 @@ export function FlightButton() {
                     currentPitch = currentMap.getPitch();
                 }
 
-                // Zoom easing - targetAltitude stores the target zoom level
+                // Zoom easing - graceful exponential ease like ascending/descending
                 if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 3);
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.12);
                 } else {
                     currentZoom = currentMap.getZoom();
                 }
@@ -201,9 +203,9 @@ export function FlightButton() {
                     currentPitch = currentMap.getPitch();
                 }
 
-                // Zoom easing - targetAltitude stores the target zoom level
+                // Zoom easing - graceful exponential ease like ascending/descending
                 if (store.targetAltitude !== null) {
-                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 3);
+                    currentZoom = easeZoom(currentZoom, store.targetAltitude, delta, 0.12);
                 } else {
                     currentZoom = currentMap.getZoom();
                 }
