@@ -169,14 +169,21 @@ function VerticalSlider({
 
             {/* Slider track with ticks */}
             <div className="flex items-stretch gap-1 h-36">
-                {/* Tick marks - left side */}
-                <div className="flex flex-col justify-between py-1">
-                    {ticks.map((tick, i) => (
-                        <div key={i} className="flex items-center gap-1">
-                            <span className={`${colorClasses.dim} text-[8px] font-mono w-6 text-right`}>{tick.label}</span>
-                            <div className={`w-2 h-px ${colorClasses.bg}/40`} />
-                        </div>
-                    ))}
+                {/* Tick marks - left side, positioned to match scale */}
+                <div className="relative w-10 py-1">
+                    {ticks.map((tick, i) => {
+                        const tickPercent = valueToPercent(tick.value);
+                        return (
+                            <div
+                                key={i}
+                                className="absolute right-0 flex items-center gap-1"
+                                style={{ bottom: `calc(${tickPercent}% - 4px)` }}
+                            >
+                                <span className={`${colorClasses.dim} text-[8px] font-mono`}>{tick.label}</span>
+                                <div className={`w-2 h-px ${colorClasses.bg}/40`} />
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Main slider track */}
