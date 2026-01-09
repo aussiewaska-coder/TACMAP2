@@ -512,63 +512,47 @@ function BallCompass({ heading, targetHeading, onHeadingChange }: {
     );
 }
 
-// Orbit mode indicator - shows current heading and orbit angle
-function OrbitIndicator({ heading }: { heading: number }) {
-    const clockwise = useFlightStore((s) => s.orbitClockwise);
-
-    return (
-        <div className="flex flex-col items-center gap-1 select-none">
-            <div className="text-orange-400/50 text-[10px] font-mono font-bold tracking-wider">ORBIT</div>
-
-            <div className="relative w-24 h-24">
-                <div className="absolute inset-0 rounded-full bg-black/80 border-2 border-orange-500/40 shadow-lg shadow-orange-500/10" />
-                <div className="absolute inset-2 rounded-full border border-dashed border-orange-400/30" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <Crosshair className="w-8 h-8 text-orange-300/90 drop-shadow-[0_0_8px_rgba(251,146,60,0.6)]" />
-                </div>
-                <div className="absolute bottom-1 right-1">
-                    <RotateCw className={`w-4 h-4 text-orange-400/50 ${clockwise ? '' : 'scale-x-[-1]'}`} />
-                </div>
-            </div>
-
-            <div className="text-orange-400 font-mono text-sm font-bold bg-black/60 px-2 py-0.5 rounded border border-orange-500/30">
-                {Math.round(heading).toString().padStart(3, '0')}°
-            </div>
-        </div>
-    );
-}
-
-// Orbit mode controls - direction toggle and radius display
-function OrbitControls({
+function OrbitPanel({
+    enabled,
+    radiusKm,
+    direction,
     lookAtCenter,
     paused,
+    onToggle,
+    onSetCenter,
+    onRadiusChange,
+    onToggleDirection,
     onToggleLook,
     onTogglePause,
-    onSetCenter,
 }: {
+    enabled: boolean;
+    radiusKm: number;
+    direction: 'cw' | 'ccw';
     lookAtCenter: boolean;
     paused: boolean;
+    onToggle: () => void;
+    onSetCenter: () => void;
+    onRadiusChange: (next: number) => void;
+    onToggleDirection: () => void;
     onToggleLook: () => void;
     onTogglePause: () => void;
-    onSetCenter: () => void;
 }) {
-    const clockwise = useFlightStore((s) => s.orbitClockwise);
-    const radius = useFlightStore((s) => s.orbitRadius);
-    const setClockwise = useFlightStore((s) => s.setOrbitClockwise);
-    const setRadius = useFlightStore((s) => s.setOrbitRadius);
-
-    const radiusKm = radius.toFixed(1);
-
     return (
-        <div className="flex flex-col items-center gap-1">
-            {/* Direction + center */}
+        <div className="flex flex-col items-center gap-2 w-full">
             <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-black/70 border border-orange-500/40 flex items-center justify-center">
+                    <Crosshair className="w-4 h-4 text-orange-300/90" />
+                </div>
                 <button
-                    onClick={() => setClockwise(!clockwise)}
-                    className="px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center gap-1"
+                    onClick={onToggle}
+                    className={`px-4 py-1.5 rounded font-mono text-xs font-bold transition-all border flex items-center gap-2 ${
+                        enabled
+                            ? 'bg-orange-500 text-black border-orange-400 shadow-lg shadow-orange-500/50'
+                            : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 hover:text-orange-300'
+                    }`}
                 >
-                    <RotateCw className={`w-3 h-3 ${clockwise ? '' : 'scale-x-[-1]'}`} />
-                    {clockwise ? 'CW' : 'CCW'}
+                    <RotateCw className="w-3 h-3" />
+                    {enabled ? 'ORBIT ON' : 'ORBIT'}
                 </button>
                 <button
                     onClick={onSetCenter}
@@ -579,45 +563,51 @@ function OrbitControls({
                 </button>
             </div>
 
-            {/* Radius display and quick adjust */}
-            <div className="flex items-center gap-1">
-                <button
-                    onClick={() => setRadius(Math.max(0.5, radius * 0.7))}
-                    className="w-5 h-5 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
-                >
-                    -
-                </button>
-                <div className="text-orange-400/50 text-[9px] font-mono px-1">
-                    {radiusKm}km
+            {enabled && (
+                <div className="grid grid-cols-2 gap-2 w-full">
+                    <button
+                        onClick={onToggleDirection}
+                        className="px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center justify-center gap-1"
+                    >
+                        <RotateCw className={`w-3 h-3 ${direction === 'cw' ? '' : 'scale-x-[-1]'}`} />
+                        {direction === 'cw' ? 'CLOCKWISE' : 'COUNTER'}
+                    </button>
+                    <button
+                        onClick={onToggleLook}
+                        className={`px-2 py-1 rounded text-[10px] font-mono font-bold border ${
+                            lookAtCenter
+                                ? 'bg-orange-500/20 text-orange-200 border-orange-400/60'
+                                : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20'
+                        }`}
+                    >
+                        {lookAtCenter ? 'LOOK-IN' : 'TANGENT'}
+                    </button>
+                    <div className="flex items-center justify-center gap-1 col-span-2">
+                        <button
+                            onClick={() => onRadiusChange(Math.max(0.5, radiusKm - 0.5))}
+                            className="w-6 h-6 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
+                        >
+                            -
+                        </button>
+                        <div className="text-orange-400/50 text-[10px] font-mono px-2">
+                            {radiusKm.toFixed(1)}km
+                        </div>
+                        <button
+                            onClick={() => onRadiusChange(Math.min(100, radiusKm + 0.5))}
+                            className="w-6 h-6 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
+                        >
+                            +
+                        </button>
+                        <button
+                            onClick={onTogglePause}
+                            className="ml-2 px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center gap-1"
+                        >
+                            {paused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                            {paused ? 'RESUME' : 'PAUSE'}
+                        </button>
+                    </div>
                 </div>
-                <button
-                    onClick={() => setRadius(Math.min(100, radius * 1.4))}
-                    className="w-5 h-5 rounded text-xs font-bold bg-black/60 text-orange-400/70 border border-orange-500/30 hover:bg-orange-500/20 cursor-pointer"
-                >
-                    +
-                </button>
-            </div>
-
-            {/* Look mode + pause */}
-            <div className="flex items-center gap-2">
-                <button
-                    onClick={onToggleLook}
-                    className={`px-2 py-1 rounded text-[10px] font-mono font-bold border ${
-                        lookAtCenter
-                            ? 'bg-orange-500/20 text-orange-200 border-orange-400/60'
-                            : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20'
-                    }`}
-                >
-                    {lookAtCenter ? 'LOOK-IN' : 'TANGENT'}
-                </button>
-                <button
-                    onClick={onTogglePause}
-                    className="px-2 py-1 rounded text-[10px] font-mono font-bold border bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 cursor-pointer flex items-center gap-1"
-                >
-                    {paused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                    {paused ? 'RESUME' : 'PAUSE'}
-                </button>
-            </div>
+            )}
         </div>
     );
 }
@@ -632,7 +622,7 @@ const BUILDINGS_SOURCE_ID = 'flight-buildings-source';
 const BUILDINGS_LAYER_ID = 'flight-3d-buildings';
 
 export function FlightDashboard() {
-    const BUILD_STAMP = 'flight-dashboard:orbit-rebuild-1';
+    const BUILD_STAMP = import.meta.env.VITE_BUILD_SHA || 'unknown';
     const dashboardOpen = useFlightStore((s) => s.dashboardOpen);
     const closeDashboard = useFlightStore((s) => s.closeDashboard);
     const [flightMode, setFlightMode] = useState<'off' | 'manual' | 'orbit'>('off');
@@ -642,9 +632,10 @@ export function FlightDashboard() {
     const targetPitch = useFlightStore((s) => s.targetPitch);
     const satelliteEnabled = useFlightStore((s) => s.satelliteEnabled);
     const buildings3dEnabled = useFlightStore((s) => s.buildings3dEnabled);
-    const orbitCenter = useFlightStore((s) => s.orbitCenter);
-    const orbitRadius = useFlightStore((s) => s.orbitRadius);
-    const orbitClockwise = useFlightStore((s) => s.orbitClockwise);
+    const [orbitCenter, setOrbitCenter] = useState<[number, number] | null>(null);
+    const [orbitRadiusKm, setOrbitRadiusKm] = useState(3);
+    const [orbitAngle, setOrbitAngle] = useState(0);
+    const [orbitDirection, setOrbitDirection] = useState<'cw' | 'ccw'>('cw');
     const [orbitLookAtCenter, setOrbitLookAtCenter] = useState(true);
     const [orbitPaused, setOrbitPaused] = useState(false);
     const [debugVisible, setDebugVisible] = useState(true);
@@ -768,7 +759,7 @@ export function FlightDashboard() {
         if (!map) return;
 
         let lastTime = 0;
-        let currentAngle = useFlightStore.getState().orbitAngle;
+        let currentAngle = orbitAngle;
         let currentPitch = map.getPitch();
         let currentZoom = map.getZoom();
         let currentSpeed = useFlightStore.getState().speed;
@@ -784,11 +775,11 @@ export function FlightDashboard() {
 
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
-                const center = store.orbitCenter;
+                const center = orbitCenter;
                 if (!center) return;
 
-                const radiusKm = Math.max(0.5, store.orbitRadius);
-                const clockwise = store.orbitClockwise;
+                const radiusKm = Math.max(0.5, orbitRadiusKm);
+                const clockwise = orbitDirection === 'cw';
 
                 if (store.targetPitch !== null) {
                     currentPitch = easePitch(currentPitch, store.targetPitch, delta, 0.12);
@@ -809,7 +800,9 @@ export function FlightDashboard() {
                 const angleIncrement = degreesPerSecond * (delta / 1000) * (clockwise ? 1 : -1);
 
                 currentAngle = (currentAngle + angleIncrement + 360) % 360;
-                store.setOrbitAngle(currentAngle);
+                if (Math.abs(currentAngle - orbitAngle) > 0.5) {
+                    setOrbitAngle(currentAngle);
+                }
 
                 const position = getOrbitPosition(center, radiusKm, currentAngle);
                 const heading = orbitLookAtCenter
@@ -837,7 +830,7 @@ export function FlightDashboard() {
             if (store.animationId) cancelAnimationFrame(store.animationId);
             store.setAnimationId(null);
         };
-    }, [dashboardOpen, flightMode, orbitLookAtCenter, orbitPaused]);
+    }, [dashboardOpen, flightMode, orbitLookAtCenter, orbitPaused, orbitCenter, orbitRadiusKm, orbitDirection]);
 
     useEffect(() => {
         if (!dashboardOpen || flightMode !== 'orbit') return;
@@ -918,17 +911,17 @@ export function FlightDashboard() {
             'star-intensity': 0.2
         });
 
-        const orbitCenter = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
+        const nextCenter = center || orbitCenter || [map.getCenter().lng, map.getCenter().lat];
 
         const currentPos: [number, number] = [map.getCenter().lng, map.getCenter().lat];
-        const dx = (currentPos[0] - orbitCenter[0]) * Math.cos(toRadians(orbitCenter[1])) * 111;
-        const dy = (currentPos[1] - orbitCenter[1]) * 111;
+        const dx = (currentPos[0] - nextCenter[0]) * Math.cos(toRadians(nextCenter[1])) * 111;
+        const dy = (currentPos[1] - nextCenter[1]) * 111;
         const derivedRadius = Math.max(0.5, Math.sqrt(dx * dx + dy * dy));
         const derivedAngle = (toDegrees(Math.atan2(dy, dx)) + 360) % 360;
 
-        store.setOrbitCenter(orbitCenter);
-        store.setOrbitRadius(derivedRadius);
-        store.setOrbitAngle(derivedAngle);
+        setOrbitCenter(nextCenter);
+        setOrbitRadiusKm(derivedRadius);
+        setOrbitAngle(derivedAngle);
         setFlightMode('orbit');
 
         store.setTargetAltitude(map.getZoom());
@@ -949,9 +942,8 @@ export function FlightDashboard() {
         const map = useMapStore.getState().map;
         if (!map) return;
         const center = map.getCenter();
-        const store = useFlightStore.getState();
-        store.setOrbitCenter([center.lng, center.lat]);
-        store.setOrbitAngle(0);
+        setOrbitCenter([center.lng, center.lat]);
+        setOrbitAngle(0);
     };
 
     // Apply heading change - set target for smooth easing
@@ -1258,53 +1250,34 @@ export function FlightDashboard() {
                                 ]}
                             />
 
-                            {/* HEADING - Center compass + ORBIT controls */}
+                            {/* HEADING + ORBIT */}
                             <div className="flex flex-col items-center gap-2">
-                                {/* Show compass for non-orbit modes, orbit indicator for orbit mode */}
-                                {flightMode !== 'orbit' ? (
-                                    <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
-                                ) : (
-                                    <OrbitIndicator heading={heading} />
-                                )}
+                                <BallCompass heading={heading} targetHeading={targetHeading} onHeadingChange={applyHeading} />
 
-                                {/* ORBIT Button */}
-                                <button
-                                    onClick={() => {
-                                        setLastAction('orbit:click');
-                                        const map = useMapStore.getState().map;
-                                        if (map) {
-                                            const center = map.getCenter();
-                                            startOrbit([center.lng, center.lat]);
+                                <OrbitPanel
+                                    enabled={flightMode === 'orbit'}
+                                    radiusKm={orbitRadiusKm}
+                                    direction={orbitDirection}
+                                    lookAtCenter={orbitLookAtCenter}
+                                    paused={orbitPaused}
+                                    onToggle={() => {
+                                        setLastAction('orbit:toggle');
+                                        if (flightMode === 'orbit') {
+                                            setFlightMode('manual');
+                                        } else {
+                                            const map = useMapStore.getState().map;
+                                            if (map) {
+                                                const center = map.getCenter();
+                                                startOrbit([center.lng, center.lat]);
+                                            }
                                         }
                                     }}
-                                    onPointerDown={() => setLastAction('orbit:pointerdown')}
-                                    className={`
-                                        pointer-events-auto
-                                        px-4 py-1.5 rounded font-mono text-xs font-bold transition-all border flex items-center gap-2
-                                        ${flightMode === 'orbit'
-                                            ? 'bg-orange-500 text-black border-orange-400 shadow-lg shadow-orange-500/50'
-                                            : 'bg-black/60 text-orange-400/70 border-orange-500/30 hover:bg-orange-500/20 hover:text-orange-300 cursor-pointer'
-                                        }
-                                    `}
-                                >
-                                    <RotateCw className="w-3 h-3" />
-                                    ORBIT
-                                </button>
-
-                                {/* Orbit controls - only show in orbit mode */}
-                                {flightMode === 'orbit' ? (
-                                    <OrbitControls
-                                        lookAtCenter={orbitLookAtCenter}
-                                        paused={orbitPaused}
-                                        onToggleLook={() => setOrbitLookAtCenter((v) => !v)}
-                                        onTogglePause={() => setOrbitPaused((v) => !v)}
-                                        onSetCenter={handleSetOrbitCenter}
-                                    />
-                                ) : (
-                                    <div className="text-orange-400/30 text-[8px] font-mono">
-                                        {orbitCenter ? 'CENTER LOCKED' : 'CENTERED ON MAP'}
-                                    </div>
-                                )}
+                                    onSetCenter={handleSetOrbitCenter}
+                                    onRadiusChange={(next) => setOrbitRadiusKm(next)}
+                                    onToggleDirection={() => setOrbitDirection((d) => (d === 'cw' ? 'ccw' : 'cw'))}
+                                    onToggleLook={() => setOrbitLookAtCenter((v) => !v)}
+                                    onTogglePause={() => setOrbitPaused((v) => !v)}
+                                />
                             </div>
 
                             {/* ALTITUDE - Animation loop handles zoom easing */}
@@ -1363,9 +1336,9 @@ export function FlightDashboard() {
                                 <div>lastAction: {lastAction}</div>
                                 <div>animationId: {useFlightStore.getState().animationId ?? 'null'}</div>
                                 <div>orbitCenter: {orbitCenter ? `${orbitCenter[0].toFixed(4)}, ${orbitCenter[1].toFixed(4)}` : 'null'}</div>
-                                <div>orbitRadiusKm: {orbitRadius.toFixed(2)}</div>
-                                <div>orbitAngle: {useFlightStore.getState().orbitAngle.toFixed(2)}</div>
-                                <div>orbitClockwise: {orbitClockwise ? 'true' : 'false'}</div>
+                                <div>orbitRadiusKm: {orbitRadiusKm.toFixed(2)}</div>
+                                <div>orbitAngle: {orbitAngle.toFixed(2)}</div>
+                                <div>orbitDirection: {orbitDirection}</div>
                                 <div>orbitPaused: {orbitPaused ? 'true' : 'false'}</div>
                                 <div>lookAtCenter: {orbitLookAtCenter ? 'true' : 'false'}</div>
                                 <div>targetHeading: {targetHeading ?? 'null'}</div>

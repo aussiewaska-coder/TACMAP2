@@ -14,12 +14,6 @@ interface FlightState {
     targetPitch: number | null; // 0-85 degrees, null = no override
     targetSpeed: number | null; // km/h, null = no override
 
-    // Orbit mode state
-    orbitCenter: [number, number] | null; // [lng, lat] center point
-    orbitRadius: number; // in kilometers
-    orbitAngle: number; // current position on circle (0-360)
-    orbitClockwise: boolean; // direction of orbit
-
     // Satellite view
     satelliteEnabled: boolean;
     buildings3dEnabled: boolean;
@@ -35,10 +29,6 @@ interface FlightState {
     setTargetAltitude: (altitude: number | null) => void;
     setTargetPitch: (pitch: number | null) => void;
     setTargetSpeed: (speed: number | null) => void;
-    setOrbitCenter: (center: [number, number] | null) => void;
-    setOrbitRadius: (radius: number) => void;
-    setOrbitAngle: (angle: number) => void;
-    setOrbitClockwise: (clockwise: boolean) => void;
     setSatelliteEnabled: (enabled: boolean) => void;
     setBuildings3dEnabled: (enabled: boolean) => void;
 }
@@ -54,10 +44,6 @@ export const useFlightStore = create<FlightState>((set) => ({
     targetAltitude: null,
     targetPitch: null,
     targetSpeed: null,
-    orbitCenter: null,
-    orbitRadius: 3, // km
-    orbitAngle: 0,
-    orbitClockwise: true,
     satelliteEnabled: false,
     buildings3dEnabled: false,
 
@@ -72,10 +58,6 @@ export const useFlightStore = create<FlightState>((set) => ({
     setTargetAltitude: (altitude) => set({ targetAltitude: altitude }),
     setTargetPitch: (pitch) => set({ targetPitch: pitch }),
     setTargetSpeed: (speed) => set({ targetSpeed: speed }),
-    setOrbitCenter: (center) => set({ orbitCenter: center }),
-    setOrbitRadius: (radius) => set({ orbitRadius: radius }),
-    setOrbitAngle: (angle) => set({ orbitAngle: angle }),
-    setOrbitClockwise: (clockwise) => set({ orbitClockwise: clockwise }),
     setSatelliteEnabled: (enabled) => set({ satelliteEnabled: enabled }),
     setBuildings3dEnabled: (enabled) => set({ buildings3dEnabled: enabled }),
 }));
