@@ -5,13 +5,13 @@ import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightSt
 import { useMapStore } from '@/stores';
 import { useEffect, useState, useRef, useCallback } from 'react';
 
-// Altitude preset buttons with default speeds (Mach 1 ≈ 1225 km/h)
+// Altitude preset buttons with default speeds
 const ALTITUDE_PRESETS = [
-    { ft: 50000, zoom: 5, label: '50K', speed: 61250 },  // Mach 50 - ludicrous speed
-    { ft: 20000, zoom: 8, label: '20K', speed: 12250 }, // Mach 10
-    { ft: 10000, zoom: 10, label: '10K', speed: 2500 },
-    { ft: 3000, zoom: 13, label: '3K', speed: 375 },
-    { ft: 500, zoom: 16, label: '500', speed: 75 },
+    { ft: 50000, zoom: 5, label: '50K', speed: 20000 },  // SR-71 territory
+    { ft: 20000, zoom: 8, label: '20K', speed: 10000 },  // Supersonic
+    { ft: 10000, zoom: 10, label: '10K', speed: 1000 },  // Regional jet
+    { ft: 3000, zoom: 13, label: '3K', speed: 280 },     // Fast helicopter
+    { ft: 500, zoom: 16, label: '500', speed: 75 },      // Slow helicopter
 ];
 
 // Altitude Buttons - DIRECTLY controls map zoom via flyTo
@@ -576,17 +576,17 @@ export function FlightDashboard() {
                                 value={speed}
                                 onChange={setSpeed}
                                 min={25}
-                                max={61250}
-                                step={25}
+                                max={20000}
+                                step={5}
                                 label="THRTL"
                                 unit=""
                                 color="green"
                                 logarithmic={true}
                                 ticks={[
-                                    { value: 61250, label: 'M50' },
-                                    { value: 12250, label: 'M10' },
-                                    { value: 2500, label: '2.5K' },
-                                    { value: 375, label: '375' },
+                                    { value: 20000, label: '20K' },
+                                    { value: 10000, label: '10K' },
+                                    { value: 1000, label: '1K' },
+                                    { value: 280, label: '280' },
                                     { value: 25, label: '25' },
                                 ]}
                             />

@@ -70,12 +70,12 @@ export function FlightButton() {
 
         stopFlight();
 
-        // Set default flight parameters: 3K altitude, 375 speed, 70° tilt, keep current heading
+        // Set default flight parameters: 3K altitude, 280 speed, 70° tilt, keep current heading
         const store = useFlightStore.getState();
         store.setMode('pan');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
-        store.setSpeed(375);            // Set actual speed
-        store.setTargetSpeed(375);      // Set target so easing works
+        store.setSpeed(280);            // Set actual speed
+        store.setTargetSpeed(280);      // Set target so easing works
         store.setTargetPitch(70);       // 70° tilt
         // Don't set targetHeading - keep current map direction
 
@@ -84,7 +84,7 @@ export function FlightButton() {
         let currentHeading = map.getBearing();  // Retain current direction
         let currentPitch = 70;                  // Force to target pitch
         let currentZoom = 13;                   // Force to target zoom - DON'T read from map
-        let currentSpeed = 375;
+        let currentSpeed = 280;
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
@@ -165,14 +165,14 @@ export function FlightButton() {
         const proj = map.getProjection();
         const currentProj = typeof proj?.type === 'string' ? proj.type : 'mercator';
 
-        // Set default flight parameters: 3K altitude, 375 speed, 70° tilt
+        // Set default flight parameters: 3K altitude, 280 speed, 70° tilt
         const store = useFlightStore.getState();
         store.setPrevProjection(currentProj);
         map.setProjection({ type: 'globe' });
         store.setMode('sightseeing');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
-        store.setSpeed(375);            // Set actual speed
-        store.setTargetSpeed(375);      // Set target so easing works
+        store.setSpeed(280);            // Set actual speed
+        store.setTargetSpeed(280);      // Set target so easing works
         store.setTargetPitch(70);       // 70° tilt
 
         // Store initial values - these are the SOURCE OF TRUTH, never read from map again
@@ -182,7 +182,7 @@ export function FlightButton() {
         let currentHeading = map.getBearing();
         let currentPitch = 70;          // Force to target pitch
         let currentZoom = 13;           // Force to target zoom - DON'T read from map
-        let currentSpeed = 375;
+        let currentSpeed = 280;
 
         const animate = (time: number) => {
             const currentMap = useMapStore.getState().map;
