@@ -55,6 +55,8 @@ export function FlightButton() {
         const map = useMapStore.getState().map;
         if (map && store.prevProjection) {
             map.setProjection({ type: store.prevProjection as 'mercator' | 'globe' });
+            // Clear custom fog settings
+            map.setFog(null);
         }
 
         store.setAnimationId(null);
@@ -81,6 +83,17 @@ export function FlightButton() {
         const store = useFlightStore.getState();
         store.setPrevProjection(currentProj);
         map.setProjection({ type: 'globe' });
+
+        // Push fog far away so it's not annoying at flight altitudes
+        map.setFog({
+            range: [2, 20], // Start fog at zoom 2, full at zoom 20 (very far)
+            color: '#ffffff',
+            'high-color': '#245cdf',
+            'horizon-blend': 0.02,
+            'space-color': '#000000',
+            'star-intensity': 0.2
+        });
+
         store.setMode('pan');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
         store.setSpeed(280);            // Set actual speed
@@ -178,6 +191,16 @@ export function FlightButton() {
         const store = useFlightStore.getState();
         store.setPrevProjection(currentProj);
         map.setProjection({ type: 'globe' });
+
+        // Push fog far away so it's not annoying at flight altitudes
+        map.setFog({
+            range: [2, 20],
+            color: '#ffffff',
+            'high-color': '#245cdf',
+            'horizon-blend': 0.02,
+            'space-color': '#000000',
+            'star-intensity': 0.2
+        });
 
         // Use provided center, existing orbit center, or screen center
         const orbitCenter: [number, number] = center || store.orbitCenter || [map.getCenter().lng, map.getCenter().lat];
@@ -383,6 +406,17 @@ export function FlightButton() {
         const store = useFlightStore.getState();
         store.setPrevProjection(currentProj);
         map.setProjection({ type: 'globe' });
+
+        // Push fog far away so it's not annoying at flight altitudes
+        map.setFog({
+            range: [2, 20],
+            color: '#ffffff',
+            'high-color': '#245cdf',
+            'horizon-blend': 0.02,
+            'space-color': '#000000',
+            'star-intensity': 0.2
+        });
+
         store.setMode('sightseeing');
         store.setTargetAltitude(13);    // 3K feet = zoom 13
         store.setSpeed(280);            // Set actual speed
