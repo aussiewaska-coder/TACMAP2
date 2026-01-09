@@ -6,6 +6,7 @@ interface FlightState {
     animationId: number | null;
     prevProjection: string | null;
     speed: number; // km/h
+    userZooming: boolean; // Track when user is actively zooming (double-click, pinch, wheel)
 
     openDashboard: () => void;
     closeDashboard: () => void;
@@ -13,6 +14,7 @@ interface FlightState {
     setAnimationId: (id: number | null) => void;
     setPrevProjection: (proj: string | null) => void;
     setSpeed: (speed: number) => void;
+    setUserZooming: (zooming: boolean) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -21,6 +23,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     animationId: null,
     prevProjection: null,
     speed: 250,
+    userZooming: false,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
@@ -28,6 +31,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     setAnimationId: (id) => set({ animationId: id }),
     setPrevProjection: (proj) => set({ prevProjection: proj }),
     setSpeed: (speed) => set({ speed }),
+    setUserZooming: (zooming) => set({ userZooming: zooming }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow

@@ -1,9 +1,124 @@
-import { X, Plane, Compass, Gauge, Navigation, Globe, RotateCw } from 'lucide-react';
+import { X, Plane, Gauge, Navigation, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
 import { useMapStore } from '@/stores';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+
+// Glassmorphic Ball Compass Component
+function BallCompass({ heading, onHeadingChange }: { heading: number; onHeadingChange: (h: number) => void }) {
+    const compassRef = useRef<HTMLDivElement>(null);
+    const isDragging = useRef(false);
+
+    const getAngleFromEvent = useCallback((e: MouseEvent | TouchEvent) => {
+        if (!compassRef.current) return heading;
+        const rect = compassRef.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+        const angle = Math.atan2(clientX - centerX, centerY - clientY) * (180 / Math.PI);
+        return (angle + 360) % 360;
+    }, [heading]);
+
+    const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+        e.preventDefault();
+        isDragging.current = true;
+        const nativeEvent = 'touches' in e ? e.nativeEvent : e.nativeEvent;
+        onHeadingChange(getAngleFromEvent(nativeEvent as MouseEvent | TouchEvent));
+    }, [getAngleFromEvent, onHeadingChange]);
+
+    useEffect(() => {
+        const handleMove = (e: MouseEvent | TouchEvent) => {
+            if (!isDragging.current) return;
+            e.preventDefault();
+            onHeadingChange(getAngleFromEvent(e));
+        };
+
+        const handleEnd = () => {
+            isDragging.current = false;
+        };
+
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchend', handleEnd);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleEnd);
+            window.removeEventListener('touchmove', handleMove);
+            window.removeEventListener('touchend', handleEnd);
+        };
+    }, [getAngleFromEvent, onHeadingChange]);
+
+    return (
+        <div className="flex flex-col items-center gap-2">
+            <div
+                ref={compassRef}
+                onMouseDown={handleStart}
+                onTouchStart={handleStart}
+                className="relative w-28 h-28 cursor-grab active:cursor-grabbing select-none"
+            >
+                {/* Outer glass ring */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md border border-white/30 shadow-lg shadow-cyan-500/20" />
+
+                {/* Inner dark sphere */}
+                <div className="absolute inset-2 rounded-full bg-gradient-to-br from-slate-800 to-slate-900 border border-cyan-500/30 shadow-inner" />
+
+                {/* Compass rose - rotates with heading */}
+                <div
+                    className="absolute inset-3 rounded-full"
+                    style={{ transform: `rotate(${-heading}deg)` }}
+                >
+                    {/* Cardinal directions */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="absolute top-1 text-[10px] font-bold text-red-400">N</span>
+                        <span className="absolute bottom-1 text-[10px] font-bold text-cyan-400/60">S</span>
+                        <span className="absolute left-1 text-[10px] font-bold text-cyan-400/60">W</span>
+                        <span className="absolute right-1 text-[10px] font-bold text-cyan-400/60">E</span>
+                    </div>
+
+                    {/* Tick marks */}
+                    {[...Array(36)].map((_, i) => (
+                        <div
+                            key={i}
+                            className="absolute left-1/2 top-0 origin-bottom"
+                            style={{
+                                height: '50%',
+                                transform: `translateX(-50%) rotate(${i * 10}deg)`,
+                            }}
+                        >
+                            <div
+                                className={`w-px ${i % 9 === 0 ? 'h-2 bg-cyan-400' : 'h-1 bg-cyan-400/40'}`}
+                            />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Fixed aircraft indicator (pointing up = current heading) */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-0 h-0 border-l-[6px] border-r-[6px] border-b-[12px] border-l-transparent border-r-transparent border-b-cyan-400 -translate-y-4" />
+                </div>
+
+                {/* Center dot */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-lg shadow-cyan-400/50" />
+                </div>
+
+                {/* Glass highlight */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-b from-white/10 to-transparent pointer-events-none" style={{ clipPath: 'ellipse(45% 30% at 50% 25%)' }} />
+            </div>
+
+            {/* Heading readout */}
+            <div className="text-cyan-400 font-mono text-lg font-bold">
+                {Math.round(heading).toString().padStart(3, '0')}°
+            </div>
+        </div>
+    );
+}
 
 export function FlightDashboard() {
     const mode = useFlightMode();
@@ -176,46 +291,9 @@ export function FlightDashboard() {
                             </div>
                         </div>
 
-                        {/* HEADING */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <label className="text-cyan-400/70 text-xs font-mono flex items-center gap-2">
-                                    <Compass className="w-3 h-3" />
-                                    HEADING
-                                </label>
-                                <span className="text-cyan-400 font-mono text-sm font-bold">{heading}°</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="359"
-                                    value={heading}
-                                    onChange={(e) => applyHeading(Number(e.target.value))}
-                                    className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
-                                        [&::-webkit-slider-thumb]:appearance-none
-                                        [&::-webkit-slider-thumb]:w-4
-                                        [&::-webkit-slider-thumb]:h-4
-                                        [&::-webkit-slider-thumb]:bg-cyan-500
-                                        [&::-webkit-slider-thumb]:rounded-full
-                                        [&::-webkit-slider-thumb]:cursor-pointer"
-                                />
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => applyHeading(0)}
-                                    className="h-7 px-2 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20"
-                                >
-                                    <RotateCw className="w-3 h-3 mr-1" />
-                                    N
-                                </Button>
-                            </div>
-                            <div className="flex justify-between text-[10px] text-cyan-400/40 font-mono">
-                                <span>N 0°</span>
-                                <span>E 90°</span>
-                                <span>S 180°</span>
-                                <span>W 270°</span>
-                            </div>
+                        {/* HEADING - Ball Compass */}
+                        <div className="flex justify-center py-2">
+                            <BallCompass heading={heading} onHeadingChange={applyHeading} />
                         </div>
 
                         {/* ALTITUDE */}
