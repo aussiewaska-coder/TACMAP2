@@ -54,6 +54,7 @@ export function FlightButton() {
                 const speedFactor = (speed / 250) * 0.00001;
                 const center = currentMap.getCenter();
                 const bearing = currentMap.getBearing();
+                const zoom = currentMap.getZoom(); // Lock altitude
 
                 // Move in the direction of bearing
                 const bearingRad = (bearing * Math.PI) / 180;
@@ -61,7 +62,11 @@ export function FlightButton() {
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
-                currentMap.setCenter([newLng, newLat]);
+                // Use jumpTo with explicit zoom to prevent terrain affecting altitude
+                currentMap.jumpTo({
+                    center: [newLng, newLat],
+                    zoom: zoom, // Maintain altitude
+                });
             }
 
             lastTime = time;
@@ -92,7 +97,6 @@ export function FlightButton() {
 
         let lastTime = 0;
         let targetBearing = map.getBearing();
-        let targetZoom = map.getZoom();
         let waypoint = { lng: map.getCenter().lng, lat: map.getCenter().lat };
 
         const animate = (time: number) => {
@@ -108,7 +112,7 @@ export function FlightButton() {
             if (lastTime) {
                 const delta = Math.min(time - lastTime, 50);
                 const center = currentMap.getCenter();
-                const zoom = currentMap.getZoom();
+                const zoom = currentMap.getZoom(); // Lock altitude - use current zoom
                 const bearing = currentMap.getBearing();
 
                 // Speed factor based on throttle (250 baseline)
@@ -119,7 +123,7 @@ export function FlightButton() {
                 const dy = waypoint.lat - center.lat;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                // Generate new waypoint when close
+                // Generate new waypoint when close (no zoom changes - altitude locked)
                 if (dist < 0.02) {
                     const angle = Math.random() * 6.28;
                     waypoint = {
@@ -127,7 +131,6 @@ export function FlightButton() {
                         lat: Math.max(-85, Math.min(85, center.lat + Math.sin(angle) * 0.15))
                     };
                     targetBearing = (targetBearing + Math.random() * 90 - 45 + 360) % 360;
-                    targetZoom = 3 + Math.random() * 10;
                 }
 
                 // Move toward waypoint
@@ -140,14 +143,11 @@ export function FlightButton() {
                 const bearingDiff = ((targetBearing - bearing + 540) % 360) - 180;
                 const newBearing = bearing + Math.sign(bearingDiff) * Math.min(Math.abs(bearingDiff), 0.03 * delta);
 
-                // Smooth zoom
-                const zoomDiff = targetZoom - zoom;
-                const newZoom = zoom + Math.sign(zoomDiff) * Math.min(Math.abs(zoomDiff), 0.005 * delta);
-
+                // Use jumpTo with explicit zoom to prevent terrain affecting altitude
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: newBearing,
-                    zoom: newZoom
+                    zoom: zoom // Maintain altitude
                 });
             }
 
