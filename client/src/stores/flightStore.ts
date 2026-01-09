@@ -25,6 +25,7 @@ interface FlightState {
 
     // Satellite view
     satelliteEnabled: boolean;
+    buildings3dEnabled: boolean;
 
     openDashboard: () => void;
     closeDashboard: () => void;
@@ -43,6 +44,7 @@ interface FlightState {
     setOrbitAngle: (angle: number) => void;
     setOrbitClockwise: (clockwise: boolean) => void;
     setSatelliteEnabled: (enabled: boolean) => void;
+    setBuildings3dEnabled: (enabled: boolean) => void;
 }
 
 export const useFlightStore = create<FlightState>((set) => ({
@@ -62,6 +64,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     orbitAngle: 0,
     orbitClockwise: true,
     satelliteEnabled: false,
+    buildings3dEnabled: false,
 
     openDashboard: () => set({ dashboardOpen: true }),
     closeDashboard: () => set({ dashboardOpen: false }),
@@ -80,6 +83,7 @@ export const useFlightStore = create<FlightState>((set) => ({
     setOrbitAngle: (angle) => set({ orbitAngle: angle }),
     setOrbitClockwise: (clockwise) => set({ orbitClockwise: clockwise }),
     setSatelliteEnabled: (enabled) => set({ satelliteEnabled: enabled }),
+    setBuildings3dEnabled: (enabled) => set({ buildings3dEnabled: enabled }),
 }));
 
 // SIMPLE selectors - primitives don't need shallow

@@ -1,4 +1,4 @@
-import { X, Plane, Globe, RotateCw, Satellite } from 'lucide-react';
+import { X, Plane, Globe, RotateCw, Satellite, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Z_INDEX } from '@/core/constants';
 import { useFlightStore, useFlightMode, useFlightSpeed } from '@/stores/flightStore';
@@ -518,6 +518,10 @@ const SATELLITE_SOURCE_ID = 'flight-satellite-source';
 const SATELLITE_LAYER_ID = 'flight-satellite-layer';
 const SATELLITE_TILES_URL = 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2020_3857/default/g/{z}/{y}/{x}.jpg';
 
+// 3D Buildings layer constants
+const BUILDINGS_SOURCE_ID = 'flight-buildings-source';
+const BUILDINGS_LAYER_ID = 'flight-3d-buildings';
+
 export function FlightDashboard() {
     const mode = useFlightMode();
     const speed = useFlightSpeed(); // From store
@@ -525,6 +529,7 @@ export function FlightDashboard() {
     const targetAltitude = useFlightStore((s) => s.targetAltitude);
     const targetPitch = useFlightStore((s) => s.targetPitch);
     const satelliteEnabled = useFlightStore((s) => s.satelliteEnabled);
+    const buildings3dEnabled = useFlightStore((s) => s.buildings3dEnabled);
     const [telemetry, setTelemetry] = useState({
         lat: 0,
         lng: 0,
@@ -677,6 +682,75 @@ export function FlightDashboard() {
         }
     };
 
+    // Toggle 3D buildings layer on map
+    const toggleBuildings = () => {
+        const map = useMapStore.getState().map;
+        if (!map) return;
+
+        const newEnabled = !buildings3dEnabled;
+        useFlightStore.getState().setBuildings3dEnabled(newEnabled);
+
+        if (newEnabled) {
+            // Add buildings source if not exists
+            if (!map.getSource(BUILDINGS_SOURCE_ID)) {
+                map.addSource(BUILDINGS_SOURCE_ID, {
+                    url: 'https://tiles.openfreemap.org/planet',
+                    type: 'vector'
+                });
+            }
+
+            // Add 3D buildings layer if not exists
+            if (!map.getLayer(BUILDINGS_LAYER_ID)) {
+                // Find the first symbol layer with text to insert before
+                const layers = map.getStyle()?.layers || [];
+                let labelLayerId: string | undefined;
+                for (const layer of layers) {
+                    if (layer.type === 'symbol' && (layer.layout as any)?.['text-field']) {
+                        labelLayerId = layer.id;
+                        break;
+                    }
+                }
+
+                map.addLayer({
+                    id: BUILDINGS_LAYER_ID,
+                    source: BUILDINGS_SOURCE_ID,
+                    'source-layer': 'building',
+                    type: 'fill-extrusion',
+                    minzoom: 14,
+                    filter: ['!=', ['get', 'hide_3d'], true],
+                    paint: {
+                        'fill-extrusion-color': [
+                            'interpolate', ['linear'], ['get', 'render_height'],
+                            0, '#8899aa',
+                            50, '#667788',
+                            100, '#556677',
+                            200, '#445566'
+                        ],
+                        'fill-extrusion-height': [
+                            'interpolate', ['linear'], ['zoom'],
+                            14, 0,
+                            15, ['get', 'render_height']
+                        ],
+                        'fill-extrusion-base': [
+                            'case',
+                            ['>=', ['zoom'], 15],
+                            ['get', 'render_min_height'],
+                            0
+                        ],
+                        'fill-extrusion-opacity': 0.85
+                    }
+                } as any, labelLayerId);
+            } else {
+                map.setLayoutProperty(BUILDINGS_LAYER_ID, 'visibility', 'visible');
+            }
+        } else {
+            // Hide buildings layer
+            if (map.getLayer(BUILDINGS_LAYER_ID)) {
+                map.setLayoutProperty(BUILDINGS_LAYER_ID, 'visibility', 'none');
+            }
+        }
+    };
+
     // Update speed directly (from throttle slider) - also sets target for easing
     const setSpeed = (newSpeed: number) => {
         useFlightStore.getState().setTargetSpeed(newSpeed);
@@ -721,6 +795,20 @@ export function FlightDashboard() {
                                 }`}
                             >
                                 <Satellite className="w-4 h-4" />
+                            </Button>
+                            {/* 3D Buildings toggle */}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={toggleBuildings}
+                                title={buildings3dEnabled ? 'Disable 3D buildings' : 'Enable 3D buildings'}
+                                className={`h-7 w-7 rounded border transition-all ${
+                                    buildings3dEnabled
+                                        ? 'bg-amber-500/30 text-amber-300 border-amber-400/50 shadow-lg shadow-amber-500/20'
+                                        : 'text-amber-400/50 hover:bg-amber-500/20 hover:text-amber-300 border-amber-500/30'
+                                }`}
+                            >
+                                <Building2 className="w-4 h-4" />
                             </Button>
                             <Button
                                 variant="ghost"
