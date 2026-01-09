@@ -42,7 +42,7 @@ export function useFlight() {
 
     // Remove route layer from map (defined first since stopFlight depends on it)
     const removeRouteLayer = useCallback(() => {
-        if (!map) return;
+        if (!map || !map.getStyle()) return;
 
         try {
             if (map.getLayer(ROUTE_LAYER_ID)) {
@@ -85,7 +85,7 @@ export function useFlight() {
 
     // Add route layer to map
     const addRouteLayer = useCallback((geometry: GeoJSON.LineString) => {
-        if (!map) return;
+        if (!map || !map.getStyle()) return;
 
         // Remove existing layer if any
         removeRouteLayer();
@@ -276,11 +276,17 @@ export function useFlight() {
 
     // Handle mode changes
     useEffect(() => {
+        // Don't do anything if map isn't ready
+        if (!map) return;
+
         // Skip if already animating (prevents re-entry)
         if (flightRef.current && mode !== 'off') return;
 
         if (mode === 'off') {
-            stopFlight();
+            // Only call stopFlight if there's actually something to stop
+            if (flightRef.current) {
+                stopFlight();
+            }
         } else if (mode === 'manual') {
             startManualFlight();
         } else if (mode === 'autopilot' && destination) {
@@ -294,7 +300,7 @@ export function useFlight() {
             }
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [mode, destination]);
+    }, [mode, destination, map]);
 
     // Stop flight on user map interaction
     useEffect(() => {
