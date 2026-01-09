@@ -1,6 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 import { Map, Settings, Layers, Database, AlertTriangle } from "lucide-react";
 
@@ -39,9 +38,9 @@ export default function Home() {
                 </Button>
               </>
             ) : (
-              <Button asChild>
-                <a href={getLoginUrl()}>Login</a>
-              </Button>
+              <Link href="/map">
+                <Button>Enter Map</Button>
+              </Link>
             )}
           </div>
         </div>
