@@ -273,7 +273,7 @@ export function UnifiedAlertsPanel() {
     };
 
     // --- UNIFIED RENDERING ---
-    const currentData = alertMode === 'emergency' ? filteredEmergencyData?.features : policeReports;
+    const currentData = alertMode === 'emergency' ? filteredEmergencyData : policeReports;
     const isLoading = alertMode === 'emergency' ? emergencyLoading : policeLoading;
 
     const { alertCount } = useUnifiedAlerts({
