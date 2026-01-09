@@ -358,9 +358,9 @@ export function FlightDashboard() {
     }, [mode]);
 
     // Derive altitude from zoom (two-way: zoom IS altitude)
-    // zoom 18 = 500m, zoom 1 = 50000m
+    // zoom 18 = 500m, zoom 0 = ~130km
     const altitude = Math.round(500 * Math.pow(2, 18 - telemetry.zoom));
-    const clampedAltitude = Math.max(1000, Math.min(50000, altitude));
+    const clampedAltitude = Math.max(1000, Math.min(100000, altitude));
 
     // Derive heading from bearing
     const heading = Math.round((telemetry.bearing + 360) % 360);
@@ -498,16 +498,16 @@ export function FlightDashboard() {
                                 value={clampedAltitude}
                                 onChange={applyAltitude}
                                 min={1000}
-                                max={50000}
+                                max={100000}
                                 step={1000}
                                 label="ALT"
                                 unit="m"
                                 color="amber"
                                 ticks={[
+                                    { value: 100000, label: '100K' },
+                                    { value: 75000, label: '' },
                                     { value: 50000, label: '50K' },
-                                    { value: 37500, label: '' },
                                     { value: 25000, label: '25K' },
-                                    { value: 12500, label: '' },
                                     { value: 1000, label: '1K' },
                                 ]}
                             />

@@ -8,8 +8,8 @@ import { toast } from 'sonner';
 
 // Convert altitude (meters) to map zoom level
 const altitudeToZoom = (alt: number): number => {
-    // 500m = zoom 18, 50000m = zoom ~3
-    return Math.max(1, Math.min(18, 18 - Math.log2(alt / 500)));
+    // 500m = zoom 18, 100000m = zoom ~1
+    return Math.max(0, Math.min(18, 18 - Math.log2(alt / 500)));
 };
 
 // Convert zoom to altitude (meters)
@@ -78,16 +78,28 @@ export function FlightButton() {
         let currentAltitude = zoomToAltitude(map.getZoom());
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
+        let isAnimatingZoom = false; // Flag to ignore zoomend from our own animation
 
-        // Track user zoom interactions - update current altitude when user finishes zooming
-        const onZoomEnd = () => {
-            const m = useMapStore.getState().map;
-            if (m) {
-                currentAltitude = zoomToAltitude(m.getZoom());
-                // Clear target so we maintain user's choice
-                useFlightStore.getState().setTargetAltitude(null);
+        // Track user zoom interactions - update current altitude ONLY when USER zooms (not our animation)
+        const onZoomStart = () => {
+            // If we're not animating, user initiated zoom
+            if (!isAnimatingZoom) {
+                useFlightStore.getState().setUserZooming(true);
             }
         };
+        const onZoomEnd = () => {
+            const userWasZooming = useFlightStore.getState().userZooming;
+            useFlightStore.getState().setUserZooming(false);
+            // Only update altitude if USER initiated the zoom (not terrain/our animation)
+            if (userWasZooming) {
+                const m = useMapStore.getState().map;
+                if (m) {
+                    currentAltitude = zoomToAltitude(m.getZoom());
+                    useFlightStore.getState().setTargetAltitude(null);
+                }
+            }
+        };
+        map.on('zoomstart', onZoomStart);
         map.on('zoomend', onZoomEnd);
 
         const animate = (time: number) => {
@@ -95,6 +107,7 @@ export function FlightButton() {
             const store = useFlightStore.getState();
 
             if (!currentMap || store.mode !== 'pan') {
+                currentMap?.off('zoomstart', onZoomStart);
                 currentMap?.off('zoomend', onZoomEnd);
                 useFlightStore.getState().setAnimationId(null);
                 return;
@@ -116,6 +129,7 @@ export function FlightButton() {
                 if (store.targetAltitude !== null) {
                     currentAltitude = easeAltitude(currentAltitude, store.targetAltitude, delta, 2000);
                 }
+                // DO NOT read altitude from map - terrain would affect it
 
                 // Smooth pitch toward target (30° per second tilt rate)
                 if (store.targetPitch !== null) {
@@ -130,12 +144,15 @@ export function FlightButton() {
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.cos(bearingRad) * moveDist));
                 const newLng = center.lng + Math.sin(bearingRad) * moveDist;
 
+                // Set flag so zoomend knows this is our animation, not user
+                isAnimatingZoom = true;
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
                     zoom: altitudeToZoom(currentAltitude),
                     pitch: currentPitch
                 });
+                isAnimatingZoom = false;
             }
 
             lastTime = time;
@@ -170,15 +187,26 @@ export function FlightButton() {
         let currentAltitude = zoomToAltitude(map.getZoom());
         let currentHeading = map.getBearing();
         let currentPitch = map.getPitch();
+        let isAnimatingZoom = false;
 
-        // Track user zoom interactions
-        const onZoomEnd = () => {
-            const m = useMapStore.getState().map;
-            if (m) {
-                currentAltitude = zoomToAltitude(m.getZoom());
-                useFlightStore.getState().setTargetAltitude(null);
+        // Track user zoom interactions - ONLY update altitude when USER zooms
+        const onZoomStart = () => {
+            if (!isAnimatingZoom) {
+                useFlightStore.getState().setUserZooming(true);
             }
         };
+        const onZoomEnd = () => {
+            const userWasZooming = useFlightStore.getState().userZooming;
+            useFlightStore.getState().setUserZooming(false);
+            if (userWasZooming) {
+                const m = useMapStore.getState().map;
+                if (m) {
+                    currentAltitude = zoomToAltitude(m.getZoom());
+                    useFlightStore.getState().setTargetAltitude(null);
+                }
+            }
+        };
+        map.on('zoomstart', onZoomStart);
         map.on('zoomend', onZoomEnd);
 
         const animate = (time: number) => {
@@ -186,6 +214,7 @@ export function FlightButton() {
             const store = useFlightStore.getState();
 
             if (!currentMap || store.mode !== 'sightseeing') {
+                currentMap?.off('zoomstart', onZoomStart);
                 currentMap?.off('zoomend', onZoomEnd);
                 useFlightStore.getState().setAnimationId(null);
                 return;
@@ -219,6 +248,7 @@ export function FlightButton() {
                 if (store.targetAltitude !== null) {
                     currentAltitude = easeAltitude(currentAltitude, store.targetAltitude, delta, 2000);
                 }
+                // DO NOT read altitude from map - terrain would affect it
 
                 // Smooth pitch toward target (30° per second tilt rate)
                 if (store.targetPitch !== null) {
@@ -233,12 +263,14 @@ export function FlightButton() {
                 const newLng = center.lng + Math.cos(moveAngle) * moveSpeed;
                 const newLat = Math.max(-85, Math.min(85, center.lat + Math.sin(moveAngle) * moveSpeed));
 
+                isAnimatingZoom = true;
                 currentMap.jumpTo({
                     center: [newLng, newLat],
                     bearing: currentHeading,
                     zoom: altitudeToZoom(currentAltitude),
                     pitch: currentPitch
                 });
+                isAnimatingZoom = false;
             }
 
             lastTime = time;
