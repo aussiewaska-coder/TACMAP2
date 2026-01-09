@@ -181,20 +181,22 @@ export function useHeatmap(options: UseHeatmapOptions) {
         paint: {
           'heatmap-weight': ['get', 'weight'],
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'],
-            8, 0.5,
-            12, 1.5,
-            16, 2.5,
-            20, 4
+            6, 0.2,
+            10, 0.4,
+            14, 0.7,
+            18, 1.0,
+            20, 1.2
           ],
           'heatmap-color': heatmapColorExpr,
           'heatmap-radius': ['interpolate', ['linear'], ['zoom'],
-            8, 30,
-            10, 40,
-            12, 55,
-            14, 75,
-            16, 100,
-            18, 130,
-            20, 160
+            6, 80,
+            8, 100,
+            10, 130,
+            12, 170,
+            14, 220,
+            16, 280,
+            18, 350,
+            20, 450
           ],
           'heatmap-opacity': 0.7
         }
