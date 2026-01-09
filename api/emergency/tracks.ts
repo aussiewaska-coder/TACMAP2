@@ -42,7 +42,7 @@ export default async function handler(request, response) {
 
     try {
         // Use adsb.lol API v2 - 2000nm radius from Sydney covers ALL of Australia
-        const targetUrl = 'https://api.adsb.lol/v2/lat/-33.8/lon/151.2/dist/250';
+        const targetUrl = 'https://api.adsb.lol/v2/lat/-33.8/lon/151.2/dist/2000';
 
         const headers = {
             'User-Agent': 'TAC-MAP/2.0',
