@@ -132,6 +132,62 @@ echo "// Build: $(date +%s)" > client/src/buildstamp.ts && git add -A && git com
 
 **WHEN IN DOUBT: FORCE CLEAN REBUILD + INCOGNITO + WAIT 2 MINUTES**
 
+### UI ELEMENTS NOT SHOWING - Why Your Component Is Invisible
+
+**CHECK ALL OF THESE:**
+
+#### Rendering Issues
+- [ ] Is the component actually imported and used in the parent?
+- [ ] Is there a conditional render (`{condition && <Component/>}`) that's false?
+- [ ] Is the component returning `null` early due to a guard clause?
+- [ ] Is the component inside a fragment that's not being rendered?
+- [ ] Check React DevTools - is the component in the tree at all?
+
+#### CSS/Styling Issues
+- [ ] `display: none` or `visibility: hidden` applied?
+- [ ] `opacity: 0` making it invisible?
+- [ ] `z-index` too low - element behind something else?
+- [ ] `position: absolute/fixed` with wrong coordinates (off-screen)?
+- [ ] `width: 0` or `height: 0` collapsing the element?
+- [ ] `overflow: hidden` on parent cutting off the element?
+- [ ] Tailwind class not applying? Check for typos, check if class exists
+- [ ] `hidden` class applied? (`hidden` = `display: none` in Tailwind)
+- [ ] Parent has `pointer-events: none` blocking interaction?
+
+#### Conditional/State Issues
+- [ ] State not initialized correctly?
+- [ ] State update not triggering re-render? (mutating object instead of new reference)
+- [ ] useEffect dependencies wrong - not running when expected?
+- [ ] Loading state stuck? Check `isLoading`, `isPending`, `isInitializing` flags
+- [ ] Error state hiding content? Check error boundaries
+
+#### Map-Specific UI Issues
+- [ ] Map not loaded yet? UI depends on `isLoaded` from `useMapStore`
+- [ ] Map container has zero height? Check parent container styles
+- [ ] Map controls added but map instance is null?
+- [ ] Layer/source not added because map wasn't ready?
+- [ ] Popup/marker coordinates are `NaN` or invalid?
+
+#### Layout Issues
+- [ ] Flexbox/Grid child being squished? Check `flex-shrink`, `min-width`
+- [ ] Absolute positioned element needs `position: relative` on parent?
+- [ ] Fixed element inside transformed parent breaks positioning?
+- [ ] Mobile responsive hiding? Check `hidden md:block` etc.
+- [ ] Container query not matching?
+
+#### Data Issues
+- [ ] Data not loaded yet? Check if data is `undefined`/`null`/empty array
+- [ ] Mapping over empty array returns nothing (valid but invisible)
+- [ ] Data has wrong shape? Check console for undefined property access
+- [ ] API returned error instead of data?
+
+**DEBUG STEPS:**
+1. Add `console.log('RENDER', props)` at top of component
+2. Add temporary `style={{border: '5px solid red'}}` to see if element exists
+3. Check React DevTools for component and its props/state
+4. Check Elements tab - is the DOM element there but hidden?
+5. Check computed styles in Elements tab - what's hiding it?
+
 ## Project Structure
 
 ```
