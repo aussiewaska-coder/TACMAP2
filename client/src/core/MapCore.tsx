@@ -125,85 +125,92 @@ function getMaptilerInitialView() {
 }
 
 function startMaptilerDrift(map: maptilersdk.Map) {
-    let isPaused = false;
-    let driftTimeoutId: number | null = null;
-    let resumeTimeoutId: number | null = null;
+    let isOrbiting = true;
+    let orbitTimeoutId: number | null = null;
+    let orbitAngle = 0;
 
-    const easeInOutCubic = (t: number) =>
-        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const ORBIT_RADIUS_PERCENT = 0.02;  // 2% of screen for subtle orbit
+    const ORBIT_DURATION = 60000;  // 60 seconds for full rotation = smooth
+    const SEGMENT_ANGLE = 10;  // 10° per segment = 6 segments per rotation
+    const SEGMENT_DURATION = (ORBIT_DURATION * SEGMENT_ANGLE) / 360;  // Time per segment
 
-    const resume = () => {
-        isPaused = false;
-        driftOnce();
-    };
-
-    const pause = () => {
-        if (isPaused) return;
-        isPaused = true;
-
-        // Clear any pending drift
-        if (driftTimeoutId !== null) {
-            window.clearTimeout(driftTimeoutId);
-            driftTimeoutId = null;
-        }
-
-        // Resume drift after user stops interacting (2-3 seconds)
-        if (resumeTimeoutId !== null) {
-            window.clearTimeout(resumeTimeoutId);
-        }
-        resumeTimeoutId = window.setTimeout(resume, randomBetween(2000, 3000)) as unknown as number;
-    };
-
-    const driftOnce = () => {
-        if (isPaused) return;
+    const orbitSegment = () => {
+        if (!isOrbiting) return;
         const canvas = map.getCanvas();
         if (!canvas) return;
 
         const center = map.getCenter();
         const centerPoint = map.project(center);
-        const angle = randomBetween(0, Math.PI * 2);
-        // Much smaller, more subtle movements (3-7% of screen instead of 6-14%)
-        const distance = Math.min(canvas.width, canvas.height) * randomBetween(0.03, 0.07);
+        const radius = Math.min(canvas.width, canvas.height) * ORBIT_RADIUS_PERCENT;
+
+        // Calculate next position on the circle
         const targetPoint: [number, number] = [
-            centerPoint.x + Math.cos(angle) * distance,
-            centerPoint.y + Math.sin(angle) * distance,
+            centerPoint.x + Math.cos((orbitAngle * Math.PI) / 180) * radius,
+            centerPoint.y + Math.sin((orbitAngle * Math.PI) / 180) * radius,
         ];
         const target = map.unproject(targetPoint);
 
         map.easeTo({
             center: target,
-            bearing: map.getBearing() + randomBetween(-2, 2),  // Smaller bearing changes
-            duration: randomBetween(8000, 15000),  // Shorter, more frequent drifts
-            easing: easeInOutCubic,
+            duration: SEGMENT_DURATION,
+            easing: (t) => t,  // Linear easing for smooth continuous motion
         });
 
-        map.once('moveend', () => {
-            if (isPaused) return;
-            // Drift continuously with brief pauses between movements
-            driftTimeoutId = window.setTimeout(driftOnce, randomBetween(400, 800)) as unknown as number;
-        });
+        orbitAngle += SEGMENT_ANGLE;
+        if (orbitAngle >= 360) orbitAngle = 0;
+
+        // Schedule next segment
+        orbitTimeoutId = window.setTimeout(orbitSegment, SEGMENT_DURATION) as unknown as number;
     };
 
-    // Pause on user interaction, resume after they stop
+    const pause = () => {
+        isOrbiting = false;
+        if (orbitTimeoutId !== null) {
+            window.clearTimeout(orbitTimeoutId);
+            orbitTimeoutId = null;
+        }
+    };
+
+    const resume = () => {
+        if (isOrbiting) return;
+        isOrbiting = true;
+        orbitSegment();
+    };
+
+    // Pause on user interaction
     map.on('dragstart', pause);
     map.on('mousedown', pause);
     map.on('touchstart', pause);
     map.on('wheel', pause);
     map.on('zoomstart', pause);
 
-    // Start initial drift
-    driftTimeoutId = window.setTimeout(driftOnce, randomBetween(500, 1000)) as unknown as number;
+    // Resume when user stops interacting
+    const resumeHandler = () => {
+        if (!isOrbiting) {
+            resume();
+        }
+    };
+    map.on('dragend', resumeHandler);
+    map.on('mouseup', resumeHandler);
+    map.on('touchend', resumeHandler);
+    map.on('zoomend', resumeHandler);
+
+    // Start orbiting
+    orbitSegment();
 
     // Return cleanup function
     return () => {
-        isPaused = true;
-        if (driftTimeoutId !== null) window.clearTimeout(driftTimeoutId);
-        if (resumeTimeoutId !== null) window.clearTimeout(resumeTimeoutId);
+        isOrbiting = false;
+        if (orbitTimeoutId !== null) window.clearTimeout(orbitTimeoutId);
         map.off('dragstart', pause);
         map.off('mousedown', pause);
         map.off('touchstart', pause);
         map.off('wheel', pause);
         map.off('zoomstart', pause);
+        map.off('dragend', resumeHandler);
+        map.off('mouseup', resumeHandler);
+        map.off('touchend', resumeHandler);
+        map.off('zoomend', resumeHandler);
     };
 }
 
