@@ -72,33 +72,9 @@ const CACHE_TYPES: { type: CacheType; label: string; description: string; danger
 
 function SettingsTab() {
   const [clearing, setClearing] = useState<CacheType | null>(null);
-  const [confirmingTileClear, setConfirmingTileClear] = useState(false);
-  const [confirmStep, setConfirmStep] = useState(0);
+  const [tileConfirmStep, setTileConfirmStep] = useState(0);
 
   const clearCache = async (type: CacheType) => {
-    // Tile cache requires 2-step confirmation
-    if (type === 'tile') {
-      if (confirmStep === 0) {
-        setConfirmingTileClear(true);
-        setConfirmStep(1);
-        toast.warning('⚠️ WARNING: Tile cache is PERMANENT', {
-          description: 'Click again to confirm. This will cost API calls to rebuild!',
-          duration: 5000,
-        });
-        return;
-      } else if (confirmStep === 1) {
-        setConfirmStep(2);
-        toast.error('🚨 FINAL WARNING: Are you sure?', {
-          description: 'All cached tiles will be deleted. Click once more to confirm.',
-          duration: 5000,
-        });
-        return;
-      }
-      // confirmStep === 2, proceed with clear
-      setConfirmingTileClear(false);
-      setConfirmStep(0);
-    }
-
     setClearing(type);
     try {
       const response = await fetch('/api/maptiler/cache', {
@@ -127,12 +103,37 @@ function SettingsTab() {
     }
   };
 
-  // Reset tile confirmation if user clicks elsewhere
   const handleCacheClick = (type: CacheType) => {
+    // Reset tile confirmation if clicking something else
     if (type !== 'tile') {
-      setConfirmingTileClear(false);
-      setConfirmStep(0);
+      setTileConfirmStep(0);
+      clearCache(type);
+      return;
     }
+
+    // TILE: 2-step confirmation
+    if (tileConfirmStep === 0) {
+      setTileConfirmStep(1);
+      toast('⚠️ WARNING: Tile cache is PERMANENT', {
+        description: 'Click AGAIN to confirm. This will cost API calls to rebuild!',
+        duration: 8000,
+        style: { background: '#7f1d1d', border: '1px solid #dc2626', color: '#fecaca' },
+      });
+      return;
+    }
+
+    if (tileConfirmStep === 1) {
+      setTileConfirmStep(2);
+      toast('🚨 FINAL WARNING', {
+        description: 'Click ONE MORE TIME to delete all cached tiles forever.',
+        duration: 8000,
+        style: { background: '#450a0a', border: '2px solid #ef4444', color: '#fca5a5' },
+      });
+      return;
+    }
+
+    // Step 2 - actually clear
+    setTileConfirmStep(0);
     clearCache(type);
   };
 
@@ -154,7 +155,7 @@ function SettingsTab() {
           {CACHE_TYPES.map((cache) => {
             const isClearing = clearing === cache.type;
             const isDangerous = cache.dangerous;
-            const isTileConfirming = cache.type === 'tile' && confirmingTileClear;
+            const isTileConfirming = cache.type === 'tile' && tileConfirmStep > 0;
             return (
               <button
                 key={cache.type}
@@ -175,10 +176,10 @@ function SettingsTab() {
                   <>
                     <span className="flex items-center gap-1 text-sm font-medium md:text-xs">
                       <Trash2 className="h-3 w-3" />
-                      {isTileConfirming ? `Confirm (${3 - confirmStep}/2)` : cache.label}
+                      {isTileConfirming ? `CONFIRM ${tileConfirmStep}/2` : cache.label}
                     </span>
                     <span className="text-[10px] opacity-60">
-                      {isTileConfirming ? 'Click to confirm delete' : cache.description}
+                      {isTileConfirming ? 'CLICK TO CONFIRM!' : cache.description}
                     </span>
                   </>
                 )}
