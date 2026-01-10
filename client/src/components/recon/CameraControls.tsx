@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import type { MapMouseEvent } from '@maptiler/sdk';
 import { useMapStore } from '@/stores/mapStore';
 import { useCameraAnimation } from '@/hooks/useCameraAnimation';
 import { Button } from '@/components/ui/button';
@@ -124,8 +125,34 @@ export function CameraControls() {
   // Track current zoom for display
   const [currentZoom, setCurrentZoom] = useState(0);
 
-  // Smart orbit disabled - only button-triggered orbit
-  // (double-tap/long-press was confusing)
+  // Double-tap in orbit mode: fly to location at 10,000 feet
+  useEffect(() => {
+    if (!map || !isLoaded || !isAutoOrbiting) return;
+
+    const handleDoubleClick = (e: MapMouseEvent) => {
+      const targetLngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+
+      // 10,000 feet ≈ zoom 12.5 (from altitudeFeetToZoom calculation)
+      const targetZoom = 12.5;
+
+      // Stop orbiting
+      setIsAutoOrbiting(false);
+      setOrbitCenter(null);
+      orbitStartAngleRef.current = null;
+
+      // Fly to location - go to 10,000 feet regardless of current altitude
+      map.flyTo({
+        center: targetLngLat,
+        zoom: targetZoom,
+        pitch: 60,
+        duration: 2000,
+        essential: true,
+      });
+    };
+
+    map.on('dblclick', handleDoubleClick);
+    return () => { map.off('dblclick', handleDoubleClick); };
+  }, [map, isLoaded, isAutoOrbiting]);
 
   // Auto-rotate: smooth continuous rotation around current center
   useEffect(() => {
