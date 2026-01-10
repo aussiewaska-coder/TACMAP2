@@ -37,11 +37,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (redisUrl) {
       const redis = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
-        enableOfflineQueue: false,
+        lazyConnect: true,
+        enableOfflineQueue: true,
+        connectTimeout: 10000,
       });
       console.log('[MapTiler Style Cache] Redis client created');
 
       try {
+        // Connect first
+        await redis.connect();
+        console.log('[MapTiler Style Cache] Redis connected');
+
         // Check cache
         const cached = await redis.get(cacheKey);
         const timestamp = await redis.get(`${cacheKey}:timestamp`);
@@ -76,12 +82,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               refreshStyle(styleId as string, key as string, redisUrl).catch(console.error);
             }
 
-            await redis.quit();
+            redis.disconnect();
             return res.status(200).json(JSON.parse(cached));
           }
         }
+      } catch (redisError) {
+        console.error('[MapTiler Style Cache] ❌ Redis connection failed:', redisError);
+        console.warn('[MapTiler Style Cache] ⚠️ Falling back to direct MapTiler API (no caching)');
+        // Continue to fetch from MapTiler if Redis fails
       } finally {
-        await redis.quit();
+        redis.disconnect();
       }
     } else {
       console.warn('[MapTiler Style Cache] ⚠️ Redis not configured - REDIS_URL missing');
@@ -104,13 +114,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Cache in Redis
     if (redisUrl) {
       console.log('[MapTiler Style Cache] Writing to Redis cache');
-      const redis = new Redis(redisUrl);
+      const redis = new Redis(redisUrl, { lazyConnect: true });
       try {
+        await redis.connect();
         await redis.set(cacheKey, JSON.stringify(transformedStyle), 'EX', 604800); // 7 days
         await redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 604800);
         console.log('[MapTiler Style Cache] ✅ Cached in Redis (TTL: 7 days)');
+      } catch (err) {
+        console.error('[MapTiler Style Cache] ❌ Failed to write to Redis:', err);
+        console.warn('[MapTiler Style Cache] ⚠️ Style served but not cached - will fetch again next time');
       } finally {
-        await redis.quit();
+        redis.disconnect();
       }
     }
 
@@ -181,8 +195,10 @@ function transformStyleToUseProxy(style: StyleJSON, host: string): StyleJSON {
  * Background refresh of style JSON
  */
 async function refreshStyle(styleId: string, key: string, redisUrl: string): Promise<void> {
-  const redis = new Redis(redisUrl);
+  const redis = new Redis(redisUrl, { lazyConnect: true });
   try {
+    await redis.connect();
+
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${key}`;
     const response = await fetch(styleUrl);
 
@@ -197,6 +213,6 @@ async function refreshStyle(styleId: string, key: string, redisUrl: string): Pro
   } catch (error) {
     console.error('Background style refresh failed:', error);
   } finally {
-    await redis.quit();
+    redis.disconnect();
   }
 }

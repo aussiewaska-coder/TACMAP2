@@ -33,10 +33,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (redisUrl) {
       const redis = new Redis(redisUrl, {
         maxRetriesPerRequest: 3,
-        enableOfflineQueue: false,
+        lazyConnect: true,
+        enableOfflineQueue: true,
+        connectTimeout: 10000,
       });
 
       try {
+        await redis.connect();
+
         // Check cache - store as base64 string
         const cached = await redis.get(cacheKey);
         const timestamp = await redis.get(`${cacheKey}:timestamp`);
@@ -68,12 +72,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               refreshTile(url, cacheKey, redisUrl).catch(console.error);
             }
 
-            await redis.quit();
+            redis.disconnect();
             return res.status(200).send(buffer);
           }
         }
+      } catch (redisError) {
+        console.error('[MapTiler Tile Cache] ❌ Redis connection failed:', redisError);
+        console.warn('[MapTiler Tile Cache] ⚠️ Falling back to direct MapTiler API (no caching)');
+        // Continue to fetch from MapTiler if Redis fails
       } finally {
-        await redis.quit();
+        redis.disconnect();
       }
     }
 
@@ -93,8 +101,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Cache in Redis as base64
     if (redisUrl) {
-      const redis = new Redis(redisUrl);
+      const redis = new Redis(redisUrl, { lazyConnect: true });
       try {
+        await redis.connect();
         const base64 = buffer.toString('base64');
 
         // Only cache if tile is reasonable size (< 500KB)
@@ -110,8 +119,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         } else {
           console.warn('[MapTiler Tile Cache] ⚠️ Tile too large to cache:', base64.length);
         }
+      } catch (err) {
+        console.error('[MapTiler Tile Cache] ❌ Failed to write to Redis:', err);
+        console.warn('[MapTiler Tile Cache] ⚠️ Tile served but not cached - will fetch again next time');
       } finally {
-        await redis.quit();
+        redis.disconnect();
       }
     }
 
@@ -135,8 +147,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
  * Background refresh of tile
  */
 async function refreshTile(url: string, cacheKey: string, redisUrl: string): Promise<void> {
-  const redis = new Redis(redisUrl);
+  const redis = new Redis(redisUrl, { lazyConnect: true });
   try {
+    await redis.connect();
+
     const response = await fetch(url);
     if (!response.ok) return;
 
@@ -154,6 +168,6 @@ async function refreshTile(url: string, cacheKey: string, redisUrl: string): Pro
   } catch (error) {
     console.error('Background tile refresh failed:', error);
   } finally {
-    await redis.quit();
+    redis.disconnect();
   }
 }
