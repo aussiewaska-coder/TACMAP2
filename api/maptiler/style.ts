@@ -216,10 +216,8 @@ function transformStyleToUseProxy(style: StyleJSON, host: string): StyleJSON {
   // ✅ Transform glyph URLs to use Redis proxy (preserve {fontstack} and {range} templates)
   if (transformed.glyphs) {
     const glyphsUrl = transformed.glyphs.replace('maptiler://', 'https://api.maptiler.com/');
-    // Encode the URL but preserve template variables
-    const baseUrl = glyphsUrl.split('{')[0];
-    const templates = glyphsUrl.substring(baseUrl.length);
-    transformed.glyphs = `https://${host}/api/maptiler/glyph?url=${encodeURIComponent(baseUrl)}${templates}`;
+    // Encode entire URL including template variables
+    transformed.glyphs = `https://${host}/api/maptiler/glyph?url=${encodeURIComponent(glyphsUrl)}`;
   }
 
   return transformed;
