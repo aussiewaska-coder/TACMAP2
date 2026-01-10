@@ -60,11 +60,15 @@ export const KEYBOARD_SHORTCUTS = {
     '9': 'pitch-60',
   },
 
-  // Utilities
+  // Utilities & Quick Actions
   utilities: {
     '?': 'toggle-help',
     'r': 'reset-bearing',
     'R': 'reset-bearing',
+    'Escape': 'stop-all',
+    ' ': 'start-flight',
+    'o': 'start-orbit',
+    'O': 'start-orbit',
   },
 } as const;
 
@@ -201,6 +205,27 @@ export function useFlightKeyboard({
       if ((key === 'r' || key === 'R') && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
         onResetBearing();
+        return;
+      }
+
+      // Escape - stop everything, go to standard navigation
+      if (key === 'Escape') {
+        event.preventDefault();
+        onModeChange('standard');
+        return;
+      }
+
+      // Space - start flight mode
+      if (key === ' ' || key === 'Spacebar') {
+        event.preventDefault();
+        onModeChange('flight');
+        return;
+      }
+
+      // O - start orbit mode
+      if (key === 'o' || key === 'O') {
+        event.preventDefault();
+        onModeChange('auto-orbit');
         return;
       }
     },
