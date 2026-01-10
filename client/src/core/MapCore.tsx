@@ -72,9 +72,9 @@ function mapboxTransformRequest(token?: string) {
         let transformedUrl = url;
         if (url.startsWith('mapbox://sprites/')) {
             const path = url.replace('mapbox://sprites/', '');
-            const match = path.match(/^([^/]+\\/[^/]+)(.*)$/);
-            const base = match ? match[1] : path;
-            const suffix = match ? match[2] : '';
+            const [owner, style, ...rest] = path.split('/');
+            const base = owner && style ? `${owner}/${style}` : path;
+            const suffix = owner && style && rest.length > 0 ? `/${rest.join('/')}` : '';
             transformedUrl = `https://api.mapbox.com/styles/v1/${base}/sprite${suffix}`;
         } else if (url.startsWith('mapbox://fonts/')) {
             const path = url.replace('mapbox://fonts/', '');
