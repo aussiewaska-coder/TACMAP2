@@ -1,7 +1,7 @@
 // Registry type definitions for Emergency Services feeds
 
 export type StreamType = 'geojson' | 'rss' | 'cap' | 'arcgis' | 'json' | 'radio';
-export type Category = 'Alerts' | 'Aviation' | 'Fire' | 'Flood' | 'Ground' | 'Communications' | 'Hazards' | 'Hazards & Warnings' | 'Weather' | 'Transport';
+export type Category = 'Alerts' | 'Fire' | 'Flood' | 'Ground' | 'Communications' | 'Hazards' | 'Hazards & Warnings' | 'Weather' | 'Transport';
 export type JurisdictionState = 'NSW' | 'VIC' | 'QLD' | 'WA' | 'SA' | 'TAS' | 'NT' | 'ACT' | 'AUS';
 export type AccessLevel = 'Open' | 'Partial' | 'Internal';
 
@@ -18,13 +18,6 @@ export interface RegistryEntry {
     certainly_open: boolean;
     machine_readable: boolean;
 
-    // Aviation-specific fields (optional)
-    icao24?: string;
-    registration?: string;
-    tracking_keys?: string[];
-    aircraft_type?: string;
-    operator?: string;
-    role?: string;
 }
 
 export interface RegistryFilters {

@@ -15,14 +15,6 @@ CREATE TABLE IF NOT EXISTS emergency_registry (
   certainly_open BOOLEAN DEFAULT FALSE,
   machine_readable BOOLEAN DEFAULT FALSE,
   
-  -- Aviation-specific fields
-  icao24 VARCHAR(10),
-  registration VARCHAR(20),
-  tracking_keys JSONB,
-  aircraft_type VARCHAR(100),
-  operator VARCHAR(200),
-  role VARCHAR(100),
-  
   created_at TIMESTAMP DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMP DEFAULT NOW() NOT NULL
 );

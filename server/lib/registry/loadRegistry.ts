@@ -43,12 +43,6 @@ export async function loadRegistry(): Promise<RegistryEntry[]> {
             access_level: row.accessLevel as any,
             certainly_open: row.certainlyOpen ?? false,
             machine_readable: row.machineReadable ?? false,
-            icao24: row.icao24 || undefined,
-            registration: row.registration || undefined,
-            tracking_keys: Array.isArray(row.trackingKeys) ? row.trackingKeys : undefined,
-            aircraft_type: row.aircraftType || undefined,
-            operator: row.operator || undefined,
-            role: row.role || undefined,
         }));
 
         // Update cache

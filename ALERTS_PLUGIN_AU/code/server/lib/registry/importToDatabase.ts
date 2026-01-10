@@ -33,29 +33,12 @@ async function importRegistry() {
             .filter(row => {
                 const url = String(row.endpoint_url || '');
                 const hasUrl = url.startsWith('http') && !url.includes('sample file');
-                return row.item_id && (hasUrl || row.category === 'Aviation');
+                const category = String(row.category || '');
+                return row.item_id && hasUrl && category !== 'Aviation';
             })
             .map(row => {
                 // Parse tags
                 const tags = row.tags ? String(row.tags).split('|').map((t: string) => t.trim()) : [];
-
-                // Parse tracking keys
-                const trackingKeys = row.tracking_keys
-                    ? String(row.tracking_keys).split(',').map((k: string) => k.trim()).filter(Boolean)
-                    : null;
-
-                // Extract registration and icao24
-                let registration = row.registration || '';
-                let icao24 = row.icao24 || '';
-
-                if (!registration && row.name) {
-                    const regMatch = String(row.name).match(/([A-Z]{2}-[A-Z0-9]+)/);
-                    if (regMatch) registration = regMatch[1];
-                }
-                if (!icao24 && row.name) {
-                    const hexMatch = String(row.name).match(/\(([A-F0-9]{6})\)/i);
-                    if (hexMatch) icao24 = hexMatch[1].toLowerCase();
-                }
 
                 return {
                     sourceId: String(row.item_id || ''),
@@ -76,14 +59,6 @@ async function importRegistry() {
                     accessLevel: String(row.access_level || 'Open'),
                     certainlyOpen: row.certainly_open === 1 || row.certainly_open === true || String(row.certainly_open).toLowerCase() === 'yes',
                     machineReadable: row.machine_readable === 1 || row.machine_readable === true || String(row.machine_readable).toLowerCase() === 'yes',
-
-                    // Aviation fields
-                    icao24: icao24 || null,
-                    registration: registration || null,
-                    trackingKeys,
-                    aircraftType: row.aircraft_type_guess ? String(row.aircraft_type_guess) : null,
-                    operator: row.operator_guess ? String(row.operator_guess) : null,
-                    role: row.category === 'Aviation' && row.subcategory ? String(row.subcategory) : null,
                 };
             });
 
@@ -112,12 +87,6 @@ async function importRegistry() {
                         accessLevel: sql`excluded.access_level` as any,
                         certainlyOpen: sql`excluded.certainly_open` as any,
                         machineReadable: sql`excluded.machine_readable` as any,
-                        icao24: sql`excluded.icao24` as any,
-                        registration: sql`excluded.registration` as any,
-                        trackingKeys: sql`excluded.tracking_keys` as any,
-                        aircraftType: sql`excluded.aircraft_type` as any,
-                        operator: sql`excluded.operator` as any,
-                        role: sql`excluded.role` as any,
                         updatedAt: new Date(),
                     },
                 });

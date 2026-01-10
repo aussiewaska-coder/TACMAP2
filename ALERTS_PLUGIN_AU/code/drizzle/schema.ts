@@ -122,14 +122,6 @@ export const emergencyRegistry = pgTable("emergency_registry", {
   certainlyOpen: boolean("certainly_open").default(false),
   machineReadable: boolean("machine_readable").default(false),
 
-  // Aviation-specific fields
-  icao24: varchar("icao24", { length: 10 }),
-  registration: varchar("registration", { length: 20 }),
-  trackingKeys: jsonb("tracking_keys").$type<string[]>(),
-  aircraftType: varchar("aircraft_type", { length: 100 }),
-  operator: varchar("operator", { length: 200 }),
-  role: varchar("role", { length: 100 }),
-
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -53,6 +53,8 @@
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/ingest/normalize/rss.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/ingest/types.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/registry/importToDatabase.ts
+/Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/registry/expandRegistry.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/registry/loadRegistry.ts
+/Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/registry/normalizeRegistry.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/lib/registry/types.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/server/routers.ts

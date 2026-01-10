@@ -19,7 +19,6 @@ const HAZARD_TYPES = [
   { id: 'fire', label: 'Fire', accent: 'border-rose-500/40 text-rose-200' },
   { id: 'flood', label: 'Flood', accent: 'border-cyan-400/40 text-cyan-200' },
   { id: 'road', label: 'Road', accent: 'border-amber-400/40 text-amber-200' },
-  { id: 'aviation', label: 'Air', accent: 'border-emerald-400/40 text-emerald-200' },
   { id: 'space', label: 'Space', accent: 'border-purple-400/40 text-purple-200' },
   { id: 'general', label: 'General', accent: 'border-slate-400/40 text-slate-200' },
 ];
@@ -167,8 +166,6 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
         const isFlood = sub.includes('flood') || sub.includes('storm') || cat.includes('weather') || sub2.includes('storm');
         const isRoad = sub.includes('road') || sub.includes('traffic') || cat.includes('transport') || sub.includes('crash');
         const isSpace = sub.includes('space') || sub.includes('solar') || cat.includes('space');
-        const isAviation = cat.includes('aviation') || sub.includes('aircraft') || tags.includes('aviation');
-
         const isGroundTruth = tags.includes('fire_ground_truth') || tags.includes('operational') || tags.includes('ground_truth');
         const isWarning = tags.includes('public_warning') || !isGroundTruth;
 
@@ -183,8 +180,7 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
             (activeFilters.includes('flood') && isFlood) ||
             (activeFilters.includes('road') && isRoad) ||
             (activeFilters.includes('space') && isSpace) ||
-            (activeFilters.includes('aviation') && isAviation) ||
-            (activeFilters.includes('general') && !isFire && !isFlood && !isRoad && !isSpace && !isAviation));
+            (activeFilters.includes('general') && !isFire && !isFlood && !isRoad && !isSpace));
 
         const alertState = props.state?.toUpperCase() || 'AUS';
         const matchesState = selectedStates.includes(alertState);
