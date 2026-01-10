@@ -10,11 +10,10 @@ This package contains the complete, authoritative spec and scaffolding for the T
 - `package.json`: Minimal deps: MapLibre GL JS + MapTiler 3D, TypeScript.
 
 ## Quick start
-1) Install deps: `pnpm install` (or `npm install`).
-2) MapTiler key: set `YOUR_API_KEY` in `src/map.ts` (or use `MAPTILER_API_KEY` env and inject at build).
-3) Aircraft model: place your GLB at `public/models/stealth_bomber.glb`.
-4) Build: `pnpm exec tsc` outputs to `dist/`. Serve `public/` plus compiled assets with any static server (e.g., `pnpm dlx serve dist`).
-5) Dev: use Vite or your preferred bundler to mount `src/main.ts` into a page containing a `div#map`. (The repo root TACMAP2 Vite setup can import this package directly or copy `src/` into the app.)
+1) MapTiler key: set `VITE_MAPTILER_API_KEY` in your env or edit `src/map.ts` (`YOUR_API_KEY` placeholder).
+2) Dev server: from repo root run `pnpm vite --config flight_sim_full_package/vite.config.ts --open`.
+3) Build bundle: `pnpm vite build --config flight_sim_full_package/vite.config.ts` (outputs to `flight_sim_full_package/dist`).
+4) Aircraft model: place your GLB at `public/models/stealth_bomber.glb` (path is baked into the custom layer).
 
 ## Integrating into TACMAP2 (“put it on the map”)
 - Mount point: ensure the host app has a `div#map` and includes MapLibre styles.
