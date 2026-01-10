@@ -3,7 +3,7 @@
 // Detects stationary enforcement positions (RBTs, speed cameras)
 
 import { useEffect, useRef, useState } from 'react';
-import maplibregl from 'maplibre-gl';
+import * as maptilersdk from '@maptiler/sdk';
 import { toast } from 'sonner';
 
 interface MarkerData {
@@ -13,7 +13,7 @@ interface MarkerData {
 }
 
 interface ClusterMarker {
-    marker: maplibregl.Marker;
+    marker: maptilersdk.Marker;
     element: HTMLElement;
     coords: [number, number];
     count: number;
@@ -27,7 +27,7 @@ interface StationaryPosition {
 }
 
 interface AnimatedClusterMarkersProps {
-    map: maplibregl.Map | null;
+    map: maptilersdk.Map | null;
     data: MarkerData[];
     enabled: boolean;
     clusterRadius?: number;
@@ -118,9 +118,9 @@ export function useAnimatedClusterMarkers({
     clusterRadius = 30,
     maxZoom = 14
 }: AnimatedClusterMarkersProps) {
-    const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+    const markersRef = useRef<Map<string, maptilersdk.Marker>>(new Map());
     const clustersRef = useRef<Map<string, ClusterMarker>>(new Map());
-    const stationaryMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+    const stationaryMarkersRef = useRef<Map<string, maptilersdk.Marker>>(new Map());
     const [expandedCluster, setExpandedCluster] = useState<string | null>(null);
 
     // Create pulsing stationary enforcement marker
@@ -164,7 +164,7 @@ export function useAnimatedClusterMarkers({
             .sort()
             .join(', ');
 
-        const popup = new maplibregl.Popup({
+        const popup = new maptilersdk.Popup({
             offset: 25,
             closeButton: false,
             maxWidth: '300px'
@@ -207,7 +207,7 @@ export function useAnimatedClusterMarkers({
             }
         });
 
-        const marker = new maplibregl.Marker({ element: el })
+        const marker = new maptilersdk.Marker({ element: el })
             .setLngLat(position.coords)
             .setPopup(popup);
 
@@ -299,7 +299,7 @@ export function useAnimatedClusterMarkers({
                 const avgLat = nearby.reduce((sum, p) => sum + p.coords[1], 0) / nearby.length;
 
                 const el = createMarkerElement(true, nearby.length);
-                const marker = new maplibregl.Marker({ element: el })
+                const marker = new maptilersdk.Marker({ element: el })
                     .setLngLat([avgLng, avgLat]);
 
                 clusters.push({
@@ -329,7 +329,7 @@ export function useAnimatedClusterMarkers({
         cluster.children.forEach((child, index) => {
             setTimeout(() => {
                 const el = createMarkerElement(false);
-                const marker = new maplibregl.Marker({ element: el })
+                const marker = new maptilersdk.Marker({ element: el })
                     .setLngLat(cluster.coords) // Start at cluster position
                     .addTo(map!);
 
@@ -431,7 +431,7 @@ export function useAnimatedClusterMarkers({
         // Add unclustered points
         points.forEach((point) => {
             const el = createMarkerElement(false);
-            const marker = new maplibregl.Marker({ element: el })
+            const marker = new maptilersdk.Marker({ element: el })
                 .setLngLat(point.coords)
                 .addTo(map);
 

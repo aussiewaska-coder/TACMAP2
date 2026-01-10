@@ -1,7 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useMapStore } from '@/stores/mapStore';
 import { easeInOut } from '@/flightSim/easing';
-import type { Map as MapLibreGLMap } from 'maplibre-gl';
 
 interface AnimationState {
   startTime: number;

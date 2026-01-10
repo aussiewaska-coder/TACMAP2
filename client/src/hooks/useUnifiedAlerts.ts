@@ -1,8 +1,7 @@
 // useUnifiedAlerts - SIMPLIFIED - JUST SHOW THE FUCKING DOTS
 import { useEffect, useMemo } from 'react';
-import { useMapStore, useMapProviderStore } from '@/stores';
-import mapboxgl from 'mapbox-gl';
-import maplibregl from 'maplibre-gl';
+import { useMapStore } from '@/stores';
+import * as maptilersdk from '@maptiler/sdk';
 import DOMPurify from 'isomorphic-dompurify';
 import { isMapValid } from '@/utils/mapUtils';
 
@@ -22,7 +21,6 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
     const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 30, clusterMaxZoom = 14 } = options;
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
-    const provider = useMapProviderStore((state) => state.provider);
 
     // Convert to simple GeoJSON
     const geoJsonData = useMemo(() => {
@@ -95,7 +93,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 });
                 console.log(`✅ Source added: ${sourceId} (clustering enabled: ${clusterEnabled})`);
             } else {
-                (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData(geoJsonData as any);
+                (map.getSource(sourceId) as maptilersdk.GeoJSONSource).setData(geoJsonData as any);
                 console.log(`✅ Source updated: ${sourceId}`);
             }
         };
@@ -109,7 +107,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                         source: sourceId,
                         filter: ['has', 'point_count'],
                         paint: {
-                            'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
+                            'circle-color': '#dc2626', // Police clusters are always red
                             'circle-radius': 6,
                             'circle-stroke-width': 2,
                             'circle-stroke-color': '#FFFFFF',
@@ -217,14 +215,15 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
             if (!features.length) return;
 
             const clusterId = features[0].properties?.cluster_id;
-            const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+            const source = map.getSource(sourceId) as maptilersdk.GeoJSONSource;
 
-            source.getClusterExpansionZoom(clusterId, (err, zoom) => {
-                if (err) return;
+            source.getClusterExpansionZoom(clusterId).then((zoom: number) => {
                 map.easeTo({
                     center: (features[0].geometry as any).coordinates,
                     zoom: zoom
                 });
+            }).catch(() => {
+                // Ignore cluster expansion errors
             });
         };
 
@@ -247,8 +246,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 </div>
             `;
 
-            const PopupClass = provider === 'mapbox' ? mapboxgl.Popup : maplibregl.Popup;
-            new PopupClass({ maxWidth: '350px' })
+            new maptilersdk.Popup({ maxWidth: '350px' })
                 .setLngLat(e.lngLat)
                 .setHTML(html)
                 .addTo(map);
@@ -363,7 +361,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 // Map may be destroyed
             }
         };
-    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom, provider]);
+    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
 
     return {
         alertCount: geoJsonData.features.length

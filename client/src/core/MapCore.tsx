@@ -3,13 +3,18 @@
 // All features are added via plugins
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import maplibregl, { StyleSpecification } from 'maplibre-gl';
-import 'maplibre-gl/dist/maplibre-gl.css';
+import * as maptilersdk from '@maptiler/sdk';
+import '@maptiler/sdk/dist/maptiler-sdk.css';
 
 import { MAP_CONFIG } from '@/core/constants';
-import { useMapStore, useMapProviderStore, type MapProvider } from '@/stores';
+import { useMapStore, useMapProviderStore } from '@/stores';
 import { eventBus } from '@/events/EventBus';
-import type { MapEngine, MapInstance } from '@/types/mapEngine';
+
+// Configure MapTiler API key globally
+const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY as string;
+if (MAPTILER_API_KEY) {
+    maptilersdk.config.apiKey = MAPTILER_API_KEY;
+}
 
 interface MapCoreProps {
     /** Additional CSS classes */
@@ -19,7 +24,7 @@ interface MapCoreProps {
 /**
  * Build the default map style with terrain support
  */
-function buildDefaultStyle(): StyleSpecification {
+function buildDefaultStyle(): maptilersdk.StyleSpecification {
     return {
         version: 8,
         sources: {
@@ -119,7 +124,7 @@ function getMaptilerInitialView() {
     };
 }
 
-function startMaptilerDrift(map: MapInstance) {
+function startMaptilerDrift(map: maptilersdk.Map) {
     let stopped = false;
     let timeoutId: number | null = null;
 
@@ -148,10 +153,10 @@ function startMaptilerDrift(map: MapInstance) {
         const centerPoint = map.project(center);
         const angle = randomBetween(0, Math.PI * 2);
         const distance = Math.min(canvas.width, canvas.height) * randomBetween(0.06, 0.14);
-        const targetPoint = {
-            x: centerPoint.x + Math.cos(angle) * distance,
-            y: centerPoint.y + Math.sin(angle) * distance,
-        };
+        const targetPoint: [number, number] = [
+            centerPoint.x + Math.cos(angle) * distance,
+            centerPoint.y + Math.sin(angle) * distance,
+        ];
         const target = map.unproject(targetPoint);
 
         map.easeTo({
@@ -178,81 +183,31 @@ function startMaptilerDrift(map: MapInstance) {
     return stop;
 }
 
-function mapboxTransformRequest(token?: string) {
-    return (url: string) => {
-        if (!token) return { url };
+/**
+ * Resolve MapTiler style - SDK handles API key automatically
+ */
+function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification | string {
+    const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
+    const styleId = maptilerStyle || envStyleId;
 
-        let transformedUrl = url;
-        if (url.startsWith('mapbox://sprites/')) {
-            const path = url.replace('mapbox://sprites/', '');
-            const [owner, style, ...rest] = path.split('/');
-            const base = owner && style ? `${owner}/${style}` : path;
-            const suffix = owner && style && rest.length > 0 ? `/${rest.join('/')}` : '';
-            transformedUrl = `https://api.mapbox.com/styles/v1/${base}/sprite${suffix}`;
-        } else if (url.startsWith('mapbox://fonts/')) {
-            const path = url.replace('mapbox://fonts/', '');
-            transformedUrl = `https://api.mapbox.com/fonts/v1/${path}`;
-        } else if (url.startsWith('mapbox://styles/')) {
-            const path = url.replace('mapbox://styles/', '');
-            transformedUrl = `https://api.mapbox.com/styles/v1/${path}`;
-        } else if (url.startsWith('mapbox://')) {
-            const path = url.replace('mapbox://', '');
-            transformedUrl = `https://api.mapbox.com/v4/${path}.json`;
-        }
-
-        if (transformedUrl.includes('api.mapbox.com') && !transformedUrl.includes('access_token=')) {
-            const separator = transformedUrl.includes('?') ? '&' : '?';
-            transformedUrl = `${transformedUrl}${separator}access_token=${token}`;
-        }
-
-        return { url: transformedUrl };
-    };
-}
-
-function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSpecification | string {
-    if (provider === 'maptiler') {
-        const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
-        const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
-        const styleId = maptilerStyle || envStyleId;
-        if (!styleId) {
-            console.error('[MapCore] VITE_MAPTILER_STYLE env var is not set!');
-            return buildDefaultStyle();
-        }
-
-        console.log('[MapCore] Style resolution:', {
-            provider,
-            maptilerStyle,
-            envStyleId,
-            finalStyleId: styleId,
-            hasApiKey: !!apiKey
-        });
-
-        if (apiKey) {
-            // DIRECT MapTiler URL - bypass proxy for now
-            const url = `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
-            console.log('[MapCore] Using direct MapTiler URL:', url);
-            return url;
-        }
-        console.warn('[MapCore] No API key, falling back to default style');
+    if (!styleId) {
+        console.error('[MapCore] VITE_MAPTILER_STYLE env var is not set!');
+        return buildDefaultStyle();
     }
 
-    if (provider === 'mapbox') {
-        const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
-        const styleId = (import.meta.env.VITE_MAPBOX_STYLE_ID as string | undefined) || 'mapbox/streets-v12';
-        if (token) {
-            return `https://api.mapbox.com/styles/v1/${styleId}/style.json?access_token=${token}`;
-        }
-    }
+    console.log('[MapCore] Style resolution:', {
+        maptilerStyle,
+        envStyleId,
+        finalStyleId: styleId,
+    });
 
-    return buildDefaultStyle();
+    // MapTiler SDK handles API key automatically via maptilersdk.config.apiKey
+    return `https://api.maptiler.com/maps/${styleId}/style.json?key=${MAPTILER_API_KEY}`;
 }
 
-function getEngine(provider: MapProvider): MapEngine {
-    return provider === 'mapbox' ? 'mapbox' : 'maplibre';
-}
-
-function ensureBaseOverlays(map: MapInstance) {
+function ensureBaseOverlays(map: maptilersdk.Map) {
     if (!map.getLayer('sky')) {
+        // Sky layer type is not in standard LayerSpecification but supported by MapTiler SDK
         map.addLayer({
             id: 'sky',
             type: 'sky',
@@ -261,7 +216,7 @@ function ensureBaseOverlays(map: MapInstance) {
                 'sky-atmosphere-sun': [0.0, 0.0],
                 'sky-atmosphere-sun-intensity': 15,
             },
-        } as unknown as maplibregl.LayerSpecification);
+        } as unknown as maptilersdk.LayerSpecification);
     }
 
     if (!map.getSource("gov-landuse")) {
@@ -341,8 +296,7 @@ function ensureBaseOverlays(map: MapInstance) {
  */
 export function MapCore({ className = '' }: MapCoreProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<MapInstance | null>(null);
-    const currentEngineRef = useRef<MapEngine | null>(null);
+    const mapRef = useRef<maptilersdk.Map | null>(null);
     const driftCleanupRef = useRef<(() => void) | null>(null);
     const panLockRef = useRef<{ pitch: number; bearing: number; zoom: number } | null>(null);
 
@@ -353,7 +307,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const updateViewState = useMapStore((state) => state.updateViewState);
     const terrainExaggeration = useMapStore((state) => state.terrainExaggeration);
     const terrainEnabled = useMapStore((state) => state.terrainEnabled);
-    const provider = useMapProviderStore((state) => state.provider);
     const maptilerStyle = useMapProviderStore((state) => state.maptilerStyle);
 
     // Track current zoom for indicator
@@ -380,122 +333,66 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const initializeMap = useCallback(async () => {
         if (!containerRef.current) return;
 
-        const engine = getEngine(provider);
-
         if (mapRef.current) {
-            if (currentEngineRef.current === engine) {
-                try {
-                    mapRef.current.setStyle(resolveMapStyle(provider, maptilerStyle));
-                } catch (error) {
-                    console.warn('[MapCore] Failed to update map style:', error);
-                }
-                return;
+            try {
+                mapRef.current.setStyle(resolveMapStyle(maptilerStyle));
+            } catch (error) {
+                console.warn('[MapCore] Failed to update map style:', error);
             }
-            destroyMap();
+            return;
         }
 
         setInitializing(true);
         setError(null);
 
         try {
-            const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
-            let map: MapInstance;
+            const maptilerView = getMaptilerInitialView();
+            const initialCenter = maptilerView.center;
+            const initialZoom = maptilerView.zoom;
 
-            if (engine === 'mapbox') {
-                const { default: mapboxgl } = await import('mapbox-gl');
-                await import('mapbox-gl/dist/mapbox-gl.css');
-                if (mapboxToken) {
-                    mapboxgl.accessToken = mapboxToken;
-                }
+            const map = new maptilersdk.Map({
+                container: containerRef.current,
+                style: resolveMapStyle(maptilerStyle),
+                center: initialCenter,
+                zoom: initialZoom,
+                pitch: 60,
+                bearing: MAP_CONFIG.DEFAULT_BEARING,
+                minZoom: MAP_CONFIG.MIN_ZOOM,
+                maxZoom: MAP_CONFIG.MAX_ZOOM,
+                maxPitch: 85,
+                attributionControl: false,
+            });
 
-                map = new mapboxgl.Map({
-                    container: containerRef.current,
-                    style: resolveMapStyle(provider, maptilerStyle),
-                    center: MAP_CONFIG.DEFAULT_CENTER,
-                    zoom: MAP_CONFIG.DEFAULT_ZOOM,
-                    pitch: 60,
-                    bearing: MAP_CONFIG.DEFAULT_BEARING,
-                    minZoom: MAP_CONFIG.MIN_ZOOM,
-                    maxZoom: MAP_CONFIG.MAX_ZOOM,
-                    maxPitch: 85,
-                    attributionControl: false,
-                    transformRequest: mapboxTransformRequest(mapboxToken),
-                });
+            map.addControl(
+                new maptilersdk.NavigationControl({
+                    showCompass: true,
+                    showZoom: true,
+                    visualizePitch: true,
+                }),
+                'top-right'
+            );
 
-                map.addControl(
-                    new mapboxgl.NavigationControl({
-                        showCompass: true,
-                        showZoom: true,
-                        visualizePitch: true,
-                    }),
-                    'top-right'
-                );
+            map.addControl(
+                new maptilersdk.ScaleControl({
+                    maxWidth: 200,
+                    unit: 'metric',
+                }),
+                'bottom-left'
+            );
 
-                map.addControl(
-                    new mapboxgl.ScaleControl({
-                        maxWidth: 200,
-                        unit: 'metric',
-                    }),
-                    'bottom-left'
-                );
-
-                map.addControl(
-                    new mapboxgl.AttributionControl({
-                        compact: true,
-                    }),
-                    'bottom-right'
-                );
-            } else {
-                const maptilerView = provider === 'maptiler' ? getMaptilerInitialView() : null;
-                const initialCenter = maptilerView?.center ?? MAP_CONFIG.DEFAULT_CENTER;
-                const initialZoom = maptilerView?.zoom ?? MAP_CONFIG.DEFAULT_ZOOM;
-
-                map = new maplibregl.Map({
-                    container: containerRef.current,
-                    style: resolveMapStyle(provider, maptilerStyle),
-                    center: initialCenter,
-                    zoom: initialZoom,
-                    pitch: 60,
-                    bearing: MAP_CONFIG.DEFAULT_BEARING,
-                    minZoom: MAP_CONFIG.MIN_ZOOM,
-                    maxZoom: MAP_CONFIG.MAX_ZOOM,
-                    maxPitch: 85,
-                    attributionControl: false,
-                });
-
-                map.addControl(
-                    new maplibregl.NavigationControl({
-                        showCompass: true,
-                        showZoom: true,
-                        visualizePitch: true,
-                    }),
-                    'top-right'
-                );
-
-                map.addControl(
-                    new maplibregl.ScaleControl({
-                        maxWidth: 200,
-                        unit: 'metric',
-                    }),
-                    'bottom-left'
-                );
-
-                map.addControl(
-                    new maplibregl.AttributionControl({
-                        compact: true,
-                    }),
-                    'bottom-right'
-                );
-            }
-
-            currentEngineRef.current = engine;
+            map.addControl(
+                new maptilersdk.AttributionControl({
+                    compact: true,
+                }),
+                'bottom-right'
+            );
 
             // Add controls
             map.on('load', () => {
                 ensureBaseOverlays(map);
 
                 mapRef.current = map;
-                setMap(map as unknown as maplibregl.Map);
+                setMap(map);
                 setLoaded(true);
                 setInitializing(false);
 
@@ -503,11 +400,9 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 updateViewState();
                 setCurrentZoom(map.getZoom());
 
-                if (provider === 'maptiler') {
-                    driftCleanupRef.current = startMaptilerDrift(map);
-                }
+                driftCleanupRef.current = startMaptilerDrift(map);
 
-                console.log(`[MapCore] ${engine} map initialized with 3D terrain & Gov layers`);
+                console.log('[MapCore] MapTiler SDK map initialized with 3D terrain & Gov layers');
             });
 
             const handleStyleData = () => {
@@ -534,14 +429,15 @@ export function MapCore({ className = '' }: MapCoreProps) {
             // Handle errors
             map.on('error', (e) => {
                 console.error('[MapCore] Map error:', e);
+                const errorEvent = e as unknown as { error?: Error; sourceId?: string; tile?: { tileID?: string }; source?: { url?: string } };
                 console.error('[MapCore] Error details:', {
-                    message: e.error?.message,
-                    stack: e.error?.stack,
-                    sourceId: e.sourceId,
-                    tileId: e.tile?.tileID,
-                    url: e.source?.url || e.error?.url
+                    message: errorEvent.error?.message,
+                    stack: errorEvent.error?.stack,
+                    sourceId: errorEvent.sourceId,
+                    tileId: errorEvent.tile?.tileID,
+                    url: errorEvent.source?.url || (errorEvent.error as any)?.url
                 });
-                setError(e.error);
+                setError(errorEvent.error || null);
             });
 
         } catch (error) {
@@ -549,7 +445,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
             setError(error instanceof Error ? error : new Error('Failed to initialize map'));
             setInitializing(false);
         }
-    }, [destroyMap, provider, maptilerStyle, setMap, setLoaded, setInitializing, setError, updateViewState]);
+    }, [destroyMap, maptilerStyle, setMap, setLoaded, setInitializing, setError, updateViewState]);
 
     // Initialize on mount
     useEffect(() => {

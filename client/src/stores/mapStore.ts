@@ -1,15 +1,15 @@
-// Map store - Shared state for the MapLibre instance and view state
+// Map store - Shared state for the MapTiler SDK map instance and view state
 // This store is SHARED between mobile and desktop views
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import type { Map as MapLibreGLMap } from 'maplibre-gl';
+import type { Map as MapTilerMap } from '@maptiler/sdk';
 import { MAP_CONFIG } from '@/core/constants';
 import { eventBus } from '@/events/EventBus';
 
 interface MapState {
     // Map instance
-    map: MapLibreGLMap | null;
+    map: MapTilerMap | null;
     isLoaded: boolean;
     isInitializing: boolean;
     error: Error | null;
@@ -25,7 +25,7 @@ interface MapState {
     terrainExaggeration: number;
 
     // Actions
-    setMap: (map: MapLibreGLMap | null) => void;
+    setMap: (map: MapTilerMap | null) => void;
     setLoaded: (loaded: boolean) => void;
     setInitializing: (initializing: boolean) => void;
     setError: (error: Error | null) => void;

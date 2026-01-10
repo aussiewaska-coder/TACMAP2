@@ -1,5 +1,4 @@
-import type maplibregl from 'maplibre-gl';
-import type mapboxgl from 'mapbox-gl';
+import type { Map } from '@maptiler/sdk';
 
-export type MapEngine = 'maplibre' | 'mapbox';
-export type MapInstance = maplibregl.Map | mapboxgl.Map;
+export type MapEngine = 'maptiler';
+export type MapInstance = Map;

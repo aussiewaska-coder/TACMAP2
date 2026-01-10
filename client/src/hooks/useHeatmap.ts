@@ -1,10 +1,10 @@
 // Heatmap Hook - Port from waze-police-reporter
-// Fetches aggregated heatmap data and renders using MapLibre
+// Fetches aggregated heatmap data and renders using MapTiler SDK
 
 import { useEffect, useState, useRef } from 'react';
 import { useMapStore } from '@/stores';
 import { trpc } from '@/lib/trpc';
-import maplibregl from 'maplibre-gl';
+import * as maptilersdk from '@maptiler/sdk';
 import { isMapValid } from '@/utils/mapUtils';
 
 interface HeatmapData {
@@ -91,19 +91,23 @@ export function useHeatmap(options: UseHeatmapOptions) {
   const [renderTrigger, setRenderTrigger] = useState(0);
 
   // Fetch heatmap data from server
-  const { data: heatmapData, isLoading } = trpc.police.heatmap.useQuery(
+  const { data: heatmapData, isLoading, error } = trpc.police.heatmap.useQuery(
     { hoursAgo },
     {
       enabled: enabled && !!map && isLoaded,
       refetchInterval: 60000, // Refresh every minute
-      onSuccess: (data) => {
-        console.log(`🔥 Heatmap data received: ${data.count} locations`);
-      },
-      onError: (error) => {
-        console.error('Heatmap fetch error:', error);
-      }
     }
   );
+
+  // Log data fetch results
+  useEffect(() => {
+    if (heatmapData) {
+      console.log(`🔥 Heatmap data received: ${heatmapData.count} locations`);
+    }
+    if (error) {
+      console.error('Heatmap fetch error:', error);
+    }
+  }, [heatmapData, error]);
 
   // Keep heatmap data scoped to the selected time window
   useEffect(() => {
@@ -128,7 +132,7 @@ export function useHeatmap(options: UseHeatmapOptions) {
     setRenderTrigger(prev => prev + 1);
   }, [hoursAgo, enabled]);
 
-  // Render heatmap using MapLibre
+  // Render heatmap using MapTiler SDK
   useEffect(() => {
     if (!map || !isLoaded || !enabled || sessionData.current.size === 0) {
       console.log(`❌ Not rendering heatmap: map=${!!map}, loaded=${isLoaded}, enabled=${enabled}, size=${sessionData.current.size}`);
@@ -165,15 +169,15 @@ export function useHeatmap(options: UseHeatmapOptions) {
         data: geojson as any
       });
     } else {
-      (map.getSource(HEATMAP_SOURCE_ID) as maplibregl.GeoJSONSource).setData(geojson as any);
+      (map.getSource(HEATMAP_SOURCE_ID) as maptilersdk.GeoJSONSource).setData(geojson as any);
     }
 
-    const heatmapColorExpr = [
+    const heatmapColorExpr: maptilersdk.ExpressionSpecification = [
       'interpolate',
       ['linear'],
       ['heatmap-density'],
       ...HEATMAP_SCHEMES[colorScheme].colors
-    ];
+    ] as maptilersdk.ExpressionSpecification;
 
     // Add heatmap layer (only if not exists)
     if (!map.getLayer(HEATMAP_LAYER_ID)) {
