@@ -349,7 +349,7 @@ export function FlightControlCenter() {
     const centerLat = orbitCenter[1];
     let currentBearing = map.getBearing();
     let lastTime = performance.now();
-    const orbitSpeed = 45; // degrees per second
+    const orbitSpeed = 12; // degrees per second (full rotation in 30 seconds)
 
     const orbit = (currentTime: number) => {
       if (!map || !isAutoOrbiting) return;
