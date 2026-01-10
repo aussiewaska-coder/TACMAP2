@@ -932,6 +932,36 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
 
           {activeTab === 'map' && (
             <div className="space-y-4 md:space-y-5">
+              {/* Map Labels */}
+              <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Labels</p>
+                    <p className="text-sm text-emerald-100/70">Place names</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'cities' as const, label: 'Cities' },
+                    { id: 'suburbs' as const, label: 'Suburbs' },
+                    { id: 'towns' as const, label: 'Towns' },
+                    { id: 'roads' as const, label: 'Roads' },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => toggleLabel(id)}
+                      className={`text-xs px-3 py-2 rounded border font-medium transition ${
+                        labelsVisible[id]
+                          ? 'bg-cyan-600/40 border-cyan-500/50 text-cyan-300'
+                          : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+
               {/* Alert Geometry Toggle */}
               <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
                 <div className="flex items-center justify-between">
@@ -1013,39 +1043,10 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
           {activeTab === 'controls' && (
             <div className="space-y-4 md:space-y-5">
               {/* Note: Will show Flight Controls from FlightControlCenter */}
-              <div className="text-xs text-slate-400 text-center py-4">
-                Flight mode controls appear in right panel when active
+              <div className="text-xs text-slate-400 text-center py-8">
+                <p>Flight mode controls appear in the right sidebar</p>
+                <p className="mt-2 text-slate-500">Map label filters are in the MAP tab</p>
               </div>
-
-              {/* Map Labels */}
-              <section className="rounded-2xl border border-cyan-400/15 bg-cyan-950/40 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/60">Labels</p>
-                    <p className="text-sm text-cyan-100/70">Place names</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { id: 'cities' as const, label: 'Cities' },
-                    { id: 'suburbs' as const, label: 'Suburbs' },
-                    { id: 'towns' as const, label: 'Towns' },
-                    { id: 'roads' as const, label: 'Roads' },
-                  ].map(({ id, label }) => (
-                    <button
-                      key={id}
-                      onClick={() => toggleLabel(id)}
-                      className={`text-xs px-3 py-2 rounded border font-medium transition ${
-                        labelsVisible[id]
-                          ? 'bg-cyan-600/40 border-cyan-500/50 text-cyan-300'
-                          : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-700/60'
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </section>
             </div>
           )}
 
