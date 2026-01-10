@@ -10,7 +10,7 @@ interface MapProviderState {
     setMaptilerStyle: (style: string) => void;
 }
 
-const DEFAULT_PROVIDER: MapProvider = (import.meta.env.VITE_RECONMAP_DEFAULT_PROVIDER as MapProvider) || 'mapbox';
+const DEFAULT_PROVIDER: MapProvider = (import.meta.env.VITE_RECONMAP_DEFAULT_PROVIDER as MapProvider) || 'maptiler';
 const DEFAULT_MAPTILER_STYLE = (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) || '019ba5e4-9d97-74d1-bac9-f2e25b888881';
 
 export const useMapProviderStore = create<MapProviderState>()(
