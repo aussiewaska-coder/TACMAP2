@@ -54,30 +54,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           const age = Date.now() - cacheTimestamp;
           const isStale = age > 86400000; // 1 day
-          const isExpired = age > 604800000; // 7 days
 
-          console.log('[MapTiler Style Cache] Cache found:', {
+          console.log('[MapTiler Style Cache] ✅ CACHE FOUND - Serving from Redis', {
             ageSeconds: Math.floor(age / 1000),
-            isStale,
-            isExpired
+            isStale
           });
 
-          if (!isExpired) {
-            console.log('[MapTiler Style Cache] ✅ CACHE HIT - Serving from Redis');
+          res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+          res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
+          res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
 
-            res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-            res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
-            res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
-
-            // Background refresh if stale
-            if (isStale) {
-              console.log('[MapTiler Style Cache] Background refresh triggered');
-              refreshStyle(styleId as string, key as string, redisUrl).catch(console.error);
-            }
-
-            redis.disconnect();
-            return res.status(200).json(JSON.parse(cachedData));
+          // Background refresh if stale
+          if (isStale) {
+            console.log('[MapTiler Style Cache] Triggering background refresh (stale)');
+            refreshStyle(styleId as string, key as string, redisUrl).catch(console.error);
           }
+
+          redis.disconnect();
+          return res.status(200).json(JSON.parse(cachedData));
         }
       } catch (redisError) {
         console.error('[MapTiler Style Cache] ⚠️ Redis error:', redisError);
