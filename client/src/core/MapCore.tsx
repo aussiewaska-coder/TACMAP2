@@ -530,6 +530,13 @@ export function MapCore({ className = '' }: MapCoreProps) {
             // Handle errors
             map.on('error', (e) => {
                 console.error('[MapCore] Map error:', e);
+                console.error('[MapCore] Error details:', {
+                    message: e.error?.message,
+                    stack: e.error?.stack,
+                    sourceId: e.sourceId,
+                    tileId: e.tile?.tileID,
+                    url: e.source?.url || e.error?.url
+                });
                 setError(e.error);
             });
 
