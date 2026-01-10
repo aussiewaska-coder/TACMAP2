@@ -26,6 +26,8 @@ export function CameraControls() {
   const [isAutoOrbiting, setIsAutoOrbiting] = useState(false);
   const [isFlightMode, setIsFlightMode] = useState(false);
   const [orbitCenter, setOrbitCenter] = useState<[number, number] | null>(null);
+  const [orbitRadius, setOrbitRadius] = useState(0.05); // degrees
+  const [orbitSpeed, setOrbitSpeed] = useState((2 * Math.PI) / 60); // 1 rotation per 60 seconds
 
   const rotationFrameRef = useRef<number | undefined>(undefined);
   const orbitFrameRef = useRef<number | undefined>(undefined);
@@ -82,8 +84,6 @@ export function CameraControls() {
     const centerLng = orbitCenter ? orbitCenter[0] : map.getCenter().lng;
     const centerLat = orbitCenter ? orbitCenter[1] : map.getCenter().lat;
 
-    const orbitRadius = 0.05; // degrees
-    const orbitSpeed = 0.005; // radians per frame at 60fps
     let angle = 0;
     let lastTime = performance.now();
 
@@ -91,7 +91,7 @@ export function CameraControls() {
       if (!map || !isAutoOrbiting) return;
 
       const deltaTime = currentTime - lastTime;
-      const frameAdjustedSpeed = orbitSpeed * (deltaTime / 16.67);
+      const frameAdjustedSpeed = orbitSpeed * (deltaTime / 1000); // Convert to radians per second
 
       angle += frameAdjustedSpeed;
 
@@ -119,7 +119,7 @@ export function CameraControls() {
         cancelAnimationFrame(orbitFrameRef.current);
       }
     };
-  }, [map, isLoaded, isAutoOrbiting, orbitCenter]);
+  }, [map, isLoaded, isAutoOrbiting, orbitCenter, orbitRadius, orbitSpeed]);
 
   // Flight mode: simulate forward movement at high altitude
   useEffect(() => {
@@ -360,6 +360,55 @@ export function CameraControls() {
           60°
         </Button>
       </div>
+
+      {/* Orbit Controls */}
+      {isAutoOrbiting && (
+        <>
+          <div className="flex flex-col gap-1 bg-slate-900/40 backdrop-blur-md rounded-lg p-2 shadow-xl border border-blue-500/20 pointer-events-auto">
+            <div className="text-xs text-slate-300 mb-1 px-1">Orbit Radius</div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setOrbitRadius(r => Math.min(r * 1.2, 1.0))}
+              title="Increase orbit radius"
+              className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
+            >
+              Radius +
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setOrbitRadius(r => Math.max(r * 0.8, 0.001))}
+              title="Decrease orbit radius"
+              className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
+            >
+              Radius -
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-1 bg-slate-900/40 backdrop-blur-md rounded-lg p-2 shadow-xl border border-blue-500/20 pointer-events-auto">
+            <div className="text-xs text-slate-300 mb-1 px-1">Orbit Speed</div>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setOrbitSpeed(s => Math.min(s * 1.2, Math.PI))}
+              title="Increase orbit speed"
+              className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
+            >
+              Speed +
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setOrbitSpeed(s => Math.max(s * 0.8, 0.01))}
+              title="Decrease orbit speed"
+              className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
+            >
+              Speed -
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
