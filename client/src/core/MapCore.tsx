@@ -224,8 +224,9 @@ function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSp
         });
 
         if (apiKey) {
-            const url = `/api/maptiler/style?styleId=${styleId}&key=${apiKey}`;
-            console.log('[MapCore] Using proxy URL:', url);
+            // DIRECT MapTiler URL - bypass proxy for now
+            const url = `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
+            console.log('[MapCore] Using direct MapTiler URL:', url);
             return url;
         }
         console.warn('[MapCore] No API key, falling back to default style');
