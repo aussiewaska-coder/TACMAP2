@@ -53,6 +53,85 @@ echo "// Build: $(date +%s)" > client/src/buildstamp.ts && git add -A && git com
 
 **NEVER ASSUME A PUSH = DEPLOYED. VERIFY THE BUILD COMPLETED.**
 
+### FULL TROUBLESHOOTING CHECKLIST - When Code Changes Don't Work
+
+**RUN THROUGH THIS ENTIRE LIST. DO NOT SKIP.**
+
+#### 1. GIT & DEPLOYMENT
+- [ ] Did you actually `git push`? Check `git status` - is branch ahead of origin?
+- [ ] Is Vercel connected to the correct repo/branch?
+- [ ] Did Vercel detect the push? Check Deployments tab for new deployment
+- [ ] Did the Vercel BUILD succeed? Check build logs for errors
+- [ ] Is the deployment "Ready" status or still "Building"?
+- [ ] Is there a deployment queue/delay?
+
+#### 2. VITE ENVIRONMENT VARIABLES (FRONTEND)
+- [ ] Are VITE_ env vars set in Vercel Dashboard → Settings → Environment Variables?
+- [ ] Are they set for the correct environment (Production/Preview/Development)?
+- [ ] Did you REBUILD after changing env vars? (Redeploy with cache OFF)
+- [ ] Remember: VITE_ vars are BAKED INTO JS at build time - runtime changes do nothing
+
+#### 3. SERVER ENVIRONMENT VARIABLES (BACKEND)
+- [ ] Are non-VITE env vars set in Vercel? (DATABASE_URL, REDIS_URL, etc.)
+- [ ] Server env vars work at runtime - but still need redeploy to pick up changes
+
+#### 4. BROWSER CACHING
+- [ ] Hard refresh: Cmd+Shift+R (Mac) / Ctrl+Shift+R (Windows)
+- [ ] Try incognito/private window
+- [ ] Clear browser cache completely
+- [ ] Check Network tab - is browser serving cached JS files? (look for "from disk cache")
+
+#### 5. LOCALSTORAGE & STATE PERSISTENCE
+- [ ] Zustand persist stores data in localStorage
+- [ ] Old values survive code changes
+- [ ] Increment `version` in persist config to force reset
+- [ ] Or manually clear localStorage: `localStorage.clear()` in console
+- [ ] Current persist stores: `mapProviderStore` (key: `reconmap-provider`)
+
+#### 6. VERCEL BUILD CACHE
+- [ ] Vercel caches node_modules and build output
+- [ ] Force clean: Redeploy with "Use existing Build Cache" UNCHECKED
+- [ ] Or push a new file: `echo "// $(date +%s)" > client/src/buildstamp.ts`
+
+#### 7. CDN & EDGE CACHING
+- [ ] Vercel edge network may cache responses
+- [ ] Check response headers for cache status
+- [ ] Wait a few minutes for cache invalidation
+- [ ] Try adding `?nocache=timestamp` to URLs for testing
+
+#### 8. REDIS CACHE (BACKEND)
+- [ ] MapTiler proxy caches tiles/styles in Redis
+- [ ] Old cached data may persist after code changes
+- [ ] May need to flush Redis cache for certain changes
+- [ ] Check Redis connection is working (look for Redis logs in Vercel)
+
+#### 9. API/PROXY ISSUES
+- [ ] Is the API endpoint being called? Check Network tab
+- [ ] Is the API returning correct data? Check response in Network tab
+- [ ] Are there CORS errors? Check Console for CORS messages
+- [ ] Is the request URL correct? Log it and verify
+
+#### 10. CODE ISSUES
+- [ ] Did you save the file?
+- [ ] Is TypeScript compiling? Run `pnpm type-check`
+- [ ] Are there import errors? Check browser console
+- [ ] Is the code path actually being executed? Add console.log to verify
+- [ ] Are you editing the right file? (not a copy, not wrong branch)
+
+#### 11. EXTERNAL SERVICES
+- [ ] Is MapTiler API up? Test direct URL: `curl https://api.maptiler.com/maps/STYLE_ID/style.json?key=API_KEY`
+- [ ] Is Redis connected? Check Vercel logs for Redis connection messages
+- [ ] Is the database accessible? Check for DB connection errors
+- [ ] Are third-party APIs responding? Check their status pages
+
+#### 12. TIMING & PROPAGATION
+- [ ] DNS propagation can take time
+- [ ] CDN cache invalidation can take minutes
+- [ ] Vercel deployments take 1-3 minutes to fully propagate
+- [ ] Don't test immediately after deploy - wait for "Ready" status
+
+**WHEN IN DOUBT: FORCE CLEAN REBUILD + INCOGNITO + WAIT 2 MINUTES**
+
 ## Project Structure
 
 ```
