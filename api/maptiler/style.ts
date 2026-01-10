@@ -10,6 +10,33 @@ interface StyleJSON {
   [key: string]: any;
 }
 
+/**
+ * Default style when MapTiler API fails
+ * Uses OSM tiles so map ALWAYS loads
+ */
+function getDefaultStyle(host: string): StyleJSON {
+  return {
+    version: 8,
+    sources: {
+      'osm-tiles': {
+        type: 'raster',
+        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors',
+      },
+    },
+    layers: [
+      {
+        id: 'osm-layer',
+        type: 'raster',
+        source: 'osm-tiles',
+        minzoom: 0,
+        maxzoom: 22,
+      },
+    ],
+  };
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow GET
   if (req.method !== 'GET') {
@@ -85,29 +112,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${key}`;
     const response = await fetch(styleUrl);
 
-    // ✅ If API fails, return cached data NO MATTER HOW OLD
+    // ✅ If API fails: return cached if available, else return OSM default
     if (!response.ok) {
       console.warn(`[MapTiler Style Cache] ⚠️ API returned ${response.status}`);
 
       if (cachedData) {
         const age = cacheTimestamp ? Date.now() - cacheTimestamp : 0;
         const ageHours = Math.floor(age / (1000 * 60 * 60));
-        console.log(`[MapTiler Style Cache] ✅ FALLBACK: Returning cached (${ageHours}h old)`);
+        console.log(`[MapTiler Style Cache] ✅ CACHED FALLBACK: (${ageHours}h old)`);
 
-        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-        res.setHeader('X-Cache', 'FALLBACK');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('X-Cache', 'FALLBACK-CACHED');
         res.setHeader('X-Cache-Age', ageHours.toString());
 
         return res.status(200).json(JSON.parse(cachedData));
       }
 
-      throw new Error(`MapTiler API error: ${response.status}`);
+      // ✅ CRITICAL: No cache, API failed -> return OSM default
+      console.log(`[MapTiler Style Cache] ✅ OSM FALLBACK: MapTiler down, using OpenStreetMap`);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+      res.setHeader('X-Cache', 'DEFAULT-OSM');
+
+      return res.status(200).json(getDefaultStyle(req.headers.host || ''));
     }
 
     const styleJson: StyleJSON = await response.json();
 
     // Transform tile URLs to use our proxy
     const transformedStyle = transformStyleToUseProxy(styleJson, req.headers.host || '');
+
+    // ✅ CACHE IMMEDIATELY - don't wait for request to complete
+    // This way next request hits Redis even if this one fails
+    if (redisUrl && transformedStyle) {
+      const redis = new Redis(redisUrl, { lazyConnect: true });
+      redis.connect().then(() => {
+        redis.set(cacheKey, JSON.stringify(transformedStyle), 'EX', 604800);
+        redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 604800);
+        redis.disconnect();
+      }).catch(err => console.error('[Cache] Background write error:', err));
+    }
 
     // Cache in Redis
     if (redisUrl) {
@@ -134,11 +177,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json(transformedStyle);
 
   } catch (error) {
-    console.error('Style proxy error:', error);
-    return res.status(500).json({
-      error: 'Failed to fetch style',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error('[MapTiler Style Cache] ❌ Exception:', error);
+
+    // ✅ CRITICAL: On exception, return OSM default so map always loads
+    console.log('[MapTiler Style Cache] ✅ OSM FALLBACK: Exception occurred, using OpenStreetMap');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.setHeader('X-Cache', 'DEFAULT-OSM-ERROR');
+
+    return res.status(200).json(getDefaultStyle(req.headers.host || ''));
   }
 }
 
