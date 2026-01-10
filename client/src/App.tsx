@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -27,7 +26,6 @@ function App() {
   return (
     <ErrorBoundary>
       <TooltipProvider>
-        <Toaster />
         <Router />
       </TooltipProvider>
     </ErrorBoundary>
