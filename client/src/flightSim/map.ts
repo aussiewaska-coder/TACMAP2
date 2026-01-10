@@ -1,4 +1,4 @@
-import maplibregl, { Map, LngLatLike } from "maplibre-gl";
+import maplibregl, { Map } from "maplibre-gl";
 
 type MapInitOptions = {
   containerId?: string;
@@ -14,17 +14,17 @@ export function initMap({ containerId = "flight-map", center = [0, 0], zoom = 5 
 
   const map = new maplibregl.Map({
     container: containerId,
-    style: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
+    style: `https://api.maptiler.com/maps/3d-world/style.json?key=${MAPTILER_KEY}`,
     center,
     zoom,
     pitch: 45,
     bearing: 0,
     projection: "mercator"
-  });
+  } as any);
 
   map.touchZoomRotate.disableRotation(); // camera roll driven by aircraft, not gestures
   map.on("load", () => {
-    map.setFog({
+    (map as any).setFog({
       color: "rgba(11,12,20,0.85)",
       "horizon-blend": 0.1
     });
@@ -33,21 +33,10 @@ export function initMap({ containerId = "flight-map", center = [0, 0], zoom = 5 
   return map;
 }
 
-export function smoothSetMapView(map: Map, center: LngLatLike, pitch: number, bearing: number) {
-  // Small eased adjustments each frame keep motion cinematic without snapping.
-  map.jumpTo({
-    center,
-    pitch,
-    bearing
-  });
-}
-
 export function setProjection(map: Map, globe: boolean) {
   const projection = globe ? "globe" : "mercator";
-  const current = (map as any).getProjection ? (map as any).getProjection() : null;
-  const currentName = current?.name;
-  if (!currentName) return;
-  if (currentName !== projection) {
-    map.setProjection(projection);
+  const current = (map.getProjection() as any)?.name;
+  if (current !== projection) {
+    (map as any).setProjection(projection);
   }
 }

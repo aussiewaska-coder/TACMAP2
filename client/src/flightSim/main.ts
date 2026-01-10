@@ -4,6 +4,7 @@ import { consumeFrameInput, initControls, teardownControls } from "./controls";
 import { initNavigation } from "./navigation";
 import { initUI, teardownUI } from "./ui";
 import { addAircraftModelLayer } from "./modelLayer";
+import { initCamera } from "./camera";
 
 export function startFlightSim(containerId = "flight-map", initial?: InitialFlightConfig) {
   const map = initMap({
@@ -14,6 +15,7 @@ export function startFlightSim(containerId = "flight-map", initial?: InitialFlig
   const aircraft = initAircraft(map, initial);
   const ui = initUI();
   const nav = initNavigation(map, aircraft.setTarget);
+  const camera = initCamera(map);
   initControls();
 
   let stopped = false;
@@ -28,6 +30,7 @@ export function startFlightSim(containerId = "flight-map", initial?: InitialFlig
     const frameInput = consumeFrameInput();
     if (frameInput.cancelTarget) nav.clearTarget();
     aircraft.update(frameInput);
+    camera.update(aircraft.state);
     ui.render(aircraft.state);
   }
 

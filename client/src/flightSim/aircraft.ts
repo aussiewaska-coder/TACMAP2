@@ -1,6 +1,5 @@
 import type { Map } from "maplibre-gl";
 import { easeInOut } from "./easing";
-import { smoothSetMapView, setProjection } from "./map";
 import { ControlFrameInput, FlightMode, FlightState, SpeedTier, SpeedTierId, Target } from "./types";
 
 const EARTH_RADIUS_M = 6_371_000;
@@ -41,7 +40,7 @@ function randomAustralia(): { lat: number; lng: number } {
   return { lat, lng };
 }
 
-export function initAircraft(map: Map, initial?: InitialFlightConfig) {
+export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
   const initialPos = initial ?? { ...randomAustralia(), altitudeFt: 10_000, speedKph: 15_000 };
   const initialAlt = initialPos.altitudeFt ?? 10_000;
   const initialSpeedMps = (initialPos.speedKph ?? 15_000) / 3.6; // 15,000 kph ≈ 4,166 m/s
@@ -105,12 +104,20 @@ export function initAircraft(map: Map, initial?: InitialFlightConfig) {
 
   function applyYawAndRoll(input: number, deltaTime: number) {
     const yawRate = 0.9; // radians/sec at full input
-    state.yaw = input * yawRate;
+    const targetYaw = input * yawRate;
+    const yawBlend = easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.6;
+    state.yaw += (targetYaw - state.yaw) * yawBlend;
     state.heading += state.yaw * deltaTime;
 
-    state.roll += input * 0.015;
-    state.roll *= 0.92;
-    state.roll = clamp(state.roll, -1.4, 1.4);
+    if (state.mode === "ORBIT") {
+      const targetRoll = degToRad(30);
+      const step = easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.4;
+      state.roll += (targetRoll - state.roll) * step;
+    } else {
+      state.roll += input * 0.015;
+      state.roll *= 0.92;
+      state.roll = clamp(state.roll, -1.4, 1.4);
+    }
   }
 
   function applyAltitude(delta: number, deltaTime: number) {
@@ -172,11 +179,17 @@ export function initAircraft(map: Map, initial?: InitialFlightConfig) {
     if (state.mode === "NAVIGATE") {
       const targetHeading = bearingToTarget(state);
       const headingDiff = normalizeAngle(targetHeading - state.heading);
-      // ease heading toward target
-      state.heading += headingDiff * 0.05 * easeInOut(clamp(deltaTime * 2, 0, 1));
-      // small altitude bias toward mid-altitude for cinematic approach
+      const headingStep = easeInOut(clamp(deltaTime * 2, 0, 1)) * 0.08;
+      state.heading += headingDiff * headingStep;
+
+      const distance = distanceToTargetMeters(state);
       const tier = getSpeedTier();
-      const targetAlt = Math.min(Math.max(state.altitudeFt, 1_000), tier.maxAltitudeFt * 0.6);
+      const cruise = tier.speedMps;
+      const approachFactor = easeInOut(clamp((distance ?? 100_000) / 40_000, 0, 1));
+      const approachSpeed = cruise * 0.35;
+      internal.targetSpeedMps = Math.min(cruise, approachSpeed + (cruise - approachSpeed) * approachFactor);
+
+      const targetAlt = clamp(tier.maxAltitudeFt * (0.3 + 0.4 * approachFactor), 800, tier.maxAltitudeFt);
       internal.targetAltitudeFt = targetAlt;
     } else if (state.mode === "ORBIT" && state.target) {
       const orbitRate = 0.45; // rad/sec
@@ -186,6 +199,10 @@ export function initAircraft(map: Map, initial?: InitialFlightConfig) {
       // orbit heading rotates clockwise
       const centerHeading = internal.orbitAngle;
       state.heading = normalizeAngle(centerHeading + Math.PI / 2);
+      const targetRoll = degToRad(30);
+      state.roll += (targetRoll - state.roll) * easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.35;
+      internal.targetSpeedMps = Math.min(getSpeedTier().speedMps, 900);
+      internal.targetAltitudeFt = clamp(state.altitudeFt, 800, getSpeedTier().maxAltitudeFt);
       // derive position around target
       const lat1 = state.target.lat * RAD_PER_DEG;
       const lng1 = state.target.lng * RAD_PER_DEG;
@@ -196,13 +213,10 @@ export function initAircraft(map: Map, initial?: InitialFlightConfig) {
     }
   }
 
-  function updateMap() {
-    const cameraPitch = clamp(30 + (state.altitudeFt / 100_000) * 40 + (state.speedMps / 17_150) * 10, 35, 80);
-    smoothSetMapView(map, [state.lng, state.lat], cameraPitch, radToDeg(state.heading));
+  function updateGlobeFlag() {
     const autoGlobe = state.altitudeFt >= 60_000 || state.speedTier >= 3430;
     const shouldGlobe = internal.globeOverride !== null ? internal.globeOverride : autoGlobe;
     state.globe = shouldGlobe;
-    setProjection(map, shouldGlobe);
   }
 
   function updateAircraftModel() {
@@ -229,7 +243,7 @@ export function initAircraft(map: Map, initial?: InitialFlightConfig) {
     if (state.mode !== "ORBIT") {
       advancePosition(deltaTime);
     }
-    updateMap();
+    updateGlobeFlag();
     updateAircraftModel();
   }
 
@@ -278,10 +292,6 @@ function normalizeAngle(angle: number): number {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-function radToDeg(rad: number): number {
-  return rad * DEG_PER_RAD;
 }
 
 function degToRad(deg: number): number {

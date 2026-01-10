@@ -23,9 +23,11 @@ export function initUI() {
   function render(state: FlightState) {
     const dist = distanceToTargetMeters(state);
     const targetText = dist !== null ? `${(dist / 1000).toFixed(1)} km` : "—";
+    const tierLabel = SPEED_TIER_LABELS[state.speedTier] ?? `${state.speedTier} m/s`;
     hud!.innerHTML = `
       <div>MODE: ${state.mode}</div>
-      <div>Speed: ${state.speedMps.toFixed(0)} m/s (Tier ${state.speedTier})</div>
+      <div>Speed Tier: ${tierLabel}</div>
+      <div>Speed: ${state.speedMps.toFixed(0)} m/s</div>
       <div>Altitude: ${state.altitudeFt.toFixed(0)} ft</div>
       <div>Heading: ${(toDegrees(state.heading) + 360) % 360 | 0}°</div>
       <div>Target Distance: ${targetText}</div>
@@ -42,6 +44,16 @@ export function teardownUI() {
     hud.parentElement.removeChild(hud);
   }
 }
+
+const SPEED_TIER_LABELS: Record<number, string> = {
+  100: "100 m/s",
+  500: "500 m/s",
+  1000: "1,000 m/s",
+  5000: "5,000 m/s",
+  3430: "Mach 10",
+  6860: "Mach 20",
+  17150: "Mach 50"
+};
 
 function toDegrees(rad: number): number {
   return rad * (180 / Math.PI);

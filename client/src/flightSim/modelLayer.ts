@@ -28,12 +28,12 @@ export function addAircraftModelLayer(map: Map, getState: () => FlightState) {
       const loader = new GLTFLoader();
       loader.load(
         "/models/stealth_bomber.glb",
-        (gltf) => {
+        (gltf: any) => {
           gltf.scene.scale.set(1, 1, 1);
           scene.add(gltf.scene);
         },
         undefined,
-        (err) => console.warn("GLB load failed", err)
+        (err: any) => console.warn("GLB load failed", err)
       );
 
       (layer as any)._scene = scene;
@@ -51,10 +51,11 @@ export function addAircraftModelLayer(map: Map, getState: () => FlightState) {
         Math.max(0, state.altitudeFt) * FEET_TO_METERS
       );
 
-      const proj = new Matrix4().fromArray(matrix);
+      const proj = new Matrix4().fromArray(matrix as unknown as number[]);
       const translation = new Matrix4().makeTranslation(merc.x, merc.y, merc.z);
       const scaleFactor = merc.meterInMercatorCoordinateUnits();
-      const scale = new Matrix4().makeScale(scaleFactor, scaleFactor, scaleFactor);
+      const altitudeScale = 1 + Math.min(state.altitudeFt / 100_000, 1) * 0.2;
+      const scale = new Matrix4().makeScale(scaleFactor * altitudeScale, scaleFactor * altitudeScale, scaleFactor * altitudeScale);
 
       const rotationZ = new Matrix4().makeRotationZ(state.heading);
       const rotationY = new Matrix4().makeRotationY(state.roll);
