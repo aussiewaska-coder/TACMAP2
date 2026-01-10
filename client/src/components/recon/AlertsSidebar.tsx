@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useLocation } from 'wouter';
 import {
@@ -18,6 +18,7 @@ import {
   Trash2,
   Database,
   Loader2,
+  Plane,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -1011,15 +1012,10 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
 
           {activeTab === 'controls' && (
             <div className="space-y-4 md:space-y-5">
-              {/* Flight Controls */}
-              <section className="rounded-2xl border border-cyan-400/15 bg-cyan-950/40 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/60">Flight</p>
-                    <p className="text-sm text-cyan-100/70">Camera modes</p>
-                  </div>
-                </div>
-              </section>
+              {/* Note: Will show Flight Controls from FlightControlCenter */}
+              <div className="text-xs text-slate-400 text-center py-4">
+                Flight mode controls appear in right panel when active
+              </div>
 
               {/* Map Labels */}
               <section className="rounded-2xl border border-cyan-400/15 bg-cyan-950/40 p-4">

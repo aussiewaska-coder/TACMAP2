@@ -79,6 +79,12 @@ export function FlightControlCenter() {
   const orbitDirectionRef = useRef(1);
   const orbitMarkerRef = useRef<maptilersdk.Marker | null>(null);
 
+  // Flight mode controls
+  const flightSpeedRef = useRef(0.0005); // 1/4 of original 0.002
+  const flightHeadingDeltaRef = useRef(0);
+  const flightAltitudeDeltaRef = useRef(0);
+  const flightPitchTargetRef = useRef(75);
+
   // Track map state
   useEffect(() => {
     if (!map || !isLoaded) return;
@@ -263,23 +269,47 @@ export function FlightControlCenter() {
     };
   }, [map, isLoaded, isAutoOrbiting, orbitCenter]);
 
-  // Flight mode
+  // Flight mode - smooth continuous movement with heading/altitude/pitch control
   useEffect(() => {
     if (!map || !isLoaded || !isFlightMode) return;
-    const flightSpeed = 0.002;
     let lastTime = performance.now();
 
     const fly = (currentTime: number) => {
       if (!map || !isFlightMode) return;
       const deltaTime = currentTime - lastTime;
-      const frameAdjustedSpeed = flightSpeed * (deltaTime / 16.67);
+      const frameAdjustedSpeed = flightSpeedRef.current * (deltaTime / 16.67);
+
+      // Get current state
       const bearing = map.getBearing();
       const center = map.getCenter();
+      const zoom = map.getZoom();
+      const pitch = map.getPitch();
+
+      // Smooth heading change
+      if (Math.abs(flightHeadingDeltaRef.current) > 0.01) {
+        const newBearing = bearing + flightHeadingDeltaRef.current;
+        map.setBearing(newBearing);
+      }
+
+      // Smooth altitude change
+      if (Math.abs(flightAltitudeDeltaRef.current) > 0.01) {
+        const newZoom = Math.max(5, Math.min(24, zoom + flightAltitudeDeltaRef.current));
+        map.setZoom(newZoom);
+      }
+
+      // Smooth pitch change
+      if (Math.abs(flightPitchTargetRef.current - pitch) > 0.5) {
+        const newPitch = pitch + (flightPitchTargetRef.current - pitch) * 0.05;
+        map.setPitch(newPitch);
+      }
+
+      // Forward flight
       const bearingRad = (bearing * Math.PI) / 180;
       map.setCenter([
         center.lng + Math.sin(bearingRad) * frameAdjustedSpeed,
         center.lat + Math.cos(bearingRad) * frameAdjustedSpeed,
       ]);
+
       lastTime = currentTime;
       flightFrameRef.current = requestAnimationFrame(fly);
     };
@@ -331,6 +361,23 @@ export function FlightControlCenter() {
     if (map) map.easeTo({ bearing: 0, duration: 1500, easing: (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 });
   };
 
+  // Flight mode control handlers
+  const adjustFlightHeading = (delta: number) => {
+    flightHeadingDeltaRef.current = delta;
+  };
+
+  const adjustFlightAltitude = (delta: number) => {
+    flightAltitudeDeltaRef.current = delta;
+  };
+
+  const adjustFlightPitch = (target: number) => {
+    flightPitchTargetRef.current = target;
+  };
+
+  const stopFlightInput = () => {
+    flightHeadingDeltaRef.current = 0;
+    flightAltitudeDeltaRef.current = 0;
+  };
 
   if (!isLoaded) return null;
 
@@ -427,52 +474,148 @@ export function FlightControlCenter() {
           </div>
         </div>
 
-        {/* Navigation */}
-        <div className="p-3 border-b border-slate-800/50">
-          <div className="text-[9px] text-slate-500 uppercase mb-2">Navigation</div>
-          <div className="flex items-center justify-between">
-            <DirectionPad onPan={panDirection} />
-            <MiniCompass bearing={currentBearing} onReset={resetBearing} />
-          </div>
-        </div>
+        {isFlightMode ? (
+          <>
+            {/* Flight Heading Controls */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Heading</div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={() => adjustFlightHeading(-0.5)}
+                  onMouseUp={stopFlightInput}
+                  onTouchStart={() => adjustFlightHeading(-0.5)}
+                  onTouchEnd={stopFlightInput}
+                  onMouseLeave={stopFlightInput}
+                  className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50"
+                  title="Turn left"
+                >
+                  <ChevronLeft className="size-3 mr-1" /> Left
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={() => adjustFlightHeading(0.5)}
+                  onMouseUp={stopFlightInput}
+                  onTouchStart={() => adjustFlightHeading(0.5)}
+                  onTouchEnd={stopFlightInput}
+                  onMouseLeave={stopFlightInput}
+                  className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50"
+                  title="Turn right"
+                >
+                  Right <ChevronRight className="size-3 ml-1" />
+                </Button>
+              </div>
+            </div>
 
-        {/* Zoom */}
-        <div className="p-3 border-b border-slate-800/50">
-          <div className="text-[9px] text-slate-500 uppercase mb-2">Altitude</div>
-          <div className="flex gap-1">
-            <Button size="sm" variant="ghost" onClick={() => adjustZoom(1)}
-              className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">
-              <Plus className="size-3 mr-1" /> Up
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => adjustZoom(-1)}
-              className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">
-              <Minus className="size-3 mr-1" /> Down
-            </Button>
-          </div>
-        </div>
+            {/* Flight Altitude Controls */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Climb/Descend</div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={() => adjustFlightAltitude(0.05)}
+                  onMouseUp={stopFlightInput}
+                  onTouchStart={() => adjustFlightAltitude(0.05)}
+                  onTouchEnd={stopFlightInput}
+                  onMouseLeave={stopFlightInput}
+                  className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50"
+                  title="Climb"
+                >
+                  <Plus className="size-3 mr-1" /> Climb
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onMouseDown={() => adjustFlightAltitude(-0.05)}
+                  onMouseUp={stopFlightInput}
+                  onTouchStart={() => adjustFlightAltitude(-0.05)}
+                  onTouchEnd={stopFlightInput}
+                  onMouseLeave={stopFlightInput}
+                  className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50"
+                  title="Descend"
+                >
+                  <Minus className="size-3 mr-1" /> Desc
+                </Button>
+              </div>
+            </div>
 
-        {/* Pitch */}
-        <div className="p-3 border-b border-slate-800/50">
-          <div className="text-[9px] text-slate-500 uppercase mb-2">Pitch</div>
-          <div className="flex gap-1 flex-wrap">
-            {[0, 30, 45, 60, 80].map((p) => (
-              <Button
-                key={p}
-                size="sm"
-                variant="ghost"
-                onClick={() => setPitch(p)}
-                className={cn(
-                  "text-xs px-2 h-6 border",
-                  Math.abs(currentPitch - p) < 5
-                    ? "bg-cyan-600/40 border-cyan-500/50 text-cyan-300"
-                    : "bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border-slate-700/50"
-                )}
-              >
-                {p}°
-              </Button>
-            ))}
-          </div>
-        </div>
+            {/* Flight Pitch Controls */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Pitch</div>
+              <div className="flex gap-1 flex-wrap">
+                {[0, 15, 30, 45, 60, 75].map((p) => (
+                  <Button
+                    key={p}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => adjustFlightPitch(p)}
+                    className={cn(
+                      "text-xs px-2 h-6 border",
+                      Math.abs(flightPitchTargetRef.current - p) < 5
+                        ? "bg-cyan-600/40 border-cyan-500/50 text-cyan-300"
+                        : "bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border-slate-700/50"
+                    )}
+                    title={`Set pitch to ${p}°`}
+                  >
+                    {p}°
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Standard Navigation (non-flight) */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Navigation</div>
+              <div className="flex items-center justify-between">
+                <DirectionPad onPan={(dir) => panDirection(dir as 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW')} />
+                <MiniCompass bearing={currentBearing} onReset={resetBearing} />
+              </div>
+            </div>
+
+            {/* Standard Altitude Controls */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Altitude</div>
+              <div className="flex gap-1">
+                <Button size="sm" variant="ghost" onClick={() => adjustZoom(1)}
+                  className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">
+                  <Plus className="size-3 mr-1" /> Up
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => adjustZoom(-1)}
+                  className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">
+                  <Minus className="size-3 mr-1" /> Down
+                </Button>
+              </div>
+            </div>
+
+            {/* Standard Pitch Controls */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Pitch</div>
+              <div className="flex gap-1 flex-wrap">
+                {[0, 30, 45, 60, 80].map((p) => (
+                  <Button
+                    key={p}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setPitch(p)}
+                    className={cn(
+                      "text-xs px-2 h-6 border",
+                      Math.abs(currentPitch - p) < 5
+                        ? "bg-cyan-600/40 border-cyan-500/50 text-cyan-300"
+                        : "bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border-slate-700/50"
+                    )}
+                  >
+                    {p}°
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
 
         {/* Notifications Area */}
