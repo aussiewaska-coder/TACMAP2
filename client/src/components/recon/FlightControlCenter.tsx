@@ -347,12 +347,19 @@ export function FlightControlCenter() {
 
     const centerLng = orbitCenter[0];
     const centerLat = orbitCenter[1];
+    const currentPos = map.getCenter();
+
+    // Calculate initial radius from current position to orbit center
+    const initialRadius = Math.sqrt(
+      Math.pow(currentPos.lng - centerLng, 2) + Math.pow(currentPos.lat - centerLat, 2)
+    );
+
     let angle = orbitStartAngleRef.current ?? 0;
     let lastTime = performance.now();
-    let currentRadius = 0.001;
+    let currentRadius = initialRadius; // Start from current distance
     let currentSpeed = orbitSpeedRef.current * 0.1;
     let currentDirection = orbitDirectionRef.current;
-    const easeInDuration = 1500;
+    const easeInDuration = 2000;
     const startTime = performance.now();
 
     const orbit = (currentTime: number) => {
@@ -362,8 +369,8 @@ export function FlightControlCenter() {
       const easeInProgress = Math.min(elapsed / easeInDuration, 1);
       const easeFactor = 1 - Math.pow(1 - easeInProgress, 3);
 
-      currentRadius += (orbitRadiusRef.current - currentRadius) * Math.min(easeFactor * 0.1, 0.05);
-      currentSpeed += (orbitSpeedRef.current - currentSpeed) * Math.min(easeFactor * 0.1, 0.05);
+      currentRadius += (orbitRadiusRef.current - currentRadius) * Math.min(easeFactor * 0.05, 0.05);
+      currentSpeed += (orbitSpeedRef.current - currentSpeed) * Math.min(easeFactor * 0.05, 0.05);
       currentDirection += (orbitDirectionRef.current - currentDirection) * 0.1;
 
       const frameAdjustedSpeed = -currentSpeed * currentDirection * (deltaTime / 1000);
