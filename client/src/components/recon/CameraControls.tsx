@@ -205,31 +205,47 @@ export function CameraControls() {
   return (
     <div className="absolute top-4 right-4 flex flex-col gap-3 z-10 pointer-events-none">
       {/* Camera Mode Controls */}
-      <div className="flex flex-col gap-2 bg-background/95 backdrop-blur-sm rounded-lg p-2 shadow-lg pointer-events-auto">
+      <div className="flex flex-col gap-2 bg-slate-900/40 backdrop-blur-md rounded-lg p-2 shadow-xl border border-blue-500/20 pointer-events-auto">
         <div className="flex gap-1">
           <Button
             size="icon-sm"
-            variant={isAutoRotating ? 'default' : 'outline'}
+            variant={isAutoRotating ? 'default' : 'ghost'}
             onClick={toggleAutoRotate}
             title="Auto-rotate"
-            className="transition-all"
+            className={cn(
+              'transition-all border border-slate-700/50',
+              isAutoRotating
+                ? 'bg-blue-600/80 hover:bg-blue-500/80 text-white border-blue-400/50'
+                : 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-200'
+            )}
           >
             <RotateCw className={cn('size-4', isAutoRotating && 'animate-spin')} />
           </Button>
           <Button
             size="icon-sm"
-            variant={isAutoOrbiting ? 'default' : 'outline'}
+            variant={isAutoOrbiting ? 'default' : 'ghost'}
             onClick={toggleAutoOrbit}
             title="Auto-orbit"
+            className={cn(
+              'transition-all border border-slate-700/50',
+              isAutoOrbiting
+                ? 'bg-blue-600/80 hover:bg-blue-500/80 text-white border-blue-400/50'
+                : 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-200'
+            )}
           >
             <Orbit className="size-4" />
           </Button>
           <Button
             size="icon-sm"
-            variant={isFlightMode ? 'default' : 'outline'}
+            variant={isFlightMode ? 'default' : 'ghost'}
             onClick={toggleFlightMode}
             title="Flight mode"
-            className={cn('transition-all', isFlightMode && 'ring-2 ring-primary/50')}
+            className={cn(
+              'transition-all border border-slate-700/50',
+              isFlightMode
+                ? 'bg-blue-600/80 hover:bg-blue-500/80 text-white border-blue-400/50 ring-2 ring-blue-400/30'
+                : 'bg-slate-800/60 hover:bg-slate-700/60 text-slate-200'
+            )}
           >
             <Plane className="size-4" />
           </Button>
@@ -237,41 +253,45 @@ export function CameraControls() {
       </div>
 
       {/* Pan Controls */}
-      <div className="bg-background/95 backdrop-blur-sm rounded-lg p-2 shadow-lg pointer-events-auto">
+      <div className="bg-slate-900/40 backdrop-blur-md rounded-lg p-2 shadow-xl border border-blue-500/20 pointer-events-auto">
         <div className="grid grid-cols-3 gap-1 w-[120px]">
           <div />
           <Button
             size="icon-sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => panDirection('N')}
             title="Pan North"
+            className="bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
           >
             <ChevronUp className="size-4" />
           </Button>
           <div />
           <Button
             size="icon-sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => panDirection('W')}
             title="Pan West"
+            className="bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
           >
             <ChevronLeft className="size-4" />
           </Button>
           <div />
           <Button
             size="icon-sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => panDirection('E')}
             title="Pan East"
+            className="bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
           >
             <ChevronRight className="size-4" />
           </Button>
           <div />
           <Button
             size="icon-sm"
-            variant="outline"
+            variant="ghost"
             onClick={() => panDirection('S')}
             title="Pan South"
+            className="bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
           >
             <ChevronDown className="size-4" />
           </Button>
@@ -280,60 +300,62 @@ export function CameraControls() {
       </div>
 
       {/* Zoom Controls */}
-      <div className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm rounded-lg p-2 shadow-lg pointer-events-auto">
+      <div className="flex flex-col gap-1 bg-slate-900/40 backdrop-blur-md rounded-lg p-2 shadow-xl border border-blue-500/20 pointer-events-auto">
         <Button
           size="icon-sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => adjustZoom(1)}
           title="Zoom In"
+          className="bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
         >
           <Plus className="size-4" />
         </Button>
         <Button
           size="icon-sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => adjustZoom(-1)}
           title="Zoom Out"
+          className="bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
         >
           <Minus className="size-4" />
         </Button>
       </div>
 
       {/* Pitch Presets */}
-      <div className="flex flex-col gap-1 bg-background/95 backdrop-blur-sm rounded-lg p-2 shadow-lg pointer-events-auto">
+      <div className="flex flex-col gap-1 bg-slate-900/40 backdrop-blur-md rounded-lg p-2 shadow-xl border border-blue-500/20 pointer-events-auto">
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => setPitch(0)}
           title="Top-down view"
-          className="text-xs"
+          className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
         >
           0°
         </Button>
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => setPitch(30)}
           title="Slight angle"
-          className="text-xs"
+          className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
         >
           30°
         </Button>
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => setPitch(45)}
           title="Medium angle"
-          className="text-xs"
+          className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
         >
           45°
         </Button>
         <Button
           size="sm"
-          variant="outline"
+          variant="ghost"
           onClick={() => setPitch(60)}
           title="Steep angle"
-          className="text-xs"
+          className="text-xs bg-slate-800/60 hover:bg-slate-700/80 text-slate-200 border border-slate-700/50 transition-all"
         >
           60°
         </Button>
