@@ -1,6 +1,12 @@
 import maplibregl, { Map, LngLatLike } from "maplibre-gl";
 
-export function initMap(containerId = "flight-map"): Map {
+type MapInitOptions = {
+  containerId?: string;
+  center?: [number, number];
+  zoom?: number;
+};
+
+export function initMap({ containerId = "flight-map", center = [0, 0], zoom = 5 }: MapInitOptions = {}): Map {
   const MAPTILER_KEY =
     (import.meta as any).env?.VITE_MAPTILER_API_KEY ||
     (typeof process !== "undefined" ? (process as any).env?.VITE_MAPTILER_API_KEY : undefined) ||
@@ -9,8 +15,8 @@ export function initMap(containerId = "flight-map"): Map {
   const map = new maplibregl.Map({
     container: containerId,
     style: `https://api.maptiler.com/maps/streets/style.json?key=${MAPTILER_KEY}`,
-    center: [0, 0],
-    zoom: 5,
+    center,
+    zoom,
     pitch: 45,
     bearing: 0,
     projection: "mercator"

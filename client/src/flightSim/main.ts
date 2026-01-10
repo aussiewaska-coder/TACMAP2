@@ -1,13 +1,17 @@
 import { initMap } from "./map";
-import { initAircraft } from "./aircraft";
+import { initAircraft, InitialFlightConfig } from "./aircraft";
 import { consumeFrameInput, initControls, teardownControls } from "./controls";
 import { initNavigation } from "./navigation";
 import { initUI, teardownUI } from "./ui";
 import { addAircraftModelLayer } from "./modelLayer";
 
-export function startFlightSim(containerId = "flight-map") {
-  const map = initMap(containerId);
-  const aircraft = initAircraft(map);
+export function startFlightSim(containerId = "flight-map", initial?: InitialFlightConfig) {
+  const map = initMap({
+    containerId,
+    center: [initial?.lng ?? 133, initial?.lat ?? -25], // fallback to AU-ish center
+    zoom: 6
+  });
+  const aircraft = initAircraft(map, initial);
   const ui = initUI();
   const nav = initNavigation(map, aircraft.setTarget);
   initControls();

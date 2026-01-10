@@ -27,27 +27,49 @@ interface InternalState {
   globeOverride: boolean | null;
 }
 
-export function initAircraft(map: Map) {
-  const initialTierIndex = 0;
+export interface InitialFlightConfig {
+  lat: number;
+  lng: number;
+  altitudeFt?: number;
+  speedKph?: number;
+}
+
+function randomAustralia(): { lat: number; lng: number } {
+  // Rough bounding box over mainland + Tasmania
+  const lat = -44 + Math.random() * (-10 - -44); // -44 to -10
+  const lng = 112 + Math.random() * (154 - 112); // 112 to 154
+  return { lat, lng };
+}
+
+export function initAircraft(map: Map, initial?: InitialFlightConfig) {
+  const initialPos = initial ?? { ...randomAustralia(), altitudeFt: 10_000, speedKph: 15_000 };
+  const initialAlt = initialPos.altitudeFt ?? 10_000;
+  const initialSpeedMps = (initialPos.speedKph ?? 15_000) / 3.6; // 15,000 kph ≈ 4,166 m/s
+
+  const initialTierIndex = Math.max(
+    0,
+    SPEED_TIERS.findIndex((t) => t.speedMps >= initialSpeedMps)
+  );
+  const tierIndex = initialTierIndex === -1 ? SPEED_TIERS.length - 1 : initialTierIndex;
   const state: FlightState = {
-    lat: 0,
-    lng: 0,
-    altitudeFt: 500,
-    speedMps: SPEED_TIERS[initialTierIndex].speedMps,
+    lat: initialPos.lat,
+    lng: initialPos.lng,
+    altitudeFt: initialAlt,
+    speedMps: initialSpeedMps,
     pitch: 0,
     roll: 0,
     yaw: 0,
     heading: 0,
     mode: "MANUAL",
     target: null,
-    speedTier: SPEED_TIERS[initialTierIndex].id,
+    speedTier: SPEED_TIERS[tierIndex].id,
     globe: false
   };
 
   const internal: InternalState = {
     targetAltitudeFt: state.altitudeFt,
-    targetSpeedMps: state.speedMps,
-    speedTierIndex: initialTierIndex,
+    targetSpeedMps: SPEED_TIERS[tierIndex].speedMps,
+    speedTierIndex: tierIndex,
     lastUpdate: performance.now(),
     orbitAngle: 0,
     globeOverride: null
