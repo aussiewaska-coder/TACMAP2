@@ -82,7 +82,9 @@ export function initAircraft(_map: Map) {
 
   function applyYawAndRoll(input: number, deltaTime: number) {
     const yawRate = 0.9; // radians/sec at full input
-    state.yaw = input * yawRate;
+    const targetYaw = input * yawRate;
+    const yawBlend = easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.6;
+    state.yaw += (targetYaw - state.yaw) * yawBlend;
     state.heading += state.yaw * deltaTime;
 
     if (state.mode === "ORBIT") {

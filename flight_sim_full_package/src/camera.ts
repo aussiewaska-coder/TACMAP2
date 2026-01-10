@@ -13,6 +13,7 @@ interface CameraState {
   projection: "mercator" | "globe";
   targetProjection: "mercator" | "globe";
   projectionStartedAt: number;
+  globeBlend: number;
 }
 
 const MAX_DELTA = 0.05; // avoid large jumps if frame stalls
@@ -27,7 +28,8 @@ export function initCamera(map: Map) {
     lastUpdate: performance.now(),
     projection: "mercator",
     targetProjection: "mercator",
-    projectionStartedAt: performance.now()
+    projectionStartedAt: performance.now(),
+    globeBlend: 0
   };
 
   function smoothScalar(current: number, target: number, deltaSeconds: number) {
@@ -76,12 +78,15 @@ export function initCamera(map: Map) {
     const altFactor = clamp(flight.altitudeFt / 100_000, 0, 1);
     const speedFactor = clamp(flight.speedMps / 17_150, 0, 1);
 
-    const targetPitch = clamp(55 + altFactor * 25 + speedFactor * 8, 45, 85);
-    const targetZoom = clamp(12 - altFactor * 7 - speedFactor * 2, 3.6, 12);
+    const targetGlobeBlend = flight.globe ? 1 : 0;
+    camera.globeBlend = smoothScalar(camera.globeBlend, targetGlobeBlend, delta);
+
+    const targetPitch = clamp(55 + altFactor * 25 + speedFactor * 8 + camera.globeBlend * 6, 45, 88);
+    const targetZoom = clamp(12 - altFactor * 7 - speedFactor * 2 - camera.globeBlend * 1.8, 3.2, 12);
     const targetBearing = toDegrees(flight.heading);
 
     // Offset the map center so the aircraft appears slightly forward on screen; rotates with heading.
-    const offsetMagnitude = 80 + altFactor * 140;
+    const offsetMagnitude = 80 + altFactor * 140 + camera.globeBlend * 120;
     const offsetHeading = flight.heading;
     const targetOffset: [number, number] = [
       Math.sin(offsetHeading) * offsetMagnitude,

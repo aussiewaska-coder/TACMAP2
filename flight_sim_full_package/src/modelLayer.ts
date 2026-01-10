@@ -54,7 +54,8 @@ export function addAircraftModelLayer(map: Map, getState: () => FlightState) {
       const proj = new Matrix4().fromArray(matrix as unknown as number[]);
       const translation = new Matrix4().makeTranslation(merc.x, merc.y, merc.z);
       const scaleFactor = merc.meterInMercatorCoordinateUnits();
-      const scale = new Matrix4().makeScale(scaleFactor, scaleFactor, scaleFactor);
+      const altitudeScale = 1 + Math.min(state.altitudeFt / 100_000, 1) * 0.2;
+      const scale = new Matrix4().makeScale(scaleFactor * altitudeScale, scaleFactor * altitudeScale, scaleFactor * altitudeScale);
 
       const rotationZ = new Matrix4().makeRotationZ(state.heading);
       const rotationY = new Matrix4().makeRotationY(state.roll);
