@@ -116,7 +116,7 @@ export function useCameraAnimation() {
   }, [map, stopAnimation]);
 
   // Pan in a direction (N, S, E, W)
-  const panDirection = useCallback((direction: 'N' | 'S' | 'E' | 'W', distance = 0.5) => {
+  const panDirection = useCallback((direction: 'N' | 'S' | 'E' | 'W', distance = 0.25) => {
     if (!map) return;
 
     const center = map.getCenter();
