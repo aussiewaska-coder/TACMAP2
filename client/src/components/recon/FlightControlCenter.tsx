@@ -155,23 +155,46 @@ export function FlightControlCenter() {
 
       setIsAutoOrbiting(false);
 
-      // Smooth curved fly with easing
-      map.flyTo({
-        center: targetLngLat,
-        zoom: targetZoom,
-        pitch: 60,
-        bearing: map.getBearing(), // Keep current bearing
-        duration: 2500,
-        curve: 1.5, // Makes the flight path more curved/cinematic
-        essential: true,
-      });
+      // Smooth custom animation with proper easing
+      const startCenter = map.getCenter();
+      const startZoom = map.getZoom();
+      const startPitch = map.getPitch();
+      const startBearing = map.getBearing();
+      const startTime = performance.now();
+      const duration = 3500; // Longer for smoother feel
 
-      map.once('moveend', () => {
-        const newBearing = map.getBearing();
-        orbitStartAngleRef.current = -(newBearing + 90) * Math.PI / 180;
-        setOrbitCenter(targetLngLat);
-        setIsAutoOrbiting(true);
-      });
+      // Cubic ease-in-out for buttery smooth movement
+      const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+      const animateFly = (currentTime: number) => {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = easeInOutCubic(progress);
+
+        // Interpolate all values
+        const lng = startCenter.lng + (targetLngLat[0] - startCenter.lng) * eased;
+        const lat = startCenter.lat + (targetLngLat[1] - startCenter.lat) * eased;
+        const zoom = startZoom + (targetZoom - startZoom) * eased;
+        const pitch = startPitch + (60 - startPitch) * eased;
+
+        map.jumpTo({
+          center: [lng, lat],
+          zoom,
+          pitch,
+          bearing: startBearing,
+        });
+
+        if (progress < 1) {
+          requestAnimationFrame(animateFly);
+        } else {
+          // Animation complete - resume orbit
+          orbitStartAngleRef.current = -(startBearing + 90) * Math.PI / 180;
+          setOrbitCenter(targetLngLat);
+          setIsAutoOrbiting(true);
+        }
+      };
+
+      requestAnimationFrame(animateFly);
     };
 
     map.on('dblclick', handleDoubleClick);
@@ -303,16 +326,16 @@ export function FlightControlCenter() {
     if (!isFlightMode) {
       if (isAutoRotating) setIsAutoRotating(false);
       if (isAutoOrbiting) setIsAutoOrbiting(false);
-      animateTo({ pitch: 75, zoom: 11, duration: 2000 });
+      animateTo({ pitch: 75, zoom: 11, duration: 3000 });
       setIsFlightMode(true);
     } else {
-      animateTo({ pitch: 60, zoom: map.getZoom(), duration: 2000 });
+      animateTo({ pitch: 60, zoom: map.getZoom(), duration: 3000 });
       setIsFlightMode(false);
     }
   };
 
   const resetBearing = () => {
-    if (map) map.easeTo({ bearing: 0, duration: 500 });
+    if (map) map.easeTo({ bearing: 0, duration: 1500, easing: (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 });
   };
 
   // Toggle map label visibility

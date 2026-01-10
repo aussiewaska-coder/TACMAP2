@@ -158,26 +158,26 @@ export function useCameraAnimation() {
         break;
     }
 
-    animateTo({ center: newCenter, duration: 800 });
+    animateTo({ center: newCenter, duration: 1200 });
   }, [map, animateTo]);
 
-  // Zoom in/out
+  // Zoom in/out - smooth and gradual
   const adjustZoom = useCallback((delta: number) => {
     if (!map) return;
     const currentZoom = map.getZoom();
-    animateTo({ zoom: currentZoom + delta, duration: 600 });
+    animateTo({ zoom: currentZoom + delta, duration: 1200 });
   }, [map, animateTo]);
 
-  // Set pitch to specific angle
+  // Set pitch to specific angle - long smooth transition
   const setPitch = useCallback((pitch: number) => {
-    animateTo({ pitch, duration: 1000 });
+    animateTo({ pitch, duration: 2000 });
   }, [animateTo]);
 
-  // Rotate by delta degrees
+  // Rotate by delta degrees - smooth
   const rotate = useCallback((delta: number) => {
     if (!map) return;
     const currentBearing = map.getBearing();
-    animateTo({ bearing: currentBearing + delta, duration: 800 });
+    animateTo({ bearing: currentBearing + delta, duration: 1500 });
   }, [map, animateTo]);
 
   return {
