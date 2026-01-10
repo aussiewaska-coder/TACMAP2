@@ -34,6 +34,10 @@
             "destination": "/api/maptiler/tilejson"
         },
         {
+            "source": "/api/maptiler/cache",
+            "destination": "/api/maptiler/cache"
+        },
+        {
             "source": "/((?!api/).*)",
             "destination": "/index.html"
         }

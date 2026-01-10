@@ -14,6 +14,10 @@ import {
   GripVertical,
   Map,
   X,
+  Settings,
+  Trash2,
+  Database,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -49,11 +53,128 @@ const PANEL_MARGIN = 16;
 
 type AlertMode = 'emergency' | 'police';
 type OpsMode = 'all' | 'warning' | 'ground_truth';
-type PanelTab = 'alerts' | 'map';
+type PanelTab = 'alerts' | 'map' | 'settings';
 
 interface AlertsSidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+}
+
+type CacheType = 'style' | 'tile' | 'sprite' | 'glyph' | 'tilejson' | 'all';
+
+const CACHE_TYPES: { type: CacheType; label: string; description: string }[] = [
+  { type: 'style', label: 'Styles', description: 'Map style JSON' },
+  { type: 'tile', label: 'Tiles', description: 'Vector/raster tiles' },
+  { type: 'sprite', label: 'Sprites', description: 'Icon sprites' },
+  { type: 'glyph', label: 'Glyphs', description: 'Font glyphs' },
+  { type: 'tilejson', label: 'TileJSON', description: 'Tile metadata' },
+  { type: 'all', label: 'Clear All', description: 'All cached data' },
+];
+
+function SettingsTab() {
+  const [clearing, setClearing] = useState<CacheType | null>(null);
+
+  const clearCache = async (type: CacheType) => {
+    setClearing(type);
+    try {
+      const response = await fetch('/api/maptiler/cache', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(`Cleared ${data.cleared} cached items`, {
+          description: `${type === 'all' ? 'All caches' : type} cleared successfully`,
+        });
+      } else {
+        toast.error('Failed to clear cache', {
+          description: data.error || 'Unknown error',
+        });
+      }
+    } catch (error) {
+      toast.error('Failed to clear cache', {
+        description: error instanceof Error ? error.message : 'Network error',
+      });
+    } finally {
+      setClearing(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4 md:space-y-5">
+      {/* Redis Cache Management */}
+      <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Cache</p>
+            <p className="text-sm text-emerald-100/70">Redis MapTiler Cache</p>
+          </div>
+          <Database className="h-5 w-5 text-emerald-400/60" />
+        </div>
+        <p className="mt-2 text-xs text-emerald-100/50">
+          Clear cached map resources from Redis. Use when tiles appear stale or after style updates.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {CACHE_TYPES.map((cache) => {
+            const isClearing = clearing === cache.type;
+            const isAll = cache.type === 'all';
+            return (
+              <button
+                key={cache.type}
+                type="button"
+                disabled={clearing !== null}
+                onClick={() => clearCache(cache.type)}
+                className={`flex h-14 flex-col items-center justify-center rounded-xl border px-2 text-center transition active:scale-[0.98] disabled:opacity-50 md:h-auto md:rounded-lg md:py-2 ${
+                  isAll
+                    ? 'col-span-2 border-rose-400/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'
+                }`}
+              >
+                {isClearing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <span className="flex items-center gap-1 text-sm font-medium md:text-xs">
+                      <Trash2 className="h-3 w-3" />
+                      {cache.label}
+                    </span>
+                    <span className="text-[10px] opacity-60">{cache.description}</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Environment Info */}
+      <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Environment</p>
+            <p className="text-sm text-emerald-100/70">System info</p>
+          </div>
+        </div>
+        <div className="mt-3 space-y-2 text-xs text-emerald-100/50">
+          <div className="flex justify-between">
+            <span>MapTiler Style</span>
+            <span className="font-mono text-emerald-300/70">
+              {import.meta.env.VITE_MAPTILER_STYLE?.slice(0, 8) || 'Not set'}...
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span>API Key</span>
+            <span className="font-mono text-emerald-300/70">
+              {import.meta.env.VITE_MAPTILER_API_KEY ? '••••••••' : 'Not set'}
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
@@ -449,7 +570,19 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
             }`}
           >
             <Map className="h-4 w-4" />
-            Map Style
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('settings')}
+            className={`flex h-12 flex-1 items-center justify-center gap-2 text-sm font-medium transition md:h-10 md:text-xs ${
+              activeTab === 'settings'
+                ? 'border-b-2 border-emerald-400 text-emerald-100'
+                : 'text-emerald-100/50 hover:text-emerald-100/70'
+            }`}
+          >
+            <Settings className="h-4 w-4" />
+            Settings
           </button>
         </div>
 
@@ -743,6 +876,10 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
                 </button>
               </section>
             </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <SettingsTab />
           )}
         </div>
 
