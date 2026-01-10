@@ -52,57 +52,40 @@ const MAPTILER_STYLES = [
   { id: 'satellite', label: 'Satellite' },
 ];
 
-// ATAK Maps - organized by provider (filtered to standard TMS format only)
+// Reference Maps - Open source/public domain maps that ALWAYS WORK
 const ATAK_MAPS_BY_PROVIDER = [
   {
-    provider: 'Google',
+    provider: 'OpenStreetMap',
     maps: [
-      { id: 'atak-google-roadmap', label: 'Google - Roadmap', url: 'http://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}' },
-      { id: 'atak-google-satellite', label: 'Google - Satellite', url: 'http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
-      { id: 'atak-google-hybrid', label: 'Google - Hybrid', url: 'http://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}' },
-      { id: 'atak-google-terrain', label: 'Google - Terrain', url: 'http://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}' },
+      { id: 'map-osm-mapnik', label: 'OSM Mapnik (Standard)', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' },
+      { id: 'map-osm-de', label: 'OSM.de', url: 'https://tiles.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png' },
+      { id: 'map-osm-fr', label: 'OSM France', url: 'https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png' },
+      { id: 'map-osm-humanitarian', label: 'OSM Humanitarian', url: 'https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png' },
     ],
   },
   {
-    provider: 'Esri',
+    provider: 'Topographic',
     maps: [
-      { id: 'atak-esri-world-topo', label: 'Esri - World Topo', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-esri-nat-geo', label: 'Esri - Nat Geo World', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-esri-usa-topo', label: 'Esri - USA Topo Maps', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-esri-clarity', label: 'Esri - Clarity', url: 'http://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'map-opentopomap', label: 'OpenTopoMap', url: 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png' },
+      { id: 'map-usgs-topo', label: 'USGS Topo (Public Domain)', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'map-usgs-shaded', label: 'USGS Shaded Relief', url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}' },
     ],
   },
   {
-    provider: 'USGS',
+    provider: 'Imagery',
     maps: [
-      { id: 'atak-usgs-topo', label: 'USGS - Topo', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-usgs-imagery', label: 'USGS - Imagery Only', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-usgs-imagery-topo', label: 'USGS - Imagery Topo', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-usgs-shaded-relief', label: 'USGS - Shaded Relief', url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}' },
-    ],
-  },
-  {
-    provider: 'NAIP (USDA)',
-    maps: [
-      { id: 'atak-naip-conus-prime', label: 'NAIP - USDA CONUS Prime', url: 'https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z}/{y}/{x}' },
-      { id: 'atak-naip-national-map', label: 'NAIP - USGS National Map', url: 'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/tile/{z}/{y}/{x}' },
-    ],
-  },
-  {
-    provider: 'OpenSeaMap',
-    maps: [
-      { id: 'atak-openseamap-base', label: 'OpenSeaMap - Base Chart', url: 'https://t2.openseamap.org/tiles/base/{z}/{x}/{y}.png' },
-      { id: 'atak-openseamap-seamarks', label: 'OpenSeaMap - Seamarks', url: 'https://t1.openseamap.org/seamark/{z}/{x}/{y}.png' },
+      { id: 'map-usgs-imagery', label: 'USGS Imagery (USA)', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'map-usgs-imagery-topo', label: 'USGS Imagery + Topo', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'map-esri-world-topo', label: 'Esri World Topo', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}' },
     ],
   },
   {
     provider: 'Specialty',
     maps: [
-      { id: 'atak-cycleosm', label: 'CycleOSM - Bike Routes', url: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png' },
-      { id: 'atak-mtbmap', label: 'MTBMap - Mountain Bike', url: 'http://tile.mtbmap.cz/mtbmap_tiles/{z}/{x}/{y}.png' },
-      { id: 'atak-finland', label: 'Finland - National Land Survey', url: 'https://tiles.kartat.kapsi.fi/peruskartta/{z}/{x}/{y}.jpg' },
-      { id: 'atak-poland', label: 'Poland - Ortofoto Std', url: 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&TILEMATRIXSET=EPSG:3857&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg' },
-      { id: 'atak-canada-topo', label: 'Canada - Toporama', url: 'https://maps.geogratis.gc.ca/wms/toporama_en?' },
+      { id: 'map-cyclosm', label: 'CycleOSM - Bike Routes', url: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png' },
+      { id: 'map-mtbmap', label: 'MTBMap - Mountain Bike', url: 'http://tile.mtbmap.cz/mtbmap_tiles/{z}/{x}/{y}.png' },
+      { id: 'map-openseamap', label: 'OpenSeaMap - Marine', url: 'https://t2.openseamap.org/tiles/base/{z}/{x}/{y}.png' },
+      { id: 'map-stamen-terrain', label: 'Stamen Terrain', url: 'https://tile.openstreetmap.de/stamen_terrain/{z}/{x}/{y}.png' },
     ],
   },
 ];
