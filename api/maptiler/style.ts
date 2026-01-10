@@ -210,14 +210,15 @@ function transformStyleToUseProxy(style: StyleJSON, host: string): StyleJSON {
   // ✅ Transform sprite URLs to use Redis proxy
   if (transformed.sprite) {
     const spriteUrl = transformed.sprite.replace('maptiler://', 'https://api.maptiler.com/');
-    transformed.sprite = `https://${host}/api/maptiler/sprite?url=${encodeURIComponent(spriteUrl)}`;
+    // Don't encode - SDK needs to see {id} template variable
+    transformed.sprite = `https://${host}/api/maptiler/sprite?url=${spriteUrl}`;
   }
 
-  // ✅ Transform glyph URLs to use Redis proxy (preserve {fontstack} and {range} templates)
+  // ✅ Transform glyph URLs to use Redis proxy
   if (transformed.glyphs) {
     const glyphsUrl = transformed.glyphs.replace('maptiler://', 'https://api.maptiler.com/');
-    // Encode entire URL including template variables
-    transformed.glyphs = `https://${host}/api/maptiler/glyph?url=${encodeURIComponent(glyphsUrl)}`;
+    // Don't encode - SDK needs to see {fontstack} and {range} template variables
+    transformed.glyphs = `https://${host}/api/maptiler/glyph?url=${glyphsUrl}`;
   }
 
   return transformed;
