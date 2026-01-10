@@ -540,7 +540,18 @@ export function FlightControlCenter() {
     // Start new mode
     switch (mode) {
       case 'auto-rotate':
-        setIsAutoRotating(true);
+        // Animate to top-down bird's eye view
+        if (map) {
+          const center = targetLocation || [map.getCenter().lng, map.getCenter().lat];
+          animateTo({
+            center: center as [number, number],
+            pitch: 0,  // Look straight down
+            bearing: 0,
+            zoom: 13,
+            duration: 2000,
+          });
+        }
+        setIsAutoRotating(false);  // Don't rotate, just show top-down
         break;
       case 'auto-orbit':
         if (map) {

@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { KeyboardHint } from './shared/KeyboardHint';
 import { cn } from '@/lib/utils';
-import { RotateCw, Orbit, Plane, Compass, Navigation } from 'lucide-react';
+import { Eye, Orbit, Plane, Compass, Navigation } from 'lucide-react';
 import type { FlightMode } from '@/stores/flightControlStore';
 
 interface ModeDefinition {
@@ -15,10 +15,10 @@ interface ModeDefinition {
 const FLIGHT_MODES: ModeDefinition[] = [
   {
     id: 'auto-rotate',
-    label: 'Rotate',
-    icon: <RotateCw className="w-6 h-6" />,
+    label: 'TopDown',
+    icon: <Eye className="w-6 h-6" />,
     shortcut: '1',
-    description: '360° continuous rotation',
+    description: 'Bird\'s eye view of target',
   },
   {
     id: 'auto-orbit',
@@ -81,7 +81,7 @@ export function FlightModeSelector({ activeMode, onModeChange, isAutoRotating }:
             <div
               className={cn(
                 'mb-1 transition-transform',
-                activeMode === mode.id && mode.id === 'auto-rotate' && 'animate-spin'
+                activeMode === mode.id && mode.id === 'auto-rotate' && 'animate-pulse'
               )}
             >
               {mode.icon}
