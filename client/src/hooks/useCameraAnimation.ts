@@ -27,11 +27,15 @@ interface CameraTarget {
  * Custom hook for smooth camera animations with easing
  * Uses requestAnimationFrame for 60fps animations
  * All camera movements use ease-in-out curves
+ * All properties animate together with coordinated timing
  */
 export function useCameraAnimation() {
   const map = useMapStore((state) => state.map);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const animationStateRef = useRef<AnimationState | null>(null);
+
+  // Standard durations - all animations use 1500ms base for seamless blending
+  const STANDARD_DURATION = 1500;
 
   // Interpolate between two angles, handling wraparound
   const interpolateAngle = (start: number, end: number, t: number): number => {
@@ -158,27 +162,27 @@ export function useCameraAnimation() {
         break;
     }
 
-    animateTo({ center: newCenter, duration: 1200 });
-  }, [map, animateTo]);
+    animateTo({ center: newCenter, duration: STANDARD_DURATION });
+  }, [map, animateTo, STANDARD_DURATION]);
 
-  // Zoom in/out - smooth and gradual
+  // Zoom in/out - smooth and coordinated with other animations
   const adjustZoom = useCallback((delta: number) => {
     if (!map) return;
     const currentZoom = map.getZoom();
-    animateTo({ zoom: currentZoom + delta, duration: 1200 });
-  }, [map, animateTo]);
+    animateTo({ zoom: currentZoom + delta, duration: STANDARD_DURATION });
+  }, [map, animateTo, STANDARD_DURATION]);
 
-  // Set pitch to specific angle - long smooth transition
+  // Set pitch to specific angle - smooth with standard duration for blending
   const setPitch = useCallback((pitch: number) => {
-    animateTo({ pitch, duration: 2000 });
-  }, [animateTo]);
+    animateTo({ pitch, duration: STANDARD_DURATION });
+  }, [animateTo, STANDARD_DURATION]);
 
-  // Rotate by delta degrees - smooth
+  // Rotate by delta degrees - smooth with standard duration for blending
   const rotate = useCallback((delta: number) => {
     if (!map) return;
     const currentBearing = map.getBearing();
-    animateTo({ bearing: currentBearing + delta, duration: 1500 });
-  }, [map, animateTo]);
+    animateTo({ bearing: currentBearing + delta, duration: STANDARD_DURATION });
+  }, [map, animateTo, STANDARD_DURATION]);
 
   return {
     animateTo,
