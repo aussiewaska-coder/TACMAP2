@@ -10,6 +10,8 @@ interface InputState {
   speedTierDelta: number;
   toggleGlobe: boolean;
   cancelTarget: boolean;
+  orbitRadiusDelta: number;
+  orbitSpeedDelta: number;
 }
 
 const input: InputState = {
@@ -21,10 +23,12 @@ const input: InputState = {
   altDown: false,
   speedTierDelta: 0,
   toggleGlobe: false,
-  cancelTarget: false
+  cancelTarget: false,
+  orbitRadiusDelta: 0,
+  orbitSpeedDelta: 0
 };
 
-const KEYMAP: Record<string, keyof InputState | "speedUp" | "speedDown" | "toggleGlobe" | "cancelTarget"> = {
+const KEYMAP: Record<string, keyof InputState | "speedUp" | "speedDown" | "toggleGlobe" | "cancelTarget" | "orbitRadiusUp" | "orbitRadiusDown" | "orbitSpeedUp" | "orbitSpeedDown"> = {
   ArrowUp: "pitchUp",
   ArrowDown: "pitchDown",
   ArrowLeft: "yawLeft",
@@ -39,7 +43,11 @@ const KEYMAP: Record<string, keyof InputState | "speedUp" | "speedDown" | "toggl
   "_": "speedDown",
   G: "toggleGlobe",
   g: "toggleGlobe",
-  Escape: "cancelTarget"
+  Escape: "cancelTarget",
+  "[": "orbitRadiusDown",
+  "]": "orbitRadiusUp",
+  "{": "orbitSpeedDown",
+  "}": "orbitSpeedUp"
 };
 
 export function initControls() {
@@ -64,12 +72,16 @@ export function consumeFrameInput(): ControlFrameInput {
     altitudeDelta: (input.altUp ? 1 : 0) + (input.altDown ? -1 : 0),
     speedTierDelta: input.speedTierDelta,
     toggleGlobe: input.toggleGlobe,
-    cancelTarget: input.cancelTarget
+    cancelTarget: input.cancelTarget,
+    orbitRadiusDelta: input.orbitRadiusDelta,
+    orbitSpeedDelta: input.orbitSpeedDelta
   };
   // reset one-shot inputs
   input.speedTierDelta = 0;
   input.toggleGlobe = false;
   input.cancelTarget = false;
+  input.orbitRadiusDelta = 0;
+  input.orbitSpeedDelta = 0;
   return frame;
 }
 
@@ -80,13 +92,26 @@ function onKeyDown(evt: KeyboardEvent) {
   else if (action === "speedDown") input.speedTierDelta = -1;
   else if (action === "toggleGlobe") input.toggleGlobe = true;
   else if (action === "cancelTarget") input.cancelTarget = true;
+  else if (action === "orbitRadiusUp") input.orbitRadiusDelta = 1;
+  else if (action === "orbitRadiusDown") input.orbitRadiusDelta = -1;
+  else if (action === "orbitSpeedUp") input.orbitSpeedDelta = 1;
+  else if (action === "orbitSpeedDown") input.orbitSpeedDelta = -1;
   else (input as any)[action] = true;
 }
 
 function onKeyUp(evt: KeyboardEvent) {
   const action = KEYMAP[evt.key];
   if (!action) return;
-  if (action === "speedUp" || action === "speedDown" || action === "toggleGlobe" || action === "cancelTarget") {
+  if (
+    action === "speedUp" ||
+    action === "speedDown" ||
+    action === "toggleGlobe" ||
+    action === "cancelTarget" ||
+    action === "orbitRadiusUp" ||
+    action === "orbitRadiusDown" ||
+    action === "orbitSpeedUp" ||
+    action === "orbitSpeedDown"
+  ) {
     return;
   }
   (input as any)[action] = false;

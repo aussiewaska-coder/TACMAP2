@@ -6,6 +6,9 @@ export interface LatLng {
 export interface Target {
   lat: number;
   lng: number;
+  orbitMode?: boolean; // Immediate orbit mode
+  orbitRadius?: number; // Orbit radius in meters
+  orbitSpeed?: number; // Orbit speed in rad/sec
 }
 
 export type FlightMode = "MANUAL" | "NAVIGATE" | "ORBIT";
@@ -41,4 +44,6 @@ export interface ControlFrameInput {
   speedTierDelta: number;
   toggleGlobe: boolean;
   cancelTarget: boolean;
+  orbitRadiusDelta: number; // -1, 0, or 1 for decreasing/increasing orbit radius
+  orbitSpeedDelta: number; // -1, 0, or 1 for decreasing/increasing orbit speed
 }

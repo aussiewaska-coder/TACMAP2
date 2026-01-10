@@ -24,6 +24,25 @@ export function initUI() {
     const dist = distanceToTargetMeters(state);
     const targetText = dist !== null ? `${(dist / 1000).toFixed(1)} km` : "—";
     const tierLabel = SPEED_TIER_LABELS[state.speedTier] ?? `${state.speedTier} m/s`;
+
+    // Show orbit info when in orbit mode
+    let orbitInfo = "";
+    if (state.mode === "ORBIT" && state.target) {
+      const radius = state.target.orbitRadius ?? "auto";
+      const radiusText = typeof radius === "number" ? `${(radius / 1000).toFixed(2)} km` : radius;
+      const speed = state.target.orbitSpeed ?? (2 * Math.PI) / 60;
+      const rotationTime = (2 * Math.PI) / (typeof speed === "number" ? speed : 0.1);
+      orbitInfo = `
+      <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(183,248,255,0.2);">
+        <div>Orbit Radius: ${radiusText}</div>
+        <div>Rotation Time: ${rotationTime.toFixed(0)}s</div>
+        <div style="font-size: 11px; margin-top: 4px; opacity: 0.7;">
+          Shift+Cmd+Click for orbit mode<br/>
+          [/] adjust radius  {/} adjust speed
+        </div>
+      </div>`;
+    }
+
     hud!.innerHTML = `
       <div>MODE: ${state.mode}</div>
       <div>Speed Tier: ${tierLabel}</div>
@@ -32,6 +51,7 @@ export function initUI() {
       <div>Heading: ${(toDegrees(state.heading) + 360) % 360 | 0}°</div>
       <div>Target Distance: ${targetText}</div>
       <div>Globe: ${state.globe ? "ON" : "OFF"}</div>
+      ${orbitInfo}
     `;
   }
 

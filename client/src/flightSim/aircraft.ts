@@ -1,5 +1,5 @@
 import type { Map } from "maplibre-gl";
-import { easeInOut } from "./easing";
+import { easeInOut, easeFlightSmooth, easeSigmoid } from "./easing";
 import { ControlFrameInput, FlightMode, FlightState, SpeedTier, SpeedTierId, Target } from "./types";
 
 const EARTH_RADIUS_M = 6_371_000;
@@ -24,6 +24,9 @@ interface InternalState {
   lastUpdate: number;
   orbitAngle: number;
   globeOverride: boolean | null;
+  orbitRadius: number | null; // Custom orbit radius (meters)
+  orbitSpeed: number | null; // Custom orbit speed (rad/sec)
+  bankTransition: number; // Bank transition progress (0 to 1)
 }
 
 export interface InitialFlightConfig {
@@ -71,7 +74,10 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
     speedTierIndex: tierIndex,
     lastUpdate: performance.now(),
     orbitAngle: 0,
-    globeOverride: null
+    globeOverride: null,
+    orbitRadius: null,
+    orbitSpeed: null,
+    bankTransition: 0
   };
 
   function getSpeedTier(): SpeedTier {
@@ -105,15 +111,19 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
   function applyYawAndRoll(input: number, deltaTime: number) {
     const yawRate = 0.9; // radians/sec at full input
     const targetYaw = input * yawRate;
-    const yawBlend = easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.6;
+    const yawBlend = easeFlightSmooth(clamp(deltaTime * 3, 0, 1)) * 0.6;
     state.yaw += (targetYaw - state.yaw) * yawBlend;
     state.heading += state.yaw * deltaTime;
 
     if (state.mode === "ORBIT") {
+      // Smooth banking transition when entering orbit
+      internal.bankTransition = Math.min(internal.bankTransition + deltaTime * 0.8, 1);
+      const transitionCurve = easeSigmoid(internal.bankTransition, 6);
       const targetRoll = degToRad(30);
-      const step = easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.4;
+      const step = easeFlightSmooth(clamp(deltaTime * 3, 0, 1)) * 0.5 * transitionCurve;
       state.roll += (targetRoll - state.roll) * step;
     } else {
+      internal.bankTransition = 0; // Reset transition when not orbiting
       state.roll += input * 0.015;
       state.roll *= 0.92;
       state.roll = clamp(state.roll, -1.4, 1.4);
@@ -125,16 +135,17 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
       internal.targetAltitudeFt += delta * 900 * deltaTime; // ft per second change target
       clampAltitude();
     }
-    // ease altitude toward target
+    // ease altitude toward target with natural flight dynamics
     const diff = internal.targetAltitudeFt - state.altitudeFt;
-    const step = diff * 0.08 * easeInOut(clamp(deltaTime * 2, 0, 1));
+    const step = diff * 0.08 * easeFlightSmooth(clamp(deltaTime * 2, 0, 1));
     state.altitudeFt += step;
     clampAltitude();
   }
 
   function applySpeed(deltaTime: number) {
     const diff = internal.targetSpeedMps - state.speedMps;
-    const step = diff * 0.08 * easeInOut(clamp(deltaTime * 2, 0, 1));
+    // Natural acceleration/deceleration curve
+    const step = diff * 0.08 * easeFlightSmooth(clamp(deltaTime * 2, 0, 1));
     state.speedMps += step;
   }
 
@@ -160,16 +171,34 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
     if (input.cancelTarget) {
       state.target = null;
       state.mode = "MANUAL";
+      internal.orbitRadius = null;
+      internal.orbitSpeed = null;
+      internal.bankTransition = 0;
     }
 
-    if (state.mode === "NAVIGATE" && state.target) {
+    // Check if target is requesting immediate orbit mode
+    if (state.target?.orbitMode && state.mode === "NAVIGATE") {
+      const distance = distanceToTargetMeters(state);
+      // Transition to orbit once we're reasonably close (within 2x orbit radius)
+      const orbitRadius = state.target.orbitRadius ?? Math.max(800, state.altitudeFt * 0.6);
+      if (distance !== null && distance < orbitRadius * 2) {
+        state.mode = "ORBIT";
+        internal.orbitAngle = 0;
+        internal.orbitRadius = state.target.orbitRadius ?? null;
+        internal.orbitSpeed = state.target.orbitSpeed ?? null;
+        internal.bankTransition = 0; // Start smooth banking transition
+      }
+    } else if (state.mode === "NAVIGATE" && state.target && !state.target.orbitMode) {
+      // Normal navigation: orbit on arrival
       const distance = distanceToTargetMeters(state);
       const arrivalRadius = Math.max(500, state.altitudeFt * 0.3);
       if (distance !== null && distance < arrivalRadius) {
         state.mode = "ORBIT";
         internal.orbitAngle = 0;
-        // set bank for orbit look
-        state.roll = degToRad(30);
+        internal.bankTransition = 0;
+        // Use default orbit parameters if not set
+        internal.orbitRadius = null;
+        internal.orbitSpeed = null;
       }
     }
   }
@@ -179,31 +208,39 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
     if (state.mode === "NAVIGATE") {
       const targetHeading = bearingToTarget(state);
       const headingDiff = normalizeAngle(targetHeading - state.heading);
-      const headingStep = easeInOut(clamp(deltaTime * 2, 0, 1)) * 0.08;
+      // Use smoother easing for natural flight path
+      const headingStep = easeFlightSmooth(clamp(deltaTime * 2, 0, 1)) * 0.1;
       state.heading += headingDiff * headingStep;
 
       const distance = distanceToTargetMeters(state);
       const tier = getSpeedTier();
       const cruise = tier.speedMps;
-      const approachFactor = easeInOut(clamp((distance ?? 100_000) / 40_000, 0, 1));
+      // Natural speed curve based on distance
+      const approachFactor = easeSigmoid(clamp((distance ?? 100_000) / 40_000, 0, 1), 4);
       const approachSpeed = cruise * 0.35;
       internal.targetSpeedMps = Math.min(cruise, approachSpeed + (cruise - approachSpeed) * approachFactor);
 
       const targetAlt = clamp(tier.maxAltitudeFt * (0.3 + 0.4 * approachFactor), 800, tier.maxAltitudeFt);
       internal.targetAltitudeFt = targetAlt;
     } else if (state.mode === "ORBIT" && state.target) {
-      const orbitRate = 0.45; // rad/sec
+      // Use custom orbit parameters if set, otherwise use defaults
+      const orbitRate = internal.orbitSpeed ?? 0.45; // rad/sec (default ~0.45, custom for 1 rotation/60s = π/30)
       internal.orbitAngle += orbitRate * deltaTime;
-      const radiusMeters = Math.max(800, state.altitudeFt * 0.6);
+      const radiusMeters = internal.orbitRadius ?? Math.max(800, state.altitudeFt * 0.6);
       const angularDistance = radiusMeters / EARTH_RADIUS_M;
       // orbit heading rotates clockwise
       const centerHeading = internal.orbitAngle;
       state.heading = normalizeAngle(centerHeading + Math.PI / 2);
+
+      // Smooth banking with transition curve
       const targetRoll = degToRad(30);
-      state.roll += (targetRoll - state.roll) * easeInOut(clamp(deltaTime * 3, 0, 1)) * 0.35;
+      const transitionCurve = easeSigmoid(internal.bankTransition, 6);
+      state.roll += (targetRoll - state.roll) * easeFlightSmooth(clamp(deltaTime * 3, 0, 1)) * 0.4 * transitionCurve;
+
       internal.targetSpeedMps = Math.min(getSpeedTier().speedMps, 900);
       internal.targetAltitudeFt = clamp(state.altitudeFt, 800, getSpeedTier().maxAltitudeFt);
-      // derive position around target
+
+      // derive position around target using great circle navigation
       const lat1 = state.target.lat * RAD_PER_DEG;
       const lng1 = state.target.lng * RAD_PER_DEG;
       const lat2 = Math.asin(Math.sin(lat1) * Math.cos(angularDistance) + Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(centerHeading));
@@ -224,6 +261,32 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
     // Placeholder hook for renderer integration.
   }
 
+  function applyOrbitAdjustments(radiusDelta: number, speedDelta: number) {
+    if (!state.target || state.mode !== "ORBIT") return;
+
+    // Adjust orbit radius (10% steps)
+    if (radiusDelta !== 0) {
+      const currentRadius = internal.orbitRadius ?? Math.max(800, state.altitudeFt * 0.6);
+      const adjustment = currentRadius * 0.1 * radiusDelta;
+      internal.orbitRadius = Math.max(100, Math.min(currentRadius + adjustment, 100_000));
+      // Update target with new radius
+      if (state.target) {
+        state.target.orbitRadius = internal.orbitRadius;
+      }
+    }
+
+    // Adjust orbit speed (10% steps, clamped to reasonable values)
+    if (speedDelta !== 0) {
+      const currentSpeed = internal.orbitSpeed ?? (2 * Math.PI) / 60; // default 1 rotation/60s
+      const adjustment = currentSpeed * 0.1 * speedDelta;
+      internal.orbitSpeed = Math.max(0.01, Math.min(currentSpeed + adjustment, 1.0)); // 0.01 to 1.0 rad/sec
+      // Update target with new speed
+      if (state.target) {
+        state.target.orbitSpeed = internal.orbitSpeed;
+      }
+    }
+  }
+
   function updateFrame(input: ControlFrameInput) {
     const now = performance.now();
     const deltaTime = clamp((now - internal.lastUpdate) / 1000, 0, 0.05);
@@ -238,6 +301,7 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
     applyYawAndRoll(input.yawInput, deltaTime);
     applyAltitude(input.altitudeDelta, deltaTime);
     applySpeed(deltaTime);
+    applyOrbitAdjustments(input.orbitRadiusDelta, input.orbitSpeedDelta);
     updateMode(input);
     updateNavigation(deltaTime);
     if (state.mode !== "ORBIT") {
@@ -247,9 +311,24 @@ export function initAircraft(_map: Map, initial?: InitialFlightConfig) {
     updateAircraftModel();
   }
 
-  function setTarget(target: Target | null) {
-    state.target = target;
+  function setTarget(target: Target | null, options?: { orbitMode?: boolean; orbitRadius?: number; orbitSpeed?: number }) {
+    if (target && options) {
+      // Merge navigation options into target
+      state.target = {
+        ...target,
+        orbitMode: options.orbitMode,
+        orbitRadius: options.orbitRadius,
+        orbitSpeed: options.orbitSpeed
+      };
+    } else {
+      state.target = target;
+    }
     state.mode = target ? "NAVIGATE" : "MANUAL";
+    if (!target) {
+      internal.orbitRadius = null;
+      internal.orbitSpeed = null;
+      internal.bankTransition = 0;
+    }
   }
 
   function setMode(mode: FlightMode) {
