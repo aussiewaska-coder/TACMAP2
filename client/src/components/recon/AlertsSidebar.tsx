@@ -228,6 +228,7 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   const [alertMode, setAlertMode] = useState<AlertMode>('emergency');
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showMarkers, setShowMarkers] = useState(false);
+  const [showAlertGeometry, setShowAlertGeometry] = useState(false); // Off by default
   const [heatmapScheme, setHeatmapScheme] = useState<HeatmapColorScheme>('thermal');
 
   const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map((h) => h.id));
@@ -265,6 +266,17 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
       setShowHeatmap(false);
     }
   }, [alertMode]);
+
+  // Toggle alert geometry visibility
+  useEffect(() => {
+    if (!map) return;
+    const alertLayers = ['recon-emergency-polygons', 'recon-emergency-outline', 'recon-emergency-dots'];
+    alertLayers.forEach(layer => {
+      if (map.getLayer(layer)) {
+        map.setLayoutProperty(layer, 'visibility', showAlertGeometry ? 'visible' : 'none');
+      }
+    });
+  }, [map, showAlertGeometry]);
 
   const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -863,6 +875,30 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
 
           {activeTab === 'map' && (
             <div className="space-y-4 md:space-y-5">
+              {/* Alert Geometry Toggle */}
+              <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Overlays</p>
+                    <p className="text-sm text-emerald-100/70">Alert geometry</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAlertGeometry(!showAlertGeometry)}
+                    className={`h-10 rounded-lg border px-4 text-xs uppercase tracking-[0.15em] transition md:h-auto md:rounded-full md:px-3 md:py-1 md:text-[10px] ${
+                      showAlertGeometry
+                        ? 'border-red-400/50 bg-red-500/20 text-red-200'
+                        : 'border-emerald-400/20 text-emerald-100/40 hover:border-emerald-300/50'
+                    }`}
+                  >
+                    {showAlertGeometry ? 'On' : 'Off'}
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-emerald-100/50">
+                  Show emergency alert polygons and boundaries on the map.
+                </p>
+              </section>
+
               {/* MapTiler Styles */}
               <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
                 <div className="flex items-center justify-between">
