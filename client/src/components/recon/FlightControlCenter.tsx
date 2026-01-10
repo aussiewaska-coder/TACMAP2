@@ -463,20 +463,39 @@ export function FlightControlCenter() {
       ];
       map.setCenter(newCenter);
 
-      // Check if close to target - if so, start orbiting
+      // Check if close to target - if so, start smooth transition to orbit
       if (targetLocation) {
         const dx = targetLocation[0] - newCenter[0];
         const dy = targetLocation[1] - newCenter[1];
         const distanceToTarget = Math.sqrt(dx * dx + dy * dy);
         const arrivalThreshold = 0.01; // ~1km at typical zoom
 
-        if (distanceToTarget < arrivalThreshold) {
-          // Arrived at target - transition to orbit
-          setIsFlightMode(false);
-          orbitStartAngleRef.current = -(bearing + 90) * Math.PI / 180;
-          setOrbitCenter(targetLocation);
-          setIsAutoOrbiting(true);
-          return; // Stop flight loop, orbit will take over
+        if (distanceToTarget < arrivalThreshold && !isNavigatingToTarget) {
+          // Mark that we're transitioning (prevent re-triggering)
+          setIsNavigatingToTarget(true);
+
+          // Smooth transition animation into orbit position
+          const orbitPitch = 60;
+          const currentZoom = zoom;
+          const orbitZoom = currentZoom - 1; // Back up slightly for orbit view
+
+          animateTo({
+            center: targetLocation,
+            zoom: orbitZoom,
+            pitch: orbitPitch,
+            duration: 3000, // 3 second smooth transition
+          });
+
+          // After animation completes, start orbit
+          setTimeout(() => {
+            setIsFlightMode(false);
+            orbitStartAngleRef.current = -(bearing + 90) * Math.PI / 180;
+            setOrbitCenter(targetLocation);
+            setIsAutoOrbiting(true);
+            setIsNavigatingToTarget(false);
+          }, 3000);
+
+          return; // Stop flight loop during transition
         }
       }
 
