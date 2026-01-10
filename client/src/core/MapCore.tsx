@@ -236,25 +236,6 @@ function getEngine(provider: MapProvider): MapEngine {
     return provider === 'mapbox' ? 'mapbox' : 'maplibre';
 }
 
-function setTerrainPanLock(map: MapInstance, enabled: boolean) {
-    if (enabled) {
-        map.dragRotate?.disable();
-        map.touchZoomRotate?.disableRotation();
-        map.keyboard?.disableRotation?.();
-        map.touchPitch?.disable?.();
-        map.easeTo({
-            pitch: MAP_CONFIG.DEFAULT_PITCH,
-            bearing: MAP_CONFIG.DEFAULT_BEARING,
-            duration: 0,
-        });
-    } else {
-        map.dragRotate?.enable();
-        map.touchZoomRotate?.enableRotation();
-        map.keyboard?.enableRotation?.();
-        map.touchPitch?.enable?.();
-    }
-}
-
 function ensureBaseOverlays(map: MapInstance) {
     if (!map.getLayer('sky')) {
         map.addLayer({
@@ -348,6 +329,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const mapRef = useRef<MapInstance | null>(null);
     const currentEngineRef = useRef<MapEngine | null>(null);
     const driftCleanupRef = useRef<(() => void) | null>(null);
+    const panLockRef = useRef<{ pitch: number; bearing: number; zoom: number } | null>(null);
 
     const setMap = useMapStore((state) => state.setMap);
     const setLoaded = useMapStore((state) => state.setLoaded);
@@ -510,7 +492,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
                     driftCleanupRef.current = startMaptilerDrift(map);
                 }
 
-                setTerrainPanLock(map, terrainEnabled);
                 console.log(`[MapCore] ${engine} map initialized with 3D terrain & Gov layers`);
             });
 
@@ -546,7 +527,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
             setError(error instanceof Error ? error : new Error('Failed to initialize map'));
             setInitializing(false);
         }
-    }, [destroyMap, provider, maptilerStyle, setMap, setLoaded, setInitializing, setError, terrainEnabled, updateViewState]);
+    }, [destroyMap, provider, maptilerStyle, setMap, setLoaded, setInitializing, setError, updateViewState]);
 
     // Initialize on mount
     useEffect(() => {
@@ -578,31 +559,41 @@ export function MapCore({ className = '' }: MapCoreProps) {
 
     useEffect(() => {
         const map = mapRef.current;
-        if (!map || !map.loaded()) return;
+        if (!map || !map.loaded() || !terrainEnabled) return;
 
-        const enforceLock = () => {
-            if (!terrainEnabled) return;
-            if (
-                Math.abs(map.getPitch() - MAP_CONFIG.DEFAULT_PITCH) > 0.05 ||
-                Math.abs(map.getBearing() - MAP_CONFIG.DEFAULT_BEARING) > 0.05
-            ) {
-                map.easeTo({
-                    pitch: MAP_CONFIG.DEFAULT_PITCH,
-                    bearing: MAP_CONFIG.DEFAULT_BEARING,
-                    duration: 0,
-                });
-            }
+        const handleDragStart = () => {
+            panLockRef.current = {
+                pitch: map.getPitch(),
+                bearing: map.getBearing(),
+                zoom: map.getZoom(),
+            };
         };
 
-        setTerrainPanLock(map, terrainEnabled);
-        map.on('pitch', enforceLock);
-        map.on('rotate', enforceLock);
+        const handleDrag = () => {
+            const lock = panLockRef.current;
+            if (!lock) return;
+            map.jumpTo({
+                pitch: lock.pitch,
+                bearing: lock.bearing,
+                zoom: lock.zoom,
+            });
+        };
+
+        const handleDragEnd = () => {
+            panLockRef.current = null;
+        };
+
+        map.on('dragstart', handleDragStart);
+        map.on('drag', handleDrag);
+        map.on('dragend', handleDragEnd);
 
         return () => {
-            map.off('pitch', enforceLock);
-            map.off('rotate', enforceLock);
+            map.off('dragstart', handleDragStart);
+            map.off('drag', handleDrag);
+            map.off('dragend', handleDragEnd);
         };
     }, [terrainEnabled]);
+
 
     return (
         <div className={`relative w-full h-full ${className}`}>
