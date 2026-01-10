@@ -3,8 +3,9 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useMapStore } from '@/stores';
+import { useMapStore, useMapProviderStore } from '@/stores';
 import { useFlightStore } from '@/stores/flightStore';
+import mapboxgl from 'mapbox-gl';
 import maplibregl from 'maplibre-gl';
 import { Navigation, NavigationOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ interface LocationState {
 }
 
 type TrackingState = 'off' | 'pending' | 'active';
+type MarkerInstance = maplibregl.Marker | mapboxgl.Marker;
 
 /**
  * User location layer with clean state management
@@ -28,6 +30,7 @@ type TrackingState = 'off' | 'pending' | 'active';
 export function UserLocationLayer() {
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
+    const provider = useMapProviderStore((state) => state.provider);
 
     const [location, setLocation] = useState<LocationState>({
         coords: null,
@@ -38,7 +41,7 @@ export function UserLocationLayer() {
     const [permissionDenied, setPermissionDenied] = useState(false);
 
     const watchIdRef = useRef<number | null>(null);
-    const markerRef = useRef<maplibregl.Marker | null>(null);
+    const markerRef = useRef<MarkerInstance | null>(null);
     const isFirstLocationRef = useRef(true);
 
     // Create marker element
@@ -265,7 +268,8 @@ export function UserLocationLayer() {
         if (!markerRef.current) {
             // Create new marker
             const el = createMarkerElement();
-            markerRef.current = new maplibregl.Marker({
+            const MarkerClass = provider === 'mapbox' ? mapboxgl.Marker : maplibregl.Marker;
+            markerRef.current = new MarkerClass({
                 element: el,
                 anchor: 'center'
             })
@@ -289,7 +293,7 @@ export function UserLocationLayer() {
             accuracyEl.style.width = `${radiusPixels * 2}px`;
             accuracyEl.style.height = `${radiusPixels * 2}px`;
         }
-    }, [map, isLoaded, location, trackingState, createMarkerElement, updateHeading]);
+    }, [map, isLoaded, location, trackingState, createMarkerElement, updateHeading, provider]);
 
     // Cleanup on unmount
     useEffect(() => {

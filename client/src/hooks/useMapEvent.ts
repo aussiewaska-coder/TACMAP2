@@ -1,7 +1,7 @@
 // useMapEvent hook - Subscribe to map events with automatic cleanup
 
 import { useEffect, useRef } from 'react';
-import type { Map as MapLibreGLMap } from 'maplibre-gl';
+import type { MapInstance } from '@/types/mapEngine';
 import { useMapStore } from '@/stores';
 
 type MapEventHandler = (event: unknown) => void;
@@ -46,10 +46,10 @@ export function useMapEvent(
         };
 
         // Use string type for event - MapLibre accepts string event names
-        (map as MapLibreGLMap).on(eventType as keyof maplibregl.MapEventType, eventHandler as () => void);
+        map.on(eventType as never, eventHandler as never);
 
         return () => {
-            (map as MapLibreGLMap).off(eventType as keyof maplibregl.MapEventType, eventHandler as () => void);
+            map.off(eventType as never, eventHandler as never);
         };
     }, [map, eventType, ...dependencies]);
 }
@@ -74,10 +74,10 @@ export function useMapEventOnce(
             }
         };
 
-        (map as MapLibreGLMap).once(eventType as keyof maplibregl.MapEventType, eventHandler as () => void);
+        map.once(eventType as never, eventHandler as never);
 
         return () => {
-            (map as MapLibreGLMap).off(eventType as keyof maplibregl.MapEventType, eventHandler as () => void);
+            map.off(eventType as never, eventHandler as never);
         };
     }, [map, eventType, handler]);
 }
@@ -86,14 +86,14 @@ export function useMapEventOnce(
  * Hook to get map instance directly
  * Prefer using useMapStore selectors for specific state
  */
-export function useMapInstance(): MapLibreGLMap | null {
+export function useMapInstance(): MapInstance | null {
     return useMapStore((state) => state.map);
 }
 
 /**
  * Hook that runs callback when map is loaded
  */
-export function useOnMapLoad(callback: (map: MapLibreGLMap) => void): void {
+export function useOnMapLoad(callback: (map: MapInstance) => void): void {
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
     const hasRun = useRef(false);

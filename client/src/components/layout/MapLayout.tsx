@@ -10,6 +10,9 @@ import { PluginLoader } from '@/plugins/PluginLoader';
 import { UserLocationLayer } from '@/layers/live/UserLocationLayer';
 import { FlightButton } from '@/components/flight/FlightButton';
 import { FlightDashboard } from '@/components/flight/FlightDashboard';
+import { useMapProviderStore } from '@/stores';
+import { useLocation } from 'wouter';
+import { Z_INDEX } from '@/core/constants';
 
 interface MapLayoutProps {
     /** Additional CSS classes */
@@ -31,6 +34,8 @@ interface MapLayoutProps {
  */
 export function MapLayout({ className = '' }: MapLayoutProps) {
     const { isMobile } = useBreakpoint();
+    const provider = useMapProviderStore((state) => state.provider);
+    const [, setLocation] = useLocation();
 
     return (
         <div className={`relative w-full h-screen overflow-hidden ${className}`}>
@@ -57,6 +62,23 @@ export function MapLayout({ className = '' }: MapLayoutProps) {
 
             {/* Status indicator - Shared, but styled differently per viewport */}
             <StatusIndicator />
+
+            {/* Provider badge */}
+            {!isMobile && (
+                <div
+                    className="fixed bottom-4 right-4 flex items-center gap-3 rounded-full border border-white/10 bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/70 backdrop-blur"
+                    style={{ zIndex: Z_INDEX.CONTROLS, fontFamily: 'var(--recon-font-mono)' }}
+                >
+                    <span>{provider}</span>
+                    <button
+                        type="button"
+                        onClick={() => setLocation('/')}
+                        className="rounded-full border border-white/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:text-white"
+                    >
+                        Switch
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

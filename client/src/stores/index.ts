@@ -10,3 +10,5 @@ export type { FeatureDefinition, FeatureCategory } from './featureStore';
 export { useBasemapStore, useCurrentBasemap, useBasemapChanging, BASEMAP_STYLES } from './basemapStore';
 export type { BasemapStyle } from './basemapStore';
 export { useFlightStore, useFlightDashboardOpen, useFlightSpeed } from './flightStore';
+export { useMapProviderStore } from './mapProviderStore';
+export type { MapProvider } from './mapProviderStore';

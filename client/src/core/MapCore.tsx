@@ -3,12 +3,13 @@
 // All features are added via plugins
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import maplibregl, { Map as MapLibreGLMap, StyleSpecification } from 'maplibre-gl';
+import maplibregl, { StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 import { MAP_CONFIG } from '@/core/constants';
-import { useMapStore } from '@/stores';
+import { useMapStore, useMapProviderStore, type MapProvider } from '@/stores';
 import { eventBus } from '@/events/EventBus';
+import type { MapEngine, MapInstance } from '@/types/mapEngine';
 
 interface MapCoreProps {
     /** Additional CSS classes */
@@ -64,7 +65,62 @@ function buildDefaultStyle(): StyleSpecification {
     };
 }
 
-function ensureBaseOverlays(map: MapLibreGLMap) {
+function mapboxTransformRequest(token?: string) {
+    return (url: string) => {
+        if (!token) return { url };
+
+        let transformedUrl = url;
+        if (url.startsWith('mapbox://sprites/')) {
+            const path = url.replace('mapbox://sprites/', '');
+            const match = path.match(/^([^/]+\\/[^/]+)(.*)$/);
+            const base = match ? match[1] : path;
+            const suffix = match ? match[2] : '';
+            transformedUrl = `https://api.mapbox.com/styles/v1/${base}/sprite${suffix}`;
+        } else if (url.startsWith('mapbox://fonts/')) {
+            const path = url.replace('mapbox://fonts/', '');
+            transformedUrl = `https://api.mapbox.com/fonts/v1/${path}`;
+        } else if (url.startsWith('mapbox://styles/')) {
+            const path = url.replace('mapbox://styles/', '');
+            transformedUrl = `https://api.mapbox.com/styles/v1/${path}`;
+        } else if (url.startsWith('mapbox://')) {
+            const path = url.replace('mapbox://', '');
+            transformedUrl = `https://api.mapbox.com/v4/${path}.json`;
+        }
+
+        if (transformedUrl.includes('api.mapbox.com') && !transformedUrl.includes('access_token=')) {
+            const separator = transformedUrl.includes('?') ? '&' : '?';
+            transformedUrl = `${transformedUrl}${separator}access_token=${token}`;
+        }
+
+        return { url: transformedUrl };
+    };
+}
+
+function resolveMapStyle(provider: MapProvider): StyleSpecification | string {
+    if (provider === 'maptiler') {
+        const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
+        const styleId = (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) || 'streets-v2';
+        if (apiKey) {
+            return `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
+        }
+    }
+
+    if (provider === 'mapbox') {
+        const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
+        const styleId = (import.meta.env.VITE_MAPBOX_STYLE_ID as string | undefined) || 'mapbox/streets-v12';
+        if (token) {
+            return `https://api.mapbox.com/styles/v1/${styleId}/style.json?access_token=${token}`;
+        }
+    }
+
+    return buildDefaultStyle();
+}
+
+function getEngine(provider: MapProvider): MapEngine {
+    return provider === 'mapbox' ? 'mapbox' : 'maplibre';
+}
+
+function ensureBaseOverlays(map: MapInstance) {
     if (!map.getLayer('sky')) {
         map.addLayer({
             id: 'sky',
@@ -142,7 +198,7 @@ function ensureBaseOverlays(map: MapLibreGLMap) {
 }
 
 /**
- * Core MapLibre map component
+ * Core map component
  * 
  * This is a minimal component that only handles:
  * - Map initialization
@@ -154,7 +210,8 @@ function ensureBaseOverlays(map: MapLibreGLMap) {
  */
 export function MapCore({ className = '' }: MapCoreProps) {
     const containerRef = useRef<HTMLDivElement>(null);
-    const mapRef = useRef<MapLibreGLMap | null>(null);
+    const mapRef = useRef<MapInstance | null>(null);
+    const currentEngineRef = useRef<MapEngine | null>(null);
 
     const setMap = useMapStore((state) => state.setMap);
     const setLoaded = useMapStore((state) => state.setLoaded);
@@ -162,62 +219,140 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const setError = useMapStore((state) => state.setError);
     const updateViewState = useMapStore((state) => state.updateViewState);
     const terrainExaggeration = useMapStore((state) => state.terrainExaggeration);
+    const provider = useMapProviderStore((state) => state.provider);
 
     // Track current zoom for indicator
     const [currentZoom, setCurrentZoom] = useState<number>(MAP_CONFIG.DEFAULT_ZOOM);
 
     // Initialize map
-    const initializeMap = useCallback(() => {
-        if (!containerRef.current || mapRef.current) return;
+    const destroyMap = useCallback(() => {
+        if (!mapRef.current) return;
+        const mapToDestroy = mapRef.current;
+        mapRef.current = null;
+        setMap(null);
+        setLoaded(false);
+        try {
+            mapToDestroy.remove();
+        } catch {
+            // ignore cleanup errors
+        }
+    }, [setLoaded, setMap]);
+
+    const initializeMap = useCallback(async () => {
+        if (!containerRef.current) return;
+
+        const engine = getEngine(provider);
+
+        if (mapRef.current) {
+            if (currentEngineRef.current === engine) {
+                try {
+                    mapRef.current.setStyle(resolveMapStyle(provider));
+                } catch (error) {
+                    console.warn('[MapCore] Failed to update map style:', error);
+                }
+                return;
+            }
+            destroyMap();
+        }
 
         setInitializing(true);
         setError(null);
 
         try {
-            const map = new maplibregl.Map({
-                container: containerRef.current,
-                style: buildDefaultStyle(),
-                center: MAP_CONFIG.DEFAULT_CENTER,
-                zoom: MAP_CONFIG.DEFAULT_ZOOM,
-                pitch: 60, // Tilted for 3D terrain visibility
-                bearing: MAP_CONFIG.DEFAULT_BEARING,
-                minZoom: MAP_CONFIG.MIN_ZOOM,
-                maxZoom: MAP_CONFIG.MAX_ZOOM,
-                maxPitch: 85, // Allow steep tilt for flight mode
-                attributionControl: false,
-            });
+            const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
+            let map: MapInstance;
+
+            if (engine === 'mapbox') {
+                const { default: mapboxgl } = await import('mapbox-gl');
+                await import('mapbox-gl/dist/mapbox-gl.css');
+                if (mapboxToken) {
+                    mapboxgl.accessToken = mapboxToken;
+                }
+
+                map = new mapboxgl.Map({
+                    container: containerRef.current,
+                    style: resolveMapStyle(provider),
+                    center: MAP_CONFIG.DEFAULT_CENTER,
+                    zoom: MAP_CONFIG.DEFAULT_ZOOM,
+                    pitch: 60,
+                    bearing: MAP_CONFIG.DEFAULT_BEARING,
+                    minZoom: MAP_CONFIG.MIN_ZOOM,
+                    maxZoom: MAP_CONFIG.MAX_ZOOM,
+                    maxPitch: 85,
+                    attributionControl: false,
+                    transformRequest: mapboxTransformRequest(mapboxToken),
+                });
+
+                map.addControl(
+                    new mapboxgl.NavigationControl({
+                        showCompass: true,
+                        showZoom: true,
+                        visualizePitch: true,
+                    }),
+                    'top-right'
+                );
+
+                map.addControl(
+                    new mapboxgl.ScaleControl({
+                        maxWidth: 200,
+                        unit: 'metric',
+                    }),
+                    'bottom-left'
+                );
+
+                map.addControl(
+                    new mapboxgl.AttributionControl({
+                        compact: true,
+                    }),
+                    'bottom-right'
+                );
+            } else {
+                map = new maplibregl.Map({
+                    container: containerRef.current,
+                    style: resolveMapStyle(provider),
+                    center: MAP_CONFIG.DEFAULT_CENTER,
+                    zoom: MAP_CONFIG.DEFAULT_ZOOM,
+                    pitch: 60,
+                    bearing: MAP_CONFIG.DEFAULT_BEARING,
+                    minZoom: MAP_CONFIG.MIN_ZOOM,
+                    maxZoom: MAP_CONFIG.MAX_ZOOM,
+                    maxPitch: 85,
+                    attributionControl: false,
+                });
+
+                map.addControl(
+                    new maplibregl.NavigationControl({
+                        showCompass: true,
+                        showZoom: true,
+                        visualizePitch: true,
+                    }),
+                    'top-right'
+                );
+
+                map.addControl(
+                    new maplibregl.ScaleControl({
+                        maxWidth: 200,
+                        unit: 'metric',
+                    }),
+                    'bottom-left'
+                );
+
+                map.addControl(
+                    new maplibregl.AttributionControl({
+                        compact: true,
+                    }),
+                    'bottom-right'
+                );
+            }
+
+            currentEngineRef.current = engine;
 
             // Add controls
-            map.addControl(
-                new maplibregl.NavigationControl({
-                    showCompass: true,
-                    showZoom: true,
-                    visualizePitch: true,
-                }),
-                'top-right'
-            );
-
-            map.addControl(
-                new maplibregl.ScaleControl({
-                    maxWidth: 200,
-                    unit: 'metric',
-                }),
-                'bottom-left'
-            );
-
-            map.addControl(
-                new maplibregl.AttributionControl({
-                    compact: true,
-                }),
-                'bottom-right'
-            );
-
-            // Handle map load
             map.on('load', () => {
                 ensureBaseOverlays(map);
 
                 mapRef.current = map;
-                setMap(map);
+                setMap(map as unknown as maplibregl.Map);
                 setLoaded(true);
                 setInitializing(false);
 
@@ -225,7 +360,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 updateViewState();
                 setCurrentZoom(map.getZoom());
 
-                console.log('[MapCore] Map initialized with 3D terrain & Gov layers');
+                console.log(`[MapCore] ${engine} map initialized with 3D terrain & Gov layers`);
             });
 
             const handleStyleData = () => {
@@ -260,34 +395,30 @@ export function MapCore({ className = '' }: MapCoreProps) {
             setError(error instanceof Error ? error : new Error('Failed to initialize map'));
             setInitializing(false);
         }
-    }, [setMap, setLoaded, setInitializing, setError, updateViewState]);
+    }, [destroyMap, provider, setMap, setLoaded, setInitializing, setError, updateViewState]);
 
     // Initialize on mount
     useEffect(() => {
-        initializeMap();
+        void initializeMap();
 
         // Cleanup on unmount
         // IMPORTANT: Set store to null BEFORE destroying map
         // This allows other components' cleanup effects to see null and skip map operations
         return () => {
-            if (mapRef.current) {
-                const mapToDestroy = mapRef.current;
-                mapRef.current = null;
-                setMap(null);       // Signal to other components first
-                setLoaded(false);
-                mapToDestroy.remove();  // Then destroy the map
-            }
+            destroyMap();
         };
-    }, [initializeMap, setMap, setLoaded]);
+    }, [destroyMap, initializeMap]);
 
     // Update terrain exaggeration when it changes
     useEffect(() => {
         if (mapRef.current && mapRef.current.loaded()) {
             try {
-                mapRef.current.setTerrain({
-                    source: 'terrain-source',
-                    exaggeration: terrainExaggeration,
-                });
+                if (mapRef.current.getSource('terrain-source')) {
+                    mapRef.current.setTerrain({
+                        source: 'terrain-source',
+                        exaggeration: terrainExaggeration,
+                    });
+                }
             } catch (error) {
                 console.warn('[MapCore] Failed to update terrain:', error);
             }

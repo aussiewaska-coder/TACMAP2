@@ -148,10 +148,12 @@ export const useMapStore = create<MapState>()(
             if (map && map.loaded()) {
                 if (enabled) {
                     try {
-                        map.setTerrain({
-                            source: 'terrain-source',
-                            exaggeration: terrainExaggeration,
-                        });
+                        if (map.getSource('terrain-source')) {
+                            map.setTerrain({
+                                source: 'terrain-source',
+                                exaggeration: terrainExaggeration,
+                            });
+                        }
                     } catch (error) {
                         console.warn('Failed to enable terrain:', error);
                     }
@@ -176,10 +178,12 @@ export const useMapStore = create<MapState>()(
 
             if (map && map.loaded() && terrainEnabled) {
                 try {
-                    map.setTerrain({
-                        source: 'terrain-source',
-                        exaggeration: clampedValue,
-                    });
+                    if (map.getSource('terrain-source')) {
+                        map.setTerrain({
+                            source: 'terrain-source',
+                            exaggeration: clampedValue,
+                        });
+                    }
                 } catch (error) {
                     console.warn('Failed to update terrain exaggeration:', error);
                 }

@@ -1,7 +1,9 @@
 // MapPage - Main map page (minimal)
 // All functionality comes from the modular components
 
+import { useEffect } from 'react';
 import { MapLayout } from '@/components/layout';
+import { useDesktopUIStore, useMapProviderStore, type MapProvider } from '@/stores';
 
 /**
  * Main map page component
@@ -16,6 +18,22 @@ import { MapLayout } from '@/components/layout';
  * - Layout components (mobile/desktop controls)
  */
 export function MapPageNew() {
+    const setProvider = useMapProviderStore((state) => state.setProvider);
+    const setActivePanel = useDesktopUIStore((state) => state.setActivePanel);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const providerParam = params.get('provider') as MapProvider | null;
+        const panelParam = params.get('panel');
+
+        if (providerParam === 'mapbox' || providerParam === 'maptiler') {
+            setProvider(providerParam);
+        }
+        if (panelParam === 'alerts') {
+            setActivePanel('alerts');
+        }
+    }, [setProvider, setActivePanel]);
+
     return (
         <>
             <MapLayout />

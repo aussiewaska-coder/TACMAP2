@@ -1,158 +1,170 @@
-import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
-import { Map, Layers, Database, AlertTriangle } from "lucide-react";
+import { useMemo } from 'react';
+import { useLocation } from 'wouter';
+import { ArrowRight, Map, Satellite, Shield, Waves } from 'lucide-react';
+import { useDesktopUIStore, useMapProviderStore } from '@/stores';
+
+const PROVIDERS = [
+  {
+    id: 'mapbox' as const,
+    name: 'Mapbox',
+    summary: 'Gold-standard rendering engine with premium vector styles.',
+    envKey: 'VITE_MAPBOX_ACCESS_TOKEN',
+    badge: 'Default',
+    accent: 'from-amber-400/20 via-orange-400/10 to-transparent',
+    glow: 'shadow-amber-500/20',
+  },
+  {
+    id: 'maptiler' as const,
+    name: 'MapTiler',
+    summary: 'Open-source engine (MapLibre) with privacy-first basemaps.',
+    envKey: 'VITE_MAPTILER_API_KEY',
+    badge: 'Open-source',
+    accent: 'from-emerald-400/20 via-cyan-400/10 to-transparent',
+    glow: 'shadow-emerald-500/20',
+  },
+];
 
 export default function Home() {
+  const [, setLocation] = useLocation();
+  const setProvider = useMapProviderStore((state) => state.setProvider);
+  const setActivePanel = useDesktopUIStore((state) => state.setActivePanel);
+
+  const envStatus = useMemo(() => ({
+    maptiler: Boolean(import.meta.env.VITE_MAPTILER_API_KEY),
+    mapbox: Boolean(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN),
+  }), []);
+
+  const handleLaunch = (providerId: 'maptiler' | 'mapbox') => {
+    setProvider(providerId);
+    setActivePanel('alerts');
+    setLocation(`/map?provider=${providerId}&panel=alerts`);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Map className="w-8 h-8 text-indigo-600" />
-            <h1 className="text-2xl font-bold text-gray-800">MapLibre Australia</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <Button asChild variant="outline" size="sm">
-              <Link href="/emergency">
-                <AlertTriangle className="w-4 h-4 mr-2" />
-                Emergency
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link href="/map">Enter Map</Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div
+      className="relative min-h-screen overflow-hidden bg-slate-950 text-white"
+      style={{
+        fontFamily: 'var(--recon-font-sans)',
+      }}
+    >
+      {/* Atmosphere */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.12),_transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_70%,_rgba(245,158,11,0.12),_transparent_55%)]" />
+      <div className="absolute inset-0 opacity-40 [background-image:linear-gradient(rgba(148,163,184,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
 
-      {/* Hero Section */}
-      <main className="container mx-auto px-4 py-16">
-        <div className="text-center max-w-4xl mx-auto">
-          <h2 className="text-5xl font-bold text-gray-900 mb-6">
-            Comprehensive MapLibre GL JS Application
-          </h2>
-          <p className="text-xl text-gray-700 mb-8">
-            A feature-rich, Australia-focused interactive mapping platform built with MapLibre GL JS.
-            Explore advanced mapping capabilities, plugins, and customization options.
-          </p>
-
-          <Button asChild size="lg" className="text-lg px-8 py-6">
-            <Link href="/map">
-              <Map className="w-6 h-6 mr-2" />
-              Launch Map Application
-            </Link>
-          </Button>
-        </div>
-
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mt-16">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-              <Map className="w-6 h-6 text-indigo-600" />
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 pb-16 pt-16">
+        <section className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="space-y-6">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.35em] text-white/60">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Live readiness
             </div>
-            <h3 className="text-xl font-semibold mb-2">Australia-Focused</h3>
-            <p className="text-gray-600">
-              Centered on Australia with optimized bounds, zoom levels, and geographic features.
-              Quick navigation to major cities including Sydney, Melbourne, and Brisbane.
+            <h1 className="text-4xl font-semibold leading-tight sm:text-5xl lg:text-6xl">
+              Hello, welcome to <span className="text-emerald-300">RECONMAP</span>.
+            </h1>
+            <p className="max-w-xl text-lg text-white/70">
+              A modular AU emergency and police alerts platform. Choose your map engine, deploy the plugin,
+              and instantly serve live alerts, Waze sweeps, heatmaps, and aircraft tracking.
             </p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Layers className="w-6 h-6 text-green-600" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center gap-3 text-sm text-white/80">
+                  <Shield className="h-4 w-4 text-emerald-300" />
+                  Emergency alerts
+                </div>
+                <p className="mt-2 text-xs text-white/50">Multi-feed registry, CAP/RSS/GeoJSON normalizers.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center gap-3 text-sm text-white/80">
+                  <Waves className="h-4 w-4 text-cyan-300" />
+                  Police sweep
+                </div>
+                <p className="mt-2 text-xs text-white/50">Waze ingest with persistence + heatmap overlays.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center gap-3 text-sm text-white/80">
+                  <Satellite className="h-4 w-4 text-amber-300" />
+                  Aircraft tracks
+                </div>
+                <p className="mt-2 text-xs text-white/50">ADSB feeds filtered against AU aviation registry.</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center gap-3 text-sm text-white/80">
+                  <Map className="h-4 w-4 text-white/70" />
+                  Swap map engines
+                </div>
+                <p className="mt-2 text-xs text-white/50">Mapbox or MapTiler, same alerts pipeline.</p>
+              </div>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Rich Plugin Ecosystem</h3>
-            <p className="text-gray-600">
-              Integrated plugins including Draw, Geocoder, Export, Compare, Measures, and more.
-              Full control over map layers, styles, and interactions.
-            </p>
           </div>
 
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <Database className="w-6 h-6 text-purple-600" />
+          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/50">Map Providers</p>
+                <h2 className="mt-2 text-2xl font-semibold">Select your engine</h2>
+              </div>
+              <span
+                className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60"
+                style={{ fontFamily: 'var(--recon-font-mono)' }}
+              >
+                Plug-in ready
+              </span>
             </div>
-            <h3 className="text-xl font-semibold mb-2">Extensible Architecture</h3>
-            <p className="text-gray-600">
-              Built as a skeleton for custom data integration. Add your own layers, data sources,
-              and UI components with ease.
-            </p>
-          </div>
-        </div>
 
-        {/* Feature List */}
-        <div className="mt-16 bg-white rounded-lg shadow-md p-8">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">Key Features</h3>
-          <div className="grid md:grid-cols-2 gap-4">
-            <ul className="space-y-2">
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Interactive map with tilt, zoom, rotation, and fly-to controls</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Navigation controls, scale bar, and compass</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Drawing and geometry editing tools</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Geocoding and location search</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Map export to PDF and images</span>
-              </li>
-            </ul>
-            <ul className="space-y-2">
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Distance and area measurements</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Layer opacity and visibility controls</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Multiple basemap styles (street, satellite, terrain)</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Admin dashboard for feature management</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-2">✓</span>
-                <span>Mobile-responsive with touch gestures</span>
-              </li>
-            </ul>
+            <div className="mt-6 grid gap-4">
+              {PROVIDERS.map((provider) => {
+                const isReady = envStatus[provider.id];
+                return (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    onClick={() => handleLaunch(provider.id)}
+                    className={`group relative overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 p-5 text-left shadow-lg transition-all duration-300 hover:-translate-y-1 hover:border-white/30 hover:shadow-2xl ${provider.glow}`}
+                  >
+                    <div className={`absolute inset-0 bg-gradient-to-r ${provider.accent} opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
+                    <div className="relative z-10 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-xl font-semibold">{provider.name}</h3>
+                          <p className="text-xs text-white/50">{provider.badge}</p>
+                        </div>
+                        <div
+                          className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] ${
+                            isReady
+                              ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-200'
+                              : 'border-amber-400/40 bg-amber-400/10 text-amber-200'
+                          }`}
+                          style={{ fontFamily: 'var(--recon-font-mono)' }}
+                        >
+                          {isReady ? 'Key ready' : 'Key missing'}
+                        </div>
+                      </div>
+                      <p className="text-sm text-white/70">{provider.summary}</p>
+                      <div className="flex items-center justify-between text-xs text-white/50">
+                        <span style={{ fontFamily: 'var(--recon-font-mono)' }}>{provider.envKey}</span>
+                        <span className="inline-flex items-center gap-1 text-white/70">
+                          Launch dashboard
+                          <ArrowRight className="h-3 w-3" />
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        </section>
 
-        {/* Technology Stack */}
-        <div className="mt-16 text-center">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6">Built With</h3>
-          <div className="flex flex-wrap justify-center gap-4">
-            <span className="bg-white px-4 py-2 rounded-full shadow-sm">MapLibre GL JS</span>
-            <span className="bg-white px-4 py-2 rounded-full shadow-sm">React 19</span>
-            <span className="bg-white px-4 py-2 rounded-full shadow-sm">TypeScript</span>
-            <span className="bg-white px-4 py-2 rounded-full shadow-sm">Tailwind CSS 4</span>
-            <span className="bg-white px-4 py-2 rounded-full shadow-sm">tRPC</span>
-            <span className="bg-white px-4 py-2 rounded-full shadow-sm">Drizzle ORM</span>
+        <section className="mt-12 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 px-6 py-4 text-xs text-white/60">
+          <div className="flex items-center gap-3" style={{ fontFamily: 'var(--recon-font-mono)' }}>
+            <span className="text-emerald-300">RECONMAP v0.1</span>
+            <span className="text-white/30">/</span>
+            <span>Alert plugin online</span>
           </div>
-        </div>
+          <div className="text-white/50">Select a provider to initialize the map and load the alerts system.</div>
+        </section>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white mt-16 py-8">
-        <div className="container mx-auto px-4 text-center text-gray-600">
-          <p>MapLibre Australia - A comprehensive mapping application skeleton</p>
-          <p className="text-sm mt-2">Ready for your custom data layers and integrations</p>
-        </div>
-      </footer>
     </div>
   );
 }

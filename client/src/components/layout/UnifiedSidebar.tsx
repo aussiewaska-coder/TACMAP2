@@ -8,7 +8,7 @@ import {
     ChevronLeft, Compass, Radio
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useDesktopUIStore } from '@/stores';
+import { useDesktopUIStore, useMapProviderStore } from '@/stores';
 import { useBreakpoint } from '@/hooks';
 import { Z_INDEX } from '@/core/constants';
 import { CityList } from './CityList';
@@ -17,6 +17,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { ToolsPanel } from './ToolsPanel';
 import { SearchBox } from './SearchBox';
 import { UnifiedAlertsPanel } from './UnifiedAlertsPanel';
+import { useLocation } from 'wouter';
 
 type PanelType = 'layers' | 'search' | 'settings' | 'navigation' | 'tools' | 'alerts';
 
@@ -45,6 +46,8 @@ const TABS: TabConfig[] = [
  */
 export function UnifiedSidebar() {
     const { isMobile } = useBreakpoint();
+    const [, setLocation] = useLocation();
+    const provider = useMapProviderStore((state) => state.provider);
 
     // Mobile state
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -129,8 +132,19 @@ export function UnifiedSidebar() {
                         <MapPin className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-lg font-bold text-white tracking-wide">TACMAP</h1>
-                        <p className="text-xs text-white/70">Tactical Mapping</p>
+                        <h1 className="text-lg font-bold text-white tracking-wide">RECONMAP</h1>
+                        <div className="mt-1 flex items-center gap-2 text-[10px] text-white/70">
+                            <span className="rounded-full border border-white/30 bg-white/10 px-2 py-0.5 uppercase tracking-[0.2em]">
+                                {provider}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setLocation('/')}
+                                className="text-[10px] uppercase tracking-[0.2em] text-white/60 hover:text-white"
+                            >
+                                Switch
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <Button
