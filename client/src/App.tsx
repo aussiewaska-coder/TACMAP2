@@ -1,35 +1,9 @@
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch, Redirect } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import Home from "./pages/Home";
-import MapPage from "./pages/MapPageNew";
-import ComingSoon from "./pages/ComingSoon";
+import { MapView } from './components/MapView';
 
-function Router() {
+export default function App() {
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/map"} component={MapPage} />
-      <Route path={"/emergency"} component={MapPage} />
-      <Route path={"/flight-sim"}>
-        <Redirect to="/coming-soon" />
-      </Route>
-      <Route path={"/coming-soon"} component={ComingSoon} />
-      <Route>
-        <Redirect to="/" />
-      </Route>
-    </Switch>
+    <div className="h-screen w-screen">
+      <MapView />
+    </div>
   );
 }
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <TooltipProvider>
-        <Router />
-      </TooltipProvider>
-    </ErrorBoundary>
-  );
-}
-
-export default App;
