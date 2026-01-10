@@ -75,6 +75,7 @@ export function FlightControlCenter() {
     geology: false,
     bushfire: false,
     terrain: true,
+    alerts: false, // Emergency alert geometry (polygons)
   });
 
   const rotationFrameRef = useRef<number | undefined>(undefined);
@@ -344,6 +345,18 @@ export function FlightControlCenter() {
       }
       setLayers(prev => ({ ...prev, terrain: newState }));
     }
+
+    // Alert geometry (polygons) toggle
+    if (layerId === 'alerts') {
+      const newState = !layers.alerts;
+      const alertLayers = ['recon-emergency-polygons', 'recon-emergency-outline', 'recon-emergency-dots'];
+      alertLayers.forEach(layer => {
+        if (map.getLayer(layer)) {
+          map.setLayoutProperty(layer, 'visibility', newState ? 'visible' : 'none');
+        }
+      });
+      setLayers(prev => ({ ...prev, alerts: newState }));
+    }
   };
 
   if (!isLoaded) return null;
@@ -494,6 +507,7 @@ export function FlightControlCenter() {
           <div className="grid grid-cols-2 gap-1">
             {[
               { id: 'terrain' as const, label: 'Terrain', color: 'emerald' },
+              { id: 'alerts' as const, label: 'Alerts', color: 'red' },
               { id: 'bushfire' as const, label: 'Bushfire', color: 'orange' },
               { id: 'landuse' as const, label: 'Land Use', color: 'purple' },
               { id: 'geology' as const, label: 'Geology', color: 'amber' },
@@ -509,14 +523,17 @@ export function FlightControlCenter() {
                 )}
                 style={layers[id] ? {
                   backgroundColor: color === 'emerald' ? 'rgba(16, 185, 129, 0.4)' :
+                                   color === 'red' ? 'rgba(239, 68, 68, 0.4)' :
                                    color === 'orange' ? 'rgba(249, 115, 22, 0.4)' :
                                    color === 'purple' ? 'rgba(168, 85, 247, 0.4)' :
                                    'rgba(245, 158, 11, 0.4)',
                   borderColor: color === 'emerald' ? 'rgba(16, 185, 129, 0.5)' :
+                               color === 'red' ? 'rgba(239, 68, 68, 0.5)' :
                                color === 'orange' ? 'rgba(249, 115, 22, 0.5)' :
                                color === 'purple' ? 'rgba(168, 85, 247, 0.5)' :
                                'rgba(245, 158, 11, 0.5)',
                   color: color === 'emerald' ? 'rgb(110, 231, 183)' :
+                         color === 'red' ? 'rgb(252, 165, 165)' :
                          color === 'orange' ? 'rgb(253, 186, 116)' :
                          color === 'purple' ? 'rgb(216, 180, 254)' :
                          'rgb(252, 211, 77)',
