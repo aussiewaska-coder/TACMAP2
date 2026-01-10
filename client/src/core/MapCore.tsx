@@ -184,11 +184,16 @@ function startMaptilerDrift(map: maptilersdk.Map) {
 }
 
 /**
- * Resolve MapTiler style - use server proxy for caching & rate limit fallback
- * The proxy endpoint at /api/maptiler-proxy:
+ * Resolve MapTiler style - use server proxy in production, direct API in dev
+ *
+ * Production (/api/maptiler-proxy):
  * - Caches responses in Redis for 24 hours
  * - Returns cached data when API rate limit (429) is hit
  * - Enables graceful degradation when MapTiler hits rate limit
+ *
+ * Development (direct API):
+ * - Uses direct MapTiler API (no caching)
+ * - Simpler for local development
  */
 function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification | string {
     const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
@@ -203,15 +208,19 @@ function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification
         maptilerStyle,
         envStyleId,
         finalStyleId: styleId,
+        environment: import.meta.env.MODE,
     });
 
-    // Use server proxy for style.json requests
-    // This enables:
-    // - Redis caching (24h TTL)
-    // - Graceful fallback on rate limits (429)
-    // - Browser caching (1h max-age)
-    const path = encodeURIComponent(`/maps/${styleId}/style.json`);
-    return `/api/maptiler-proxy?path=${path}`;
+    // In development: use direct MapTiler API (no proxy needed)
+    // In production: use /api/maptiler-proxy for Redis caching and rate limit protection
+    if (import.meta.env.MODE === 'development') {
+        // Dev: Direct API call (MapTiler SDK handles API key automatically via config.apiKey)
+        return `https://api.maptiler.com/maps/${styleId}/style.json?key=${MAPTILER_API_KEY}`;
+    } else {
+        // Production: Use server proxy for caching & rate limit fallback
+        const path = encodeURIComponent(`/maps/${styleId}/style.json`);
+        return `/api/maptiler-proxy?path=${path}`;
+    }
 }
 
 function ensureBaseOverlays(map: maptilersdk.Map) {
