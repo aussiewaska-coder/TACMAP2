@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapContainer } from '@/core';
 import { AlertsSidebar } from './AlertsSidebar';
+import { CameraControls } from './CameraControls';
 import { UserLocationLayer } from '@/layers/live/UserLocationLayer';
 
 export function ReconLayout() {
@@ -32,6 +33,7 @@ export function ReconLayout() {
       </div>
 
       <AlertsSidebar collapsed={collapsed} onToggle={() => setCollapsed((prev) => !prev)} />
+      <CameraControls />
       <UserLocationLayer />
     </div>
   );
