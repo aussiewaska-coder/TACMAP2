@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMapStore } from '@/stores/mapStore';
 import { useCameraAnimation } from '@/hooks/useCameraAnimation';
-import { useSmartOrbit } from '@/hooks/useSmartOrbit';
 import { Button } from '@/components/ui/button';
 import {
   Plane,
@@ -97,7 +96,16 @@ export function CameraControls() {
   const map = useMapStore((state) => state.map);
   const isLoaded = useMapStore((state) => state.isLoaded);
 
-  const { animateTo, panDirection, adjustZoom, setPitch, stopAnimation } = useCameraAnimation();
+  const { animateTo, panDirection, adjustZoom, setPitch } = useCameraAnimation();
+
+  // Track zoom changes
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+    const updateZoom = () => setCurrentZoom(map.getZoom());
+    updateZoom();
+    map.on('zoom', updateZoom);
+    return () => { map.off('zoom', updateZoom); };
+  }, [map, isLoaded]);
 
   const [isAutoRotating, setIsAutoRotating] = useState(false);
   const [isAutoOrbiting, setIsAutoOrbiting] = useState(false);
@@ -110,20 +118,13 @@ export function CameraControls() {
   const rotationFrameRef = useRef<number | undefined>(undefined);
   const orbitFrameRef = useRef<number | undefined>(undefined);
   const flightFrameRef = useRef<number | undefined>(undefined);
-  const lastFrameTimeRef = useRef<number>(0);
+  const orbitStartAngleRef = useRef<number | null>(null);
 
-  // Smart orbit: double-click or long-press to orbit around a point
-  useSmartOrbit({
-    isEnabled: !isAutoRotating && !isFlightMode,
-    onOrbitStart: (center) => {
-      setOrbitCenter(center);
-      setIsAutoOrbiting(true);
-    },
-    onOrbitStop: () => {
-      setIsAutoOrbiting(false);
-      setOrbitCenter(null);
-    },
-  });
+  // Track current zoom for display
+  const [currentZoom, setCurrentZoom] = useState(0);
+
+  // Smart orbit disabled - only button-triggered orbit
+  // (double-tap/long-press was confusing)
 
   // Auto-rotate: smooth continuous rotation around current center
   useEffect(() => {
@@ -156,33 +157,52 @@ export function CameraControls() {
 
   // Auto-orbit: circular orbit around a fixed point
   useEffect(() => {
-    if (!map || !isLoaded || !isAutoOrbiting) return;
+    if (!map || !isLoaded || !isAutoOrbiting || !orbitCenter) return;
 
-    // Use orbit center from smart orbit, or current center if manual toggle
-    const centerLng = orbitCenter ? orbitCenter[0] : map.getCenter().lng;
-    const centerLat = orbitCenter ? orbitCenter[1] : map.getCenter().lat;
+    const centerLng = orbitCenter[0];
+    const centerLat = orbitCenter[1];
 
-    let angle = 0;
+    // Start from captured angle, or calculate from current bearing
+    let angle = orbitStartAngleRef.current ?? 0;
     let lastTime = performance.now();
-    let currentRadius = orbitRadius;
-    let currentSpeed = orbitSpeed;
+
+    // Smooth interpolation state
+    let currentRadius = 0.001; // Start tiny, ease to target
+    let currentSpeed = orbitSpeed * 0.1; // Start slow
     let currentDirection = orbitDirection;
+
+    // Ease-in duration (ms)
+    const easeInDuration = 1500;
+    const startTime = performance.now();
 
     const orbit = (currentTime: number) => {
       if (!map || !isAutoOrbiting) return;
 
       const deltaTime = currentTime - lastTime;
+      const elapsed = currentTime - startTime;
 
-      // EASE radius, speed, and direction to target values
-      const easeAmount = Math.min(deltaTime / 1000 * 3, 1); // Ease over ~0.3 seconds
-      currentRadius += (orbitRadius - currentRadius) * easeAmount;
-      currentSpeed += (orbitSpeed - currentSpeed) * easeAmount;
-      currentDirection += (orbitDirection - currentDirection) * easeAmount;
+      // Smooth ease-in factor (0 to 1 over easeInDuration)
+      const easeInProgress = Math.min(elapsed / easeInDuration, 1);
+      // Use cubic ease-out for smooth acceleration
+      const easeFactor = 1 - Math.pow(1 - easeInProgress, 3);
 
-      const frameAdjustedSpeed = currentSpeed * currentDirection * (deltaTime / 1000);
+      // Smoothly interpolate radius and speed to target values
+      const targetRadius = orbitRadius;
+      const targetSpeed = orbitSpeed;
+      currentRadius = currentRadius + (targetRadius - currentRadius) * easeFactor * 0.1;
+      currentSpeed = currentSpeed + (targetSpeed - currentSpeed) * easeFactor * 0.1;
+
+      // Direction can change instantly (reverse button)
+      currentDirection += (orbitDirection - currentDirection) * 0.1;
+
+      // Frame-adjusted speed (radians per frame)
+      // Positive = counterclockwise (standard math), negative = clockwise
+      // Flip sign so positive direction = clockwise (more intuitive for map)
+      const frameAdjustedSpeed = -currentSpeed * currentDirection * (deltaTime / 1000);
 
       angle += frameAdjustedSpeed;
 
+      // Camera position on the orbit circle
       const newCenter: [number, number] = [
         centerLng + Math.cos(angle) * currentRadius,
         centerLat + Math.sin(angle) * currentRadius,
@@ -191,8 +211,11 @@ export function CameraControls() {
       map.setCenter(newCenter);
 
       // Point camera toward orbit center
+      // atan2(dy, dx) gives angle from camera to center
+      // We need bearing: 0° = North, 90° = East
       const dx = centerLng - newCenter[0];
       const dy = centerLat - newCenter[1];
+      // atan2(dx, dy) because bearing is measured from North (y-axis)
       const bearing = (Math.atan2(dx, dy) * 180) / Math.PI;
       map.setBearing(bearing);
 
@@ -256,8 +279,23 @@ export function CameraControls() {
   const toggleAutoOrbit = () => {
     if (isAutoRotating) setIsAutoRotating(false);
     if (isFlightMode) setIsFlightMode(false);
+
     if (isAutoOrbiting) {
-      setOrbitCenter(null); // Clear orbit center when manually toggling off
+      // Turning off
+      setOrbitCenter(null);
+      orbitStartAngleRef.current = null;
+    } else {
+      // Turning on - capture current state for smooth transition
+      if (map) {
+        const currentBearing = map.getBearing();
+        // Convert bearing to orbit angle:
+        // Bearing 0 (North) = camera is South = orbit angle -π/2
+        // Bearing 90 (East) = camera is West = orbit angle π
+        // Formula: angle = -(bearing + 90) * π/180
+        const startAngle = -(currentBearing + 90) * Math.PI / 180;
+        orbitStartAngleRef.current = startAngle;
+        setOrbitCenter([map.getCenter().lng, map.getCenter().lat]);
+      }
     }
     setIsAutoOrbiting(!isAutoOrbiting);
   };
@@ -346,12 +384,15 @@ export function CameraControls() {
           {/* Military Compass */}
           <MilitaryCompass onPan={panDirection} />
 
-          {/* Zoom Controls */}
-          <div className="flex flex-col gap-0.5">
+          {/* Zoom Controls with Level Display */}
+          <div className="flex flex-col gap-0.5 items-center">
             <Button size="icon-sm" variant="ghost" onClick={() => adjustZoom(1)} title="Zoom In"
               className="bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 h-7 w-7">
               <Plus className="size-3" />
             </Button>
+            <div className="text-[10px] font-mono text-cyan-400 font-bold">
+              Z{currentZoom.toFixed(1)}
+            </div>
             <Button size="icon-sm" variant="ghost" onClick={() => adjustZoom(-1)} title="Zoom Out"
               className="bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 h-7 w-7">
               <Minus className="size-3" />

@@ -2,7 +2,7 @@
 // This component ONLY handles map initialization and cleanup
 // All features are added via plugins
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import * as maptilersdk from '@maptiler/sdk';
 import '@maptiler/sdk/dist/maptiler-sdk.css';
 
@@ -309,8 +309,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const terrainEnabled = useMapStore((state) => state.terrainEnabled);
     const maptilerStyle = useMapProviderStore((state) => state.maptilerStyle);
 
-    // Track current zoom for indicator
-    const [currentZoom, setCurrentZoom] = useState<number>(MAP_CONFIG.DEFAULT_ZOOM);
 
     // Initialize map
     const destroyMap = useCallback(() => {
@@ -363,14 +361,8 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 attributionControl: false,
             });
 
-            map.addControl(
-                new maptilersdk.NavigationControl({
-                    showCompass: true,
-                    showZoom: true,
-                    visualizePitch: true,
-                }),
-                'top-right'
-            );
+            // Navigation controls handled by CameraControls component
+            // (removed NavigationControl to avoid duplication)
 
             map.addControl(
                 new maptilersdk.ScaleControl({
@@ -398,7 +390,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
 
                 // Initial view state sync
                 updateViewState();
-                setCurrentZoom(map.getZoom());
 
                 driftCleanupRef.current = startMaptilerDrift(map);
 
@@ -412,10 +403,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
 
             map.on('styledata', handleStyleData);
 
-            // Handle map move for view state updates
-            map.on('move', () => {
-                setCurrentZoom(map.getZoom());
-            });
 
             map.on('moveend', () => {
                 updateViewState();
@@ -520,10 +507,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 className="w-full h-full"
                 style={{ minHeight: '100%' }}
             />
-            {/* Zoom Indicator - Top Right */}
-            <div className="absolute top-[100px] right-2.5 z-10 bg-black/80 text-cyan-400 px-2 py-1 rounded text-xs font-mono font-bold border border-cyan-900/50 backdrop-blur-sm pointer-events-none shadow-lg">
-                Z{currentZoom.toFixed(1)}
-            </div>
         </div>
     );
 }
