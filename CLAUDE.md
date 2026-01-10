@@ -13,6 +13,46 @@
 6. **NEVER TOUCH `/client/src/flightSim/` FOLDER - THE USER WILL FUCKING MURDER YOU IF YOU EDIT THESE FILES** - This is a separate flight simulator system. DO NOT edit, read, or reference ANY files in this folder unless explicitly asked to "edit the flight simulator". For map camera/orbit controls, ONLY edit `/client/src/components/recon/CameraControls.tsx` and related hooks. **STAY THE FUCK AWAY FROM THE FLIGHT SIMULATOR FOLDER.**
 7. **NEVER HARDCODE VARIABLES** - Always use environment variables. Never bypass env vars with hardcoded values. If an env var isn't working, fix the env var configuration, don't hardcode around it.
 
+## ⚠️ CRITICAL: VITE ENV VARS & VERCEL DEPLOYMENT - READ THIS OR DIE
+
+**THIS CAUSED A 1+ HOUR DISASTER. NEVER FORGET.**
+
+### The Problem
+When commits don't seem to take effect, it's almost ALWAYS one of these:
+
+1. **VITE_ env vars are baked at BUILD TIME** - Changing them in Vercel does NOTHING until Vercel REBUILDS the frontend. A redeploy is NOT a rebuild.
+
+2. **Zustand persist caches to localStorage** - The `mapProviderStore` uses `persist` middleware. Even with new code, old values survive in localStorage. Added `version: 2` to force reset - INCREMENT THIS VERSION if you change defaults.
+
+3. **Vercel build cache** - Vercel caches builds. Must explicitly disable cache when redeploying.
+
+### MANDATORY: Force Clean Rebuild
+**EVERY TIME you push changes to VITE_ env vars or Zustand store defaults:**
+
+```bash
+# From git - creates new file to bust cache
+echo "// Build: $(date +%s)" > client/src/buildstamp.ts && git add -A && git commit -m "Force rebuild" && git push
+```
+
+**OR in Vercel Dashboard:**
+1. Deployments → Click latest → Three dots (⋮) → "Redeploy"
+2. **UNCHECK** "Use existing Build Cache"
+3. Click "Redeploy"
+
+### When User Says "It's Not Updating"
+**FIRST SUSPECT:** VITE_ env vars + build cache. CHECK:
+1. Is the env var set correctly in Vercel? (Settings → Environment Variables)
+2. Has Vercel actually REBUILT? (Check deployment logs for build output)
+3. Is localStorage caching old values? (Increment Zustand persist version)
+4. Is browser caching old JS? (Hard refresh: Cmd+Shift+R / Ctrl+Shift+R)
+
+### Files That Use Cached Values
+- `client/src/stores/mapProviderStore.ts` - Zustand persist, version must increment on schema changes
+- `client/src/core/MapCore.tsx` - Reads VITE_MAPTILER_STYLE and VITE_MAPTILER_API_KEY
+- Any file using `import.meta.env.VITE_*` - Baked at build time
+
+**NEVER ASSUME A PUSH = DEPLOYED. VERIFY THE BUILD COMPLETED.**
+
 ## Project Structure
 
 ```
