@@ -67,6 +67,8 @@ export function FlightControlCenter() {
   const [isFlightMode, setIsFlightMode] = useState(false);
   const [isRandomPathFlight, setIsRandomPathFlight] = useState(false);
   const [orbitCenter, setOrbitCenter] = useState<[number, number] | null>(null);
+  const [targetLocation, setTargetLocation] = useState<[number, number] | null>(null);
+  const [isNavigatingToTarget, setIsNavigatingToTarget] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(0);
   const [currentBearing, setCurrentBearing] = useState(0);
   const [currentPitch, setCurrentPitch] = useState(0);
@@ -81,6 +83,8 @@ export function FlightControlCenter() {
   const orbitSpeedRef = useRef((2 * Math.PI) / 60);
   const orbitDirectionRef = useRef(1);
   const orbitMarkerRef = useRef<maptilersdk.Marker | null>(null);
+  const targetMarkerRef = useRef<maptilersdk.Marker | null>(null);
+  const targetArrivalDistanceRef = useRef(0.005); // ~500m at zoom 12
 
   // Flight mode controls
   const flightSpeedRef = useRef(0.0005); // 1/4 of original 0.002
@@ -152,6 +156,50 @@ export function FlightControlCenter() {
     };
   }, [map, isLoaded, orbitCenter, isAutoOrbiting]);
 
+  // Target marker - shows where we're navigating to
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    if (targetLocation) {
+      // Create target marker if not exists
+      if (!targetMarkerRef.current) {
+        const el = document.createElement('div');
+        el.className = 'target-marker';
+        el.innerHTML = `
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="16" stroke="#f59e0b" stroke-width="2" fill="none" opacity="0.7"/>
+            <circle cx="20" cy="20" r="10" stroke="#f59e0b" stroke-width="1.5" fill="none" opacity="0.5"/>
+            <circle cx="20" cy="20" r="4" fill="#f59e0b"/>
+            <line x1="20" y1="4" x2="20" y2="10" stroke="#f59e0b" stroke-width="2"/>
+            <line x1="20" y1="30" x2="20" y2="36" stroke="#f59e0b" stroke-width="2"/>
+            <line x1="4" y1="20" x2="10" y2="20" stroke="#f59e0b" stroke-width="2"/>
+            <line x1="30" y1="20" x2="36" y2="20" stroke="#f59e0b" stroke-width="2"/>
+          </svg>
+        `;
+        el.style.cssText = 'filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));';
+
+        targetMarkerRef.current = new maptilersdk.Marker({ element: el, anchor: 'center' })
+          .setLngLat(targetLocation)
+          .addTo(map);
+      } else {
+        targetMarkerRef.current.setLngLat(targetLocation);
+      }
+    } else {
+      // Remove marker when no target
+      if (targetMarkerRef.current) {
+        targetMarkerRef.current.remove();
+        targetMarkerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (targetMarkerRef.current) {
+        targetMarkerRef.current.remove();
+        targetMarkerRef.current = null;
+      }
+    };
+  }, [map, isLoaded, targetLocation]);
+
   // Double-tap in orbit mode: fly to location, keep orbiting
   useEffect(() => {
     if (!map || !isLoaded || !isAutoOrbiting) return;
@@ -207,6 +255,100 @@ export function FlightControlCenter() {
     map.on('dblclick', handleDoubleClick);
     return () => { map.off('dblclick', handleDoubleClick); };
   }, [map, isLoaded, isAutoOrbiting]);
+
+  // Command-click targeting
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const handleCommandClick = (e: MapMouseEvent) => {
+      // Check for command key (Mac) or control key (Windows/Linux)
+      if (!(e.originalEvent as any).metaKey && !(e.originalEvent as any).ctrlKey) return;
+
+      const clickedLocation: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+      setTargetLocation(clickedLocation);
+      setIsNavigatingToTarget(true);
+
+      // Get current position
+      const currentCenter = map.getCenter();
+      const currentPos: [number, number] = [currentCenter.lng, currentCenter.lat];
+      const currentBearing = map.getBearing();
+
+      // Calculate bearing to target
+      const dx = clickedLocation[0] - currentPos[0];
+      const dy = clickedLocation[1] - currentPos[1];
+      const bearingToTarget = (Math.atan2(dx, dy) * 180) / Math.PI;
+
+      if (isFlightMode) {
+        // In flight mode: update heading towards target
+        flightHeadingDeltaRef.current = 0; // Stop current heading adjustment
+        const currentBearingNum = map.getBearing();
+
+        // Animate bearing to face target smoothly
+        const bearingDelta = bearingToTarget - currentBearingNum;
+        const normalizedDelta = bearingDelta > 180 ? bearingDelta - 360 : bearingDelta < -180 ? bearingDelta + 360 : bearingDelta;
+
+        // Smooth bearing transition over 2 seconds
+        const startBearing = currentBearingNum;
+        const startTime = performance.now();
+        const duration = 2000;
+
+        const transitionBearing = (currentTime: number) => {
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const newBearing = startBearing + normalizedDelta * progress;
+          map.setBearing(newBearing);
+
+          if (progress < 1) {
+            requestAnimationFrame(transitionBearing);
+          }
+        };
+
+        requestAnimationFrame(transitionBearing);
+      } else if (isAutoOrbiting) {
+        // In orbit mode: fly to target and start orbiting
+        const startCenter = map.getCenter();
+        const startZoom = map.getZoom();
+        const startPitch = map.getPitch();
+        const orbitBearing = map.getBearing();
+        const startTime = performance.now();
+        const duration = 3500;
+
+        const easeInOutCubic = (t: number) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+        const animateFly = (currentTime: number) => {
+          if (!map) return;
+          const elapsed = currentTime - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const eased = easeInOutCubic(progress);
+
+          const lng = startCenter.lng + (clickedLocation[0] - startCenter.lng) * eased;
+          const lat = startCenter.lat + (clickedLocation[1] - startCenter.lat) * eased;
+          const zoom = startZoom + (12.5 - startZoom) * eased;
+          const pitch = startPitch + (60 - startPitch) * eased;
+
+          map.jumpTo({
+            center: [lng, lat],
+            zoom,
+            pitch,
+            bearing: orbitBearing,
+          });
+
+          if (progress < 1) {
+            requestAnimationFrame(animateFly);
+          } else {
+            // Start orbiting at target
+            orbitStartAngleRef.current = -(orbitBearing + 90) * Math.PI / 180;
+            setOrbitCenter(clickedLocation);
+          }
+        };
+
+        requestAnimationFrame(animateFly);
+      }
+    };
+
+    map.on('click', handleCommandClick);
+    return () => { map.off('click', handleCommandClick); };
+  }, [map, isLoaded, isFlightMode, isAutoOrbiting]);
 
   // Auto-rotate
   useEffect(() => {
