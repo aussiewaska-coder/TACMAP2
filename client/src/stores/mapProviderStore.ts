@@ -11,7 +11,7 @@ interface MapProviderState {
 }
 
 const DEFAULT_PROVIDER: MapProvider = (import.meta.env.VITE_RECONMAP_DEFAULT_PROVIDER as MapProvider) || 'maptiler';
-const DEFAULT_MAPTILER_STYLE = (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) || '019ba5e4-9d97-74d1-bac9-f2e25b888881';
+const DEFAULT_MAPTILER_STYLE = (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) || '019ba6b7-5a01-7042-bc9a-d1ace6393958';
 
 export const useMapProviderStore = create<MapProviderState>()(
     persist(

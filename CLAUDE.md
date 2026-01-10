@@ -57,7 +57,7 @@
 ```bash
 # MapTiler (REQUIRED)
 VITE_MAPTILER_API_KEY=your-maptiler-key
-VITE_MAPTILER_STYLE=019ba5e4-9d97-74d1-bac9-f2e25b888881
+VITE_MAPTILER_STYLE=019ba6b7-5a01-7042-bc9a-d1ace6393958
 
 # Provider Lock (set to maptiler)
 VITE_RECONMAP_DEFAULT_PROVIDER=maptiler

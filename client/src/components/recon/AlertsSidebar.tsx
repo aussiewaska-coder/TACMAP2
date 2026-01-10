@@ -38,7 +38,7 @@ const HAZARD_TYPES = [
 ];
 
 const MAPTILER_STYLES = [
-  { id: '019ba5e4-9d97-74d1-bac9-f2e25b888881', label: 'EmergServe' },
+  { id: '019ba6b7-5a01-7042-bc9a-d1ace6393958', label: 'EmergServe' },
   { id: 'streets-v2', label: 'Streets' },
   { id: 'basic-v2', label: 'Basic' },
   { id: 'outdoor-v2', label: 'Outdoor' },

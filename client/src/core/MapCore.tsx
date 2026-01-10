@@ -212,8 +212,8 @@ function mapboxTransformRequest(token?: string) {
 function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSpecification | string {
     if (provider === 'maptiler') {
         const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
-        // HARDCODED - ignoring VITE_MAPTILER_STYLE env var to ensure correct style
-        const styleId = maptilerStyle || '019ba6b7-5a01-7042-bc9a-d1ace6393958';
+        // FORCE new style ID - ignore stored value until localStorage is cleared
+        const styleId = '019ba6b7-5a01-7042-bc9a-d1ace6393958';
         if (apiKey) {
             // Use our caching proxy instead of direct MapTiler API
             // This reduces API requests by 95%+ via Redis caching
