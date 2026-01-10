@@ -19,6 +19,7 @@ import {
   Database,
   Loader2,
   Plane,
+  Target,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import { trpc } from '@/lib/trpc';
 import { useEmergencyAlerts } from '@/hooks/useEmergencyAlerts';
 import { useUnifiedAlerts } from '@/hooks/useUnifiedAlerts';
 import { useHeatmap, HEATMAP_SCHEMES, HeatmapColorScheme } from '@/hooks/useHeatmap';
+import { useFlyToAndOrbit } from '@/hooks/useFlyToAndOrbit';
 
 const STATES = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT', 'AUS'] as const;
 
@@ -54,7 +56,7 @@ const PANEL_MARGIN = 16;
 
 type AlertMode = 'emergency' | 'police';
 type OpsMode = 'all' | 'warning' | 'ground_truth';
-type PanelTab = 'alerts' | 'map' | 'settings' | 'controls';
+type PanelTab = 'alerts' | 'map' | 'settings' | 'controls' | 'targets';
 
 interface AlertsSidebarProps {
   collapsed: boolean;
@@ -245,6 +247,11 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
     roads: true,
   });
 
+  // Targets tab state
+  const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null);
+  const [targetFilter, setTargetFilter] = useState<'all' | 'emergency' | 'police'>('all');
+  const [targetSort, setTargetSort] = useState<'severity' | 'time' | 'distance'>('severity');
+
   const hasAutoSwept = useRef(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
@@ -396,7 +403,11 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   };
 
   const utils = trpc.useUtils();
+  const isLoaded = useMapStore((state) => state.isLoaded);
   const { data: rawEmergencyData, isLoading: emergencyLoading } = useEmergencyAlerts(enabled && alertMode === 'emergency');
+
+  // Hook for smooth fly-to and orbit animations on target selection
+  const { flyToAndOrbit, stopOrbit } = useFlyToAndOrbit();
 
   const sweepMutation = trpc.waze.getAlertsAndJams.useMutation({
     onSuccess: (data) => {
@@ -578,6 +589,237 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   const CollapseIcon = panelSide === 'left' ? ChevronLeft : ChevronRight;
   const RevealIcon = panelSide === 'left' ? ChevronRight : ChevronLeft;
 
+  // ===== TARGETS TAB HELPERS =====
+
+  /**
+   * Extract coordinates from either emergency (GeoJSON) or police alert
+   */
+  const getAlertCoordinates = (alert: any): [number, number] | null => {
+    // Emergency alerts (GeoJSON)
+    if (alert.geometry?.type === 'Point') {
+      return alert.geometry.coordinates as [number, number];
+    }
+    if (alert.geometry?.type === 'Polygon') {
+      // Calculate centroid of polygon
+      const coords = alert.geometry.coordinates[0];
+      const centroid = coords.reduce(
+        (acc: [number, number], [lng, lat]: [number, number]) => [acc[0] + lng, acc[1] + lat],
+        [0, 0]
+      ).map((v: number) => v / coords.length) as [number, number];
+      return centroid;
+    }
+
+    // Police alerts (lat/lng properties)
+    if (alert.latitude && alert.longitude) {
+      return [alert.longitude, alert.latitude];
+    }
+
+    return null;
+  };
+
+  /**
+   * Haversine distance in km between two coordinates
+   */
+  const haversineDistance = (
+    [lon1, lat1]: [number, number],
+    [lon2, lat2]: [number, number]
+  ): number => {
+    const R = 6371; // Earth radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  /**
+   * Calculate distance from current map center to an alert
+   */
+  const getDistance = (alert: any): number => {
+    const mapCenter = map?.getCenter();
+    if (!mapCenter) return Infinity;
+
+    const alertCoords = getAlertCoordinates(alert);
+    if (!alertCoords) return Infinity;
+
+    return haversineDistance(
+      [mapCenter.lng, mapCenter.lat],
+      alertCoords
+    );
+  };
+
+  /**
+   * Get emoji icon for hazard type
+   */
+  const getHazardIcon = (hazardType: string): string => {
+    switch (hazardType?.toLowerCase()) {
+      case 'fire':
+      case 'bushfire':
+        return '🔥';
+      case 'flood':
+      case 'storm':
+        return '💧';
+      case 'road':
+      case 'traffic':
+      case 'crash':
+        return '🚗';
+      case 'space':
+      case 'solar':
+        return '🛰️';
+      default:
+        return '⚠️';
+    }
+  };
+
+  /**
+   * Format seconds or date into human readable age string
+   */
+  const formatAge = (value: number | Date | string): string => {
+    let seconds: number;
+
+    if (typeof value === 'number') {
+      seconds = value;
+    } else if (value instanceof Date) {
+      seconds = Math.floor((Date.now() - value.getTime()) / 1000);
+    } else if (typeof value === 'string') {
+      seconds = Math.floor((Date.now() - new Date(value).getTime()) / 1000);
+    } else {
+      return 'Unknown';
+    }
+
+    if (seconds < 60) return 'Just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
+  };
+
+  /**
+   * Combined and sorted alerts for Targets tab
+   */
+  const sortedTargets = useMemo(() => {
+    // Combine emergency + police alerts with type marker
+    const combined: any[] = [];
+
+    if (filteredEmergencyData?.features) {
+      combined.push(
+        ...filteredEmergencyData.features.map((f: any) => ({
+          ...f,
+          alertType: 'emergency',
+          _id: f.properties?.id || f.id,
+        }))
+      );
+    }
+
+    if (policeReports) {
+      combined.push(
+        ...policeReports.map((p: any) => ({
+          ...p,
+          alertType: 'police',
+          _id: p.alertId,
+        }))
+      );
+    }
+
+    // Filter by type
+    const filtered = combined.filter((a) =>
+      targetFilter === 'all' || a.alertType === targetFilter
+    );
+
+    // Sort by selected criteria
+    return filtered.sort((a, b) => {
+      if (targetSort === 'severity') {
+        return (b.properties?.severity_rank || 0) - (a.properties?.severity_rank || 0);
+      }
+      if (targetSort === 'time') {
+        // Emergency: age_s (seconds), Police: createdAt (date)
+        const ageA = a.properties?.age_s ?? (a.createdAt ? Math.floor((Date.now() - new Date(a.createdAt).getTime()) / 1000) : Infinity);
+        const ageB = b.properties?.age_s ?? (b.createdAt ? Math.floor((Date.now() - new Date(b.createdAt).getTime()) / 1000) : Infinity);
+        return ageA - ageB;
+      }
+      // distance - calculate from current map center
+      return getDistance(a) - getDistance(b);
+    });
+  }, [filteredEmergencyData, policeReports, targetFilter, targetSort, map?.getCenter()]);
+
+  /**
+   * Handle target card click - fly to and orbit
+   */
+  const handleTargetClick = (alert: any) => {
+    const coords = getAlertCoordinates(alert);
+    if (!coords) {
+      toast.error('Unable to locate target', {
+        description: 'Coordinates unavailable',
+        duration: 2000,
+      });
+      return;
+    }
+
+    const alertId = alert.properties?.id || alert.alertId;
+    setSelectedTargetId(alertId);
+
+    // Zoom wider for polygons, tighter for points
+    const zoom = alert.geometry?.type === 'Polygon' ? 11 : 13;
+
+    flyToAndOrbit(coords, { zoom, pitch: 60 });
+
+    const title = alert.properties?.title || `${alert.type} - ${alert.subtype}`;
+    toast.success('Target acquired', {
+      description: title,
+      duration: 2000,
+    });
+  };
+
+  /**
+   * Stop orbit when user interacts with map
+   */
+  useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const handleInteraction = () => {
+      stopOrbit();
+      setSelectedTargetId(null);
+    };
+
+    map.on('mousedown', handleInteraction);
+    map.on('touchstart', handleInteraction);
+    map.on('wheel', handleInteraction);
+
+    return () => {
+      map.off('mousedown', handleInteraction);
+      map.off('touchstart', handleInteraction);
+      map.off('wheel', handleInteraction);
+    };
+  }, [map, isLoaded, stopOrbit]);
+
+  /**
+   * Stop orbit when switching tabs or collapsing sidebar
+   */
+  useEffect(() => {
+    if (activeTab !== 'targets') {
+      stopOrbit();
+      setSelectedTargetId(null);
+    }
+  }, [activeTab, stopOrbit]);
+
+  useEffect(() => {
+    if (collapsed) {
+      stopOrbit();
+      setSelectedTargetId(null);
+    }
+  }, [collapsed, stopOrbit]);
+
+  /**
+   * Cleanup on unmount
+   */
+  useEffect(() => {
+    return () => {
+      stopOrbit();
+    };
+  }, [stopOrbit]);
+
   return (
     <>
       <aside
@@ -655,6 +897,18 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
           >
             <AlertTriangle className="h-4 w-4" />
             Alerts
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('targets')}
+            className={`flex h-12 flex-1 items-center justify-center gap-2 text-sm font-medium transition md:h-10 md:text-xs ${
+              activeTab === 'targets'
+                ? 'border-b-2 border-amber-400 text-amber-100'
+                : 'text-emerald-100/50 hover:text-emerald-100/70'
+            }`}
+          >
+            <Target className="h-4 w-4" />
+            Targets
           </button>
           <button
             type="button"
@@ -1047,6 +1301,189 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
                 <p>Flight mode controls appear in the right sidebar</p>
                 <p className="mt-2 text-slate-500">Map label filters are in the MAP tab</p>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'targets' && (
+            <div className="space-y-4 md:space-y-5">
+              {/* Quick Filters */}
+              <section className="rounded-2xl border border-amber-400/15 bg-amber-950/40 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.2em] text-amber-100/60">Filter by Type</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setTargetFilter('all')}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition md:py-1.5 ${
+                      targetFilter === 'all'
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+                        : 'border-amber-400/20 bg-amber-950/40 text-amber-100/60 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setTargetFilter('emergency')}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition md:py-1.5 ${
+                      targetFilter === 'emergency'
+                        ? 'border-rose-400/60 bg-rose-500/20 text-rose-100'
+                        : 'border-amber-400/20 bg-amber-950/40 text-amber-100/60 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    Emergency
+                  </button>
+                  <button
+                    onClick={() => setTargetFilter('police')}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition md:py-1.5 ${
+                      targetFilter === 'police'
+                        ? 'border-blue-400/60 bg-blue-500/20 text-blue-100'
+                        : 'border-amber-400/20 bg-amber-950/40 text-amber-100/60 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    Police
+                  </button>
+                </div>
+              </section>
+
+              {/* Sort Controls */}
+              <section className="rounded-2xl border border-amber-400/15 bg-amber-950/40 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-xs uppercase tracking-[0.2em] text-amber-100/60">Sort by</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setTargetSort('severity')}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition md:py-1.5 ${
+                      targetSort === 'severity'
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+                        : 'border-amber-400/20 bg-amber-950/40 text-amber-100/60 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    Severity
+                  </button>
+                  <button
+                    onClick={() => setTargetSort('time')}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition md:py-1.5 ${
+                      targetSort === 'time'
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+                        : 'border-amber-400/20 bg-amber-950/40 text-amber-100/60 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    Time
+                  </button>
+                  <button
+                    onClick={() => setTargetSort('distance')}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition md:py-1.5 ${
+                      targetSort === 'distance'
+                        ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+                        : 'border-amber-400/20 bg-amber-950/40 text-amber-100/60 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    Distance
+                  </button>
+                </div>
+              </section>
+
+              {/* Targets List */}
+              {sortedTargets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Target className="mb-3 h-12 w-12 text-emerald-400/30" />
+                  <p className="font-medium text-emerald-100/60">No targets in range</p>
+                  <p className="mt-1 text-xs text-emerald-100/40">Adjust filters or scan a wider area</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Emergency Alerts Section */}
+                  {sortedTargets.some((t) => t.alertType === 'emergency') && (
+                    <section className="rounded-2xl border border-rose-400/15 bg-rose-950/40 p-4">
+                      <p className="mb-3 text-xs uppercase tracking-[0.2em] text-rose-100/70">
+                        Emergency Alerts ({sortedTargets.filter((t) => t.alertType === 'emergency').length})
+                      </p>
+                      <div className="space-y-2">
+                        {sortedTargets
+                          .filter((t) => t.alertType === 'emergency')
+                          .map((alert: any) => (
+                            <button
+                              key={alert.properties?.id}
+                              onClick={() => handleTargetClick(alert)}
+                              className={`w-full rounded-lg border px-3 py-3 text-left transition hover:bg-rose-500/15 active:scale-95 md:py-2 ${
+                                selectedTargetId === alert.properties?.id
+                                  ? 'border-rose-400/60 bg-rose-500/20 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+                                  : 'border-rose-400/20 bg-rose-950/60'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="flex items-center gap-2 text-sm font-semibold text-rose-100">
+                                    <span className="text-lg">{getHazardIcon(alert.properties?.hazard_type)}</span>
+                                    <span className="truncate">{alert.properties?.title}</span>
+                                    {alert.properties?.severity && (
+                                      <Badge className="ml-auto flex-shrink-0 border-rose-400/40 bg-rose-500/20 text-[10px] text-rose-100 md:text-[9px]">
+                                        {alert.properties.severity.toUpperCase()}
+                                      </Badge>
+                                    )}
+                                  </p>
+                                  <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-rose-100/60">
+                                    <span>{alert.properties?.state || 'AUS'}</span>
+                                    <span>•</span>
+                                    <span>{formatAge(alert.properties?.age_s)}</span>
+                                    <span>•</span>
+                                    <span>{getDistance(alert).toFixed(1)} km</span>
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Police Alerts Section */}
+                  {sortedTargets.some((t) => t.alertType === 'police') && (
+                    <section className="rounded-2xl border border-blue-400/15 bg-blue-950/40 p-4">
+                      <p className="mb-3 text-xs uppercase tracking-[0.2em] text-blue-100/70">
+                        Police Alerts ({sortedTargets.filter((t) => t.alertType === 'police').length})
+                      </p>
+                      <div className="space-y-2">
+                        {sortedTargets
+                          .filter((t) => t.alertType === 'police')
+                          .map((alert: any) => (
+                            <button
+                              key={alert.alertId}
+                              onClick={() => handleTargetClick(alert)}
+                              className={`w-full rounded-lg border px-3 py-3 text-left transition hover:bg-blue-500/15 active:scale-95 md:py-2 ${
+                                selectedTargetId === alert.alertId
+                                  ? 'border-blue-400/60 bg-blue-500/20 shadow-[0_0_12px_rgba(59,130,246,0.3)]'
+                                  : 'border-blue-400/20 bg-blue-950/60'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0 flex-1">
+                                  <p className="flex items-center gap-2 text-sm font-semibold text-blue-100">
+                                    <span className="text-lg">👮</span>
+                                    <span className="truncate">{alert.type} - {alert.subtype}</span>
+                                    {alert.alertReliability && (
+                                      <Badge className="ml-auto flex-shrink-0 border-blue-400/40 bg-blue-500/20 text-[10px] text-blue-100 md:text-[9px]">
+                                        ★{alert.alertReliability}
+                                      </Badge>
+                                    )}
+                                  </p>
+                                  <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-blue-100/60">
+                                    <span>{alert.street || alert.city || 'Unknown location'}</span>
+                                    <span>•</span>
+                                    <span>{formatAge(alert.createdAt)}</span>
+                                    <span>•</span>
+                                    <span>{getDistance(alert).toFixed(1)} km</span>
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    </section>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
