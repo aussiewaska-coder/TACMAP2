@@ -341,50 +341,27 @@ export function FlightControlCenter() {
     };
   }, [map, isLoaded, isAutoRotating]);
 
-  // Auto-orbit
+  // Auto-orbit - keep target centered, rotate bearing around it
   useEffect(() => {
     if (!map || !isLoaded || !isAutoOrbiting || !orbitCenter) return;
 
     const centerLng = orbitCenter[0];
     const centerLat = orbitCenter[1];
-    const currentPos = map.getCenter();
-
-    // Calculate initial radius from current position to orbit center
-    const initialRadius = Math.sqrt(
-      Math.pow(currentPos.lng - centerLng, 2) + Math.pow(currentPos.lat - centerLat, 2)
-    );
-
-    let angle = orbitStartAngleRef.current ?? 0;
+    let currentBearing = map.getBearing();
     let lastTime = performance.now();
-    let currentRadius = initialRadius; // Start from current distance
-    let currentSpeed = orbitSpeedRef.current * 0.1;
-    let currentDirection = orbitDirectionRef.current;
-    const easeInDuration = 2000;
-    const startTime = performance.now();
+    const orbitSpeed = 45; // degrees per second
 
     const orbit = (currentTime: number) => {
       if (!map || !isAutoOrbiting) return;
       const deltaTime = currentTime - lastTime;
-      const elapsed = currentTime - startTime;
-      const easeInProgress = Math.min(elapsed / easeInDuration, 1);
-      const easeFactor = 1 - Math.pow(1 - easeInProgress, 3);
 
-      currentRadius += (orbitRadiusRef.current - currentRadius) * Math.min(easeFactor * 0.05, 0.05);
-      currentSpeed += (orbitSpeedRef.current - currentSpeed) * Math.min(easeFactor * 0.05, 0.05);
-      currentDirection += (orbitDirectionRef.current - currentDirection) * 0.1;
+      // Rotate bearing smoothly (target stays centered)
+      currentBearing += (deltaTime / 1000) * orbitSpeed;
+      if (currentBearing >= 360) currentBearing -= 360;
 
-      const frameAdjustedSpeed = -currentSpeed * currentDirection * (deltaTime / 1000);
-      angle += frameAdjustedSpeed;
-
-      const newCenter: [number, number] = [
-        centerLng + Math.cos(angle) * currentRadius,
-        centerLat + Math.sin(angle) * currentRadius,
-      ];
-      map.setCenter(newCenter);
-
-      const dx = centerLng - newCenter[0];
-      const dy = centerLat - newCenter[1];
-      map.setBearing((Math.atan2(dx, dy) * 180) / Math.PI);
+      // Always keep target at center
+      map.setCenter([centerLng, centerLat]);
+      map.setBearing(currentBearing);
 
       lastTime = currentTime;
       orbitFrameRef.current = requestAnimationFrame(orbit);
