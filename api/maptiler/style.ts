@@ -3,7 +3,7 @@
 // Transforms tile URLs to use our tile proxy
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createClient } from '@vercel/kv';
+import { Redis } from 'ioredis';
 
 interface StyleJSON {
   sources?: Record<string, any>;
@@ -26,59 +26,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     // Try Redis cache first
-    const kvUrl = process.env.KV_REST_API_URL;
-    const kvToken = process.env.KV_REST_API_TOKEN;
+    const redisUrl = process.env.REDIS_URL;
 
     console.log('[MapTiler Style Cache] Redis config:', {
-      hasUrl: !!kvUrl,
-      hasToken: !!kvToken,
+      hasRedisUrl: !!redisUrl,
       styleId,
       cacheKey
     });
 
-    if (kvUrl && kvToken) {
-      const redis = createClient({ url: kvUrl, token: kvToken });
+    if (redisUrl) {
+      const redis = new Redis(redisUrl, {
+        maxRetriesPerRequest: 3,
+        enableOfflineQueue: false,
+      });
       console.log('[MapTiler Style Cache] Redis client created');
 
-      // Check cache
-      const cached = await redis.get(cacheKey);
-      const timestamp = await redis.get(`${cacheKey}:timestamp`);
+      try {
+        // Check cache
+        const cached = await redis.get(cacheKey);
+        const timestamp = await redis.get(`${cacheKey}:timestamp`);
 
-      console.log('[MapTiler Style Cache] Cache lookup:', {
-        hasCached: !!cached,
-        hasTimestamp: !!timestamp
-      });
-
-      if (cached && timestamp) {
-        const age = Date.now() - parseInt(timestamp as string, 10);
-        const isStale = age > 86400000; // 1 day in ms
-        const isExpired = age > 604800000; // 7 days in ms
-
-        console.log('[MapTiler Style Cache] Cache status:', {
-          ageSeconds: Math.floor(age / 1000),
-          isStale,
-          isExpired
+        console.log('[MapTiler Style Cache] Cache lookup:', {
+          hasCached: !!cached,
+          hasTimestamp: !!timestamp
         });
 
-        if (!isExpired) {
-          // Set aggressive cache headers
-          res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-          res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
-          res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
+        if (cached && timestamp) {
+          const age = Date.now() - parseInt(timestamp, 10);
+          const isStale = age > 86400000; // 1 day in ms
+          const isExpired = age > 604800000; // 7 days in ms
 
-          console.log('[MapTiler Style Cache] ✅ CACHE HIT - Serving from Redis');
+          console.log('[MapTiler Style Cache] Cache status:', {
+            ageSeconds: Math.floor(age / 1000),
+            isStale,
+            isExpired
+          });
 
-          // Background refresh if stale
-          if (isStale) {
-            console.log('[MapTiler Style Cache] Triggering background refresh (stale)');
-            refreshStyle(styleId as string, key as string, redis).catch(console.error);
+          if (!isExpired) {
+            // Set aggressive cache headers
+            res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+            res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
+            res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
+
+            console.log('[MapTiler Style Cache] ✅ CACHE HIT - Serving from Redis');
+
+            // Background refresh if stale
+            if (isStale) {
+              console.log('[MapTiler Style Cache] Triggering background refresh (stale)');
+              refreshStyle(styleId as string, key as string, redisUrl).catch(console.error);
+            }
+
+            await redis.quit();
+            return res.status(200).json(JSON.parse(cached));
           }
-
-          return res.status(200).json(JSON.parse(cached as string));
         }
+      } finally {
+        await redis.quit();
       }
     } else {
-      console.warn('[MapTiler Style Cache] ⚠️ Redis not configured - KV env vars missing');
+      console.warn('[MapTiler Style Cache] ⚠️ Redis not configured - REDIS_URL missing');
     }
 
     // Fetch fresh style from MapTiler
@@ -96,14 +102,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const transformedStyle = transformStyleToUseProxy(styleJson, req.headers.host || '');
 
     // Cache in Redis
-    if (kvUrl && kvToken) {
+    if (redisUrl) {
       console.log('[MapTiler Style Cache] Writing to Redis cache');
-      const redis = createClient({ url: kvUrl, token: kvToken });
-      await redis.set(cacheKey, JSON.stringify(transformedStyle));
-      await redis.set(`${cacheKey}:timestamp`, Date.now().toString());
-      await redis.expire(cacheKey, 604800); // 7 days
-      await redis.expire(`${cacheKey}:timestamp`, 604800);
-      console.log('[MapTiler Style Cache] ✅ Cached in Redis (TTL: 7 days)');
+      const redis = new Redis(redisUrl);
+      try {
+        await redis.set(cacheKey, JSON.stringify(transformedStyle), 'EX', 604800); // 7 days
+        await redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 604800);
+        console.log('[MapTiler Style Cache] ✅ Cached in Redis (TTL: 7 days)');
+      } finally {
+        await redis.quit();
+      }
     }
 
     // Set cache headers
@@ -172,7 +180,8 @@ function transformStyleToUseProxy(style: StyleJSON, host: string): StyleJSON {
 /**
  * Background refresh of style JSON
  */
-async function refreshStyle(styleId: string, key: string, redis: any): Promise<void> {
+async function refreshStyle(styleId: string, key: string, redisUrl: string): Promise<void> {
+  const redis = new Redis(redisUrl);
   try {
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${key}`;
     const response = await fetch(styleUrl);
@@ -182,11 +191,12 @@ async function refreshStyle(styleId: string, key: string, redis: any): Promise<v
     const styleJson = await response.json();
     const cacheKey = `maptiler:style:${styleId}`;
 
-    await redis.set(cacheKey, JSON.stringify(styleJson));
-    await redis.set(`${cacheKey}:timestamp`, Date.now().toString());
-    await redis.expire(cacheKey, 604800);
-    await redis.expire(`${cacheKey}:timestamp`, 604800);
+    await redis.set(cacheKey, JSON.stringify(styleJson), 'EX', 604800);
+    await redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 604800);
+    console.log('[MapTiler Style Cache] Background refresh completed');
   } catch (error) {
     console.error('Background style refresh failed:', error);
+  } finally {
+    await redis.quit();
   }
 }
