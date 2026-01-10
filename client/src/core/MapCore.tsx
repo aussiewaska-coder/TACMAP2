@@ -348,6 +348,12 @@ export function MapCore({ className = '' }: MapCoreProps) {
             const initialCenter = maptilerView.center;
             const initialZoom = maptilerView.zoom;
 
+            // Australia bounds with offshore allowance
+            const australiaBounds: [[number, number], [number, number]] = [
+                [108, -46],  // Southwest: west of WA, south of Tasmania
+                [162, -8],   // Northeast: east of Queensland, north of Torres Strait
+            ];
+
             const map = new maptilersdk.Map({
                 container: containerRef.current,
                 style: resolveMapStyle(maptilerStyle),
@@ -359,6 +365,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 maxZoom: MAP_CONFIG.MAX_ZOOM,
                 maxPitch: 85,
                 attributionControl: false,
+                maxBounds: australiaBounds,
             });
 
             // Navigation controls handled by CameraControls component
