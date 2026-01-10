@@ -1,11 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer } from '@/core';
 import { AlertsSidebar } from './AlertsSidebar';
 import { UserLocationLayer } from '@/layers/live/UserLocationLayer';
-import { MapProviderSwitcher } from './MapProviderSwitcher';
 
 export function ReconLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true); // Start collapsed
+  const [initialized, setInitialized] = useState(false);
+
+  // On desktop, auto-expand after mount
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    if (!isMobile) {
+      // Small delay for smooth entrance animation on desktop
+      const timer = setTimeout(() => {
+        setCollapsed(false);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+    setInitialized(true);
+  }, []);
 
   return (
     <div className="relative h-screen w-full overflow-hidden bg-slate-950 text-white">
@@ -20,9 +33,6 @@ export function ReconLayout() {
 
       <AlertsSidebar collapsed={collapsed} onToggle={() => setCollapsed((prev) => !prev)} />
       <UserLocationLayer />
-      <div className="absolute bottom-4 right-4 z-40">
-        <MapProviderSwitcher />
-      </div>
     </div>
   );
 }

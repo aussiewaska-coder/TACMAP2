@@ -5,23 +5,24 @@ import { useMapProviderStore } from '@/stores';
 
 const PROVIDERS = [
   {
-    id: 'mapbox' as const,
-    name: 'Mapbox',
-    summary: 'Gold-standard rendering engine with premium vector styles.',
-    envKey: 'VITE_MAPBOX_ACCESS_TOKEN',
-    badge: 'Default',
-    accent: 'from-amber-400/20 via-orange-400/10 to-transparent',
-    glow: 'shadow-amber-500/20',
-  },
-  {
     id: 'maptiler' as const,
     name: 'MapTiler',
-    summary: 'Open-source engine (MapLibre) with privacy-first basemaps.',
+    summary: 'Gold-standard rendering engine with premium vector styles.',
     envKey: 'VITE_MAPTILER_API_KEY',
-    badge: 'Open-source',
+    badge: 'Default',
     accent: 'from-emerald-400/20 via-cyan-400/10 to-transparent',
     glow: 'shadow-emerald-500/20',
   },
+  // Mapbox hidden - MapTiler only focus
+  // {
+  //   id: 'mapbox' as const,
+  //   name: 'Mapbox',
+  //   summary: 'Open-source engine (MapLibre) with privacy-first basemaps.',
+  //   envKey: 'VITE_MAPBOX_ACCESS_TOKEN',
+  //   badge: 'Open-source',
+  //   accent: 'from-amber-400/20 via-orange-400/10 to-transparent',
+  //   glow: 'shadow-amber-500/20',
+  // },
 ];
 
 export default function Home() {
