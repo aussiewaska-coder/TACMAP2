@@ -215,7 +215,7 @@ function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSp
         const styleId =
             maptilerStyle ||
             (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) ||
-            '019ba5e4-9d97-74d1-bac9-f2e25b888881';
+            '019ba6b7-5a01-7042-bc9a-d1ace6393958';
         if (apiKey) {
             // Use our caching proxy instead of direct MapTiler API
             // This reduces API requests by 95%+ via Redis caching
