@@ -241,10 +241,10 @@ function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification
         usingProxy: true,
     });
 
-    // ✅ ALWAYS use server proxy (handles CORS, caching, fallback)
-    // Server will cache in Redis and return cached style if MapTiler API fails
-    // Fallback to OSM style if proxy fails
-    return `/api/maptiler-proxy?path=${encodeURIComponent(`/maps/${styleId}/style.json`)}`;
+    // ✅ Use Vercel serverless endpoint with Redis caching
+    // Endpoint handles: caching, MapTiler fallback, style transformation
+    const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
+    return `/api/maptiler/style?styleId=${styleId}&key=${apiKey}`;
 }
 
 function ensureBaseOverlays(map: maptilersdk.Map) {
