@@ -52,6 +52,61 @@ const MAPTILER_STYLES = [
   { id: 'satellite', label: 'Satellite' },
 ];
 
+// ATAK Maps - organized by provider (filtered to standard TMS format only)
+const ATAK_MAPS_BY_PROVIDER = [
+  {
+    provider: 'Google',
+    maps: [
+      { id: 'atak-google-roadmap', label: 'Google - Roadmap', url: 'http://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}' },
+      { id: 'atak-google-satellite', label: 'Google - Satellite', url: 'http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}' },
+      { id: 'atak-google-hybrid', label: 'Google - Hybrid', url: 'http://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}' },
+      { id: 'atak-google-terrain', label: 'Google - Terrain', url: 'http://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}' },
+    ],
+  },
+  {
+    provider: 'Esri',
+    maps: [
+      { id: 'atak-esri-world-topo', label: 'Esri - World Topo', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-esri-nat-geo', label: 'Esri - Nat Geo World', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-esri-usa-topo', label: 'Esri - USA Topo Maps', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/USA_Topo_Maps/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-esri-clarity', label: 'Esri - Clarity', url: 'http://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}' },
+    ],
+  },
+  {
+    provider: 'USGS',
+    maps: [
+      { id: 'atak-usgs-topo', label: 'USGS - Topo', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-usgs-imagery', label: 'USGS - Imagery Only', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-usgs-imagery-topo', label: 'USGS - Imagery Topo', url: 'https://basemap.nationalmap.gov/ArcGIS/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-usgs-shaded-relief', label: 'USGS - Shaded Relief', url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}' },
+    ],
+  },
+  {
+    provider: 'NAIP (USDA)',
+    maps: [
+      { id: 'atak-naip-conus-prime', label: 'NAIP - USDA CONUS Prime', url: 'https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{z}/{y}/{x}' },
+      { id: 'atak-naip-national-map', label: 'NAIP - USGS National Map', url: 'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/tile/{z}/{y}/{x}' },
+    ],
+  },
+  {
+    provider: 'OpenSeaMap',
+    maps: [
+      { id: 'atak-openseamap-base', label: 'OpenSeaMap - Base Chart', url: 'https://t2.openseamap.org/tiles/base/{z}/{x}/{y}.png' },
+      { id: 'atak-openseamap-seamarks', label: 'OpenSeaMap - Seamarks', url: 'https://t1.openseamap.org/seamark/{z}/{x}/{y}.png' },
+    ],
+  },
+  {
+    provider: 'Specialty',
+    maps: [
+      { id: 'atak-cycleosm', label: 'CycleOSM - Bike Routes', url: 'https://a.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png' },
+      { id: 'atak-mtbmap', label: 'MTBMap - Mountain Bike', url: 'http://tile.mtbmap.cz/mtbmap_tiles/{z}/{x}/{y}.png' },
+      { id: 'atak-finland', label: 'Finland - National Land Survey', url: 'https://tiles.kartat.kapsi.fi/peruskartta/{z}/{x}/{y}.jpg' },
+      { id: 'atak-poland', label: 'Poland - Ortofoto Std', url: 'https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&TILEMATRIXSET=EPSG:3857&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg' },
+      { id: 'atak-canada-topo', label: 'Canada - Toporama', url: 'https://maps.geogratis.gc.ca/wms/toporama_en?' },
+    ],
+  },
+];
+
 const PANEL_MARGIN = 16;
 
 type AlertMode = 'emergency' | 'police';
@@ -252,6 +307,10 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   const [targetFilter, setTargetFilter] = useState<'all' | 'emergency' | 'police'>('all');
   const [targetSort, setTargetSort] = useState<'severity' | 'time' | 'distance'>('severity');
 
+  // ATAK Maps state
+  const [selectedAtakMapId, setSelectedAtakMapId] = useState<string | null>(null);
+  const [expandedAtakProvider, setExpandedAtakProvider] = useState<string | null>(null);
+
   const hasAutoSwept = useRef(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
@@ -400,6 +459,72 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
     const url = new URL(window.location.href);
     url.searchParams.set('maptilerStyle', styleId);
     window.history.replaceState(null, '', url.toString());
+  };
+
+  /**
+   * Handle switching to an ATAK map (custom TMS source)
+   * Adds or updates a raster source with the ATAK map tiles
+   */
+  const handleAtakMapSelect = (mapId: string, mapUrl: string) => {
+    if (!map || !isLoaded) {
+      toast.error('Map not ready', { description: 'Please wait for map to load', duration: 2000 });
+      return;
+    }
+
+    try {
+      setSelectedAtakMapId(mapId);
+
+      // Source ID for ATAK maps
+      const sourceId = 'atak-tiles';
+      const layerId = 'atak-layer';
+
+      // Remove existing ATAK layer and source if present
+      if (map.getLayer(layerId)) {
+        map.removeLayer(layerId);
+      }
+      if (map.getSource(sourceId)) {
+        map.removeSource(sourceId);
+      }
+
+      // Add new raster source with ATAK map tiles
+      map.addSource(sourceId, {
+        type: 'raster',
+        url: mapUrl,
+        tileSize: 256,
+      });
+
+      // Add raster layer
+      map.addLayer({
+        id: layerId,
+        type: 'raster',
+        source: sourceId,
+        paint: {},
+      });
+
+      // Move ATAK layer below any annotation layers
+      const layers = map.getStyle().layers;
+      if (layers) {
+        for (let i = layers.length - 1; i >= 0; i--) {
+          const layer = layers[i];
+          if (layer.id && (layer.id.includes('label') || layer.id.includes('annotation'))) {
+            map.moveLayer(layerId, layer.id);
+            break;
+          }
+        }
+      }
+
+      // Find map label and show toast
+      const selectedMap = ATAK_MAPS_BY_PROVIDER.flatMap(p => p.maps).find(m => m.id === mapId);
+      if (selectedMap) {
+        toast.success('Map loaded', { description: selectedMap.label, duration: 2000 });
+      }
+    } catch (error) {
+      console.error('Error loading ATAK map:', error);
+      toast.error('Failed to load map', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+        duration: 2000,
+      });
+    }
   };
 
   const utils = trpc.useUtils();
@@ -1270,6 +1395,63 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
                     );
                   })}
                 </div>
+              </section>
+
+              {/* ATAK Maps */}
+              <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">ATAK Maps</p>
+                    <p className="text-sm text-emerald-100/70">Global reference layers</p>
+                  </div>
+                  <Badge className="rounded-full border border-purple-400/30 bg-purple-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-purple-100">
+                    {selectedAtakMapId ? '✓' : 'Browse'}
+                  </Badge>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {ATAK_MAPS_BY_PROVIDER.map((providerGroup) => (
+                    <div key={providerGroup.provider} className="rounded-lg border border-purple-400/20 bg-purple-950/30">
+                      {/* Provider Header */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedAtakProvider(
+                            expandedAtakProvider === providerGroup.provider ? null : providerGroup.provider
+                          )
+                        }
+                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-500/10 transition rounded-lg"
+                      >
+                        <span>{providerGroup.provider}</span>
+                        <span className="text-purple-100/60 text-xs">
+                          {expandedAtakProvider === providerGroup.provider ? '▼' : '▶'}
+                        </span>
+                      </button>
+
+                      {/* Maps List (Expandable) */}
+                      {expandedAtakProvider === providerGroup.provider && (
+                        <div className="border-t border-purple-400/10 px-3 py-2 space-y-1">
+                          {providerGroup.maps.map((mapItem) => (
+                            <button
+                              key={mapItem.id}
+                              type="button"
+                              onClick={() => handleAtakMapSelect(mapItem.id, mapItem.url)}
+                              className={`w-full text-left px-3 py-2 rounded text-xs font-medium transition active:scale-[0.98] ${
+                                selectedAtakMapId === mapItem.id
+                                  ? 'bg-purple-400/30 text-purple-100 border border-purple-400/50'
+                                  : 'bg-purple-950/50 text-purple-100/70 hover:bg-purple-500/20'
+                              }`}
+                            >
+                              {mapItem.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-emerald-100/50">
+                  Load reference basemaps from various providers. Click provider to expand and browse available maps.
+                </p>
               </section>
 
               {/* Map info */}
