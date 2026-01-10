@@ -298,6 +298,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<maptilersdk.Map | null>(null);
     const driftCleanupRef = useRef<(() => void) | null>(null);
+    const constrainZoomRef = useRef<(() => void) | null>(null);
     const panLockRef = useRef<{ pitch: number; bearing: number; zoom: number } | null>(null);
 
     const setMap = useMapStore((state) => state.setMap);
@@ -322,6 +323,11 @@ export function MapCore({ className = '' }: MapCoreProps) {
         setMap(null);
         setLoaded(false);
         try {
+            // Remove zoom constraint handlers
+            if (constrainZoomRef.current) {
+                mapToDestroy.off('zoom', constrainZoomRef.current);
+                mapToDestroy.off('move', constrainZoomRef.current);
+            }
             mapToDestroy.remove();
         } catch {
             // ignore cleanup errors
@@ -348,11 +354,13 @@ export function MapCore({ className = '' }: MapCoreProps) {
             const initialCenter = maptilerView.center;
             const initialZoom = maptilerView.zoom;
 
-            // Australia bounds with offshore allowance
-            const australiaBounds: [[number, number], [number, number]] = [
-                [108, -46],  // Southwest: west of WA, south of Tasmania
-                [162, -8],   // Northeast: east of Queensland, north of Torres Strait
-            ];
+            // Australia bounds for zoom constraint
+            const australiaBounds = {
+                west: 108,
+                south: -46,
+                east: 162,
+                north: -8,
+            };
 
             const map = new maptilersdk.Map({
                 container: containerRef.current,
@@ -365,7 +373,6 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 maxZoom: MAP_CONFIG.MAX_ZOOM,
                 maxPitch: 85,
                 attributionControl: false,
-                maxBounds: australiaBounds,
             });
 
             // Navigation controls handled by CameraControls component
@@ -385,6 +392,25 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 }),
                 'bottom-right'
             );
+
+            // Constrain zoom outside Australia
+            const constrainZoom = () => {
+                const center = map.getCenter();
+                const zoom = map.getZoom();
+                const isOutsideAustralia =
+                    center.lng < australiaBounds.west ||
+                    center.lng > australiaBounds.east ||
+                    center.lat < australiaBounds.south ||
+                    center.lat > australiaBounds.north;
+
+                if (isOutsideAustralia && zoom > 5) {
+                    map.setZoom(5);
+                }
+            };
+
+            constrainZoomRef.current = constrainZoom;
+            map.on('zoom', constrainZoom);
+            map.on('move', constrainZoom);
 
             // Add controls
             map.on('load', () => {
