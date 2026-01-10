@@ -457,10 +457,28 @@ export function FlightControlCenter() {
 
       // Forward flight
       const bearingRad = (bearing * Math.PI) / 180;
-      map.setCenter([
+      const newCenter: [number, number] = [
         center.lng + Math.sin(bearingRad) * frameAdjustedSpeed,
         center.lat + Math.cos(bearingRad) * frameAdjustedSpeed,
-      ]);
+      ];
+      map.setCenter(newCenter);
+
+      // Check if close to target - if so, start orbiting
+      if (targetLocation) {
+        const dx = targetLocation[0] - newCenter[0];
+        const dy = targetLocation[1] - newCenter[1];
+        const distanceToTarget = Math.sqrt(dx * dx + dy * dy);
+        const arrivalThreshold = 0.01; // ~1km at typical zoom
+
+        if (distanceToTarget < arrivalThreshold) {
+          // Arrived at target - transition to orbit
+          setIsFlightMode(false);
+          orbitStartAngleRef.current = -(bearing + 90) * Math.PI / 180;
+          setOrbitCenter(targetLocation);
+          setIsAutoOrbiting(true);
+          return; // Stop flight loop, orbit will take over
+        }
+      }
 
       lastTime = currentTime;
       flightFrameRef.current = requestAnimationFrame(fly);
