@@ -72,6 +72,8 @@ export function FlightControlCenter() {
   const [currentZoom, setCurrentZoom] = useState(0);
   const [currentBearing, setCurrentBearing] = useState(0);
   const [currentPitch, setCurrentPitch] = useState(0);
+  const [activeMagnification, setActiveMagnification] = useState<null | '5x' | '10x'>(null);
+  const [baseZoomRef, setBaseZoomRef] = useState(0);
 
 
   const rotationFrameRef = useRef<number | undefined>(undefined);
@@ -613,6 +615,26 @@ export function FlightControlCenter() {
     flightAltitudeDeltaRef.current = 0;
   };
 
+  // Quick magnification switchers
+  const toggleMagnification = (level: '5x' | '10x') => {
+    if (!map) return;
+
+    if (activeMagnification === level) {
+      // Toggle off - return to base zoom
+      animateTo({ zoom: baseZoomRef, duration: 1500 });
+      setActiveMagnification(null);
+    } else {
+      // Toggle on - store current zoom if not already set, then zoom in
+      if (activeMagnification === null) {
+        setBaseZoomRef(currentZoom);
+      }
+      const zoomMultiplier = level === '5x' ? 5 : 10;
+      const targetZoom = (activeMagnification === null ? currentZoom : baseZoomRef) + Math.log2(zoomMultiplier);
+      animateTo({ zoom: targetZoom, duration: 1500 });
+      setActiveMagnification(level);
+    }
+  };
+
   if (!isLoaded) return null;
 
   return (
@@ -844,6 +866,41 @@ export function FlightControlCenter() {
                 ))}
               </div>
             </div>
+
+            {/* Flight Quick View Magnification */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Quick Views</div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => toggleMagnification('5x')}
+                  className={cn(
+                    'flex-1 h-7 text-xs font-bold transition-all border',
+                    activeMagnification === '5x'
+                      ? 'bg-amber-600/60 border-amber-400/60 text-white'
+                      : 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-700/60'
+                  )}
+                  title="5x magnification snap"
+                >
+                  5X
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => toggleMagnification('10x')}
+                  className={cn(
+                    'flex-1 h-7 text-xs font-bold transition-all border',
+                    activeMagnification === '10x'
+                      ? 'bg-red-600/60 border-red-400/60 text-white'
+                      : 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-700/60'
+                  )}
+                  title="10x magnification snap"
+                >
+                  10X
+                </Button>
+              </div>
+            </div>
           </>
         ) : (
           <>
@@ -867,6 +924,41 @@ export function FlightControlCenter() {
                 <Button size="sm" variant="ghost" onClick={() => adjustZoom(-1)}
                   className="flex-1 h-7 text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">
                   <Minus className="size-3 mr-1" /> Down
+                </Button>
+              </div>
+            </div>
+
+            {/* Quick View Magnification */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Quick Views</div>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => toggleMagnification('5x')}
+                  className={cn(
+                    'flex-1 h-7 text-xs font-bold transition-all border',
+                    activeMagnification === '5x'
+                      ? 'bg-amber-600/60 border-amber-400/60 text-white'
+                      : 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-700/60'
+                  )}
+                  title="5x magnification snap"
+                >
+                  5X
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => toggleMagnification('10x')}
+                  className={cn(
+                    'flex-1 h-7 text-xs font-bold transition-all border',
+                    activeMagnification === '10x'
+                      ? 'bg-red-600/60 border-red-400/60 text-white'
+                      : 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-700/60'
+                  )}
+                  title="10x magnification snap"
+                >
+                  10X
                 </Button>
               </div>
             </div>
