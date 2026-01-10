@@ -69,6 +69,14 @@ export function FlightControlCenter() {
   const [currentBearing, setCurrentBearing] = useState(0);
   const [currentPitch, setCurrentPitch] = useState(0);
 
+  // Map layer visibility
+  const [layers, setLayers] = useState({
+    landuse: false,
+    geology: false,
+    bushfire: false,
+    terrain: true,
+  });
+
   const rotationFrameRef = useRef<number | undefined>(undefined);
   const orbitFrameRef = useRef<number | undefined>(undefined);
   const flightFrameRef = useRef<number | undefined>(undefined);
@@ -307,6 +315,37 @@ export function FlightControlCenter() {
     if (map) map.easeTo({ bearing: 0, duration: 500 });
   };
 
+  // Toggle map layer visibility
+  const toggleLayer = (layerId: keyof typeof layers) => {
+    if (!map) return;
+
+    const layerMap: Record<string, string> = {
+      landuse: 'gov-landuse-layer',
+      geology: 'gov-geology-layer',
+      bushfire: 'gov-bushfire-layer',
+    };
+
+    const mapLayerId = layerMap[layerId];
+    if (mapLayerId && map.getLayer(mapLayerId)) {
+      const newState = !layers[layerId];
+      map.setLayoutProperty(mapLayerId, 'visibility', newState ? 'visible' : 'none');
+      setLayers(prev => ({ ...prev, [layerId]: newState }));
+    }
+
+    // Terrain toggle
+    if (layerId === 'terrain') {
+      const newState = !layers.terrain;
+      if (map.getSource('terrain-source')) {
+        if (newState) {
+          map.setTerrain({ source: 'terrain-source', exaggeration: 1.5 });
+        } else {
+          map.setTerrain(null as any);
+        }
+      }
+      setLayers(prev => ({ ...prev, terrain: newState }));
+    }
+  };
+
   if (!isLoaded) return null;
 
   return (
@@ -445,6 +484,46 @@ export function FlightControlCenter() {
               >
                 {p}°
               </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Map Layers */}
+        <div className="p-3 border-b border-slate-800/50">
+          <div className="text-[9px] text-slate-500 uppercase mb-2">Layers</div>
+          <div className="grid grid-cols-2 gap-1">
+            {[
+              { id: 'terrain' as const, label: 'Terrain', color: 'emerald' },
+              { id: 'bushfire' as const, label: 'Bushfire', color: 'orange' },
+              { id: 'landuse' as const, label: 'Land Use', color: 'purple' },
+              { id: 'geology' as const, label: 'Geology', color: 'amber' },
+            ].map(({ id, label, color }) => (
+              <button
+                key={id}
+                onClick={() => toggleLayer(id)}
+                className={cn(
+                  "text-[10px] px-2 py-1.5 rounded border transition-all font-medium",
+                  layers[id]
+                    ? `bg-${color}-600/40 border-${color}-500/50 text-${color}-300`
+                    : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-700/60"
+                )}
+                style={layers[id] ? {
+                  backgroundColor: color === 'emerald' ? 'rgba(16, 185, 129, 0.4)' :
+                                   color === 'orange' ? 'rgba(249, 115, 22, 0.4)' :
+                                   color === 'purple' ? 'rgba(168, 85, 247, 0.4)' :
+                                   'rgba(245, 158, 11, 0.4)',
+                  borderColor: color === 'emerald' ? 'rgba(16, 185, 129, 0.5)' :
+                               color === 'orange' ? 'rgba(249, 115, 22, 0.5)' :
+                               color === 'purple' ? 'rgba(168, 85, 247, 0.5)' :
+                               'rgba(245, 158, 11, 0.5)',
+                  color: color === 'emerald' ? 'rgb(110, 231, 183)' :
+                         color === 'orange' ? 'rgb(253, 186, 116)' :
+                         color === 'purple' ? 'rgb(216, 180, 254)' :
+                         'rgb(252, 211, 77)',
+                } : undefined}
+              >
+                {label}
+              </button>
             ))}
           </div>
         </div>
