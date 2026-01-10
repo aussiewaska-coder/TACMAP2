@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { MapContainer } from '@/core';
 import { AlertsSidebar } from './AlertsSidebar';
 import { UserLocationLayer } from '@/layers/live/UserLocationLayer';
+import { MapProviderSwitcher } from './MapProviderSwitcher';
 
 export function ReconLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -19,6 +20,9 @@ export function ReconLayout() {
 
       <AlertsSidebar collapsed={collapsed} onToggle={() => setCollapsed((prev) => !prev)} />
       <UserLocationLayer />
+      <div className="absolute bottom-4 right-4 z-40">
+        <MapProviderSwitcher />
+      </div>
     </div>
   );
 }

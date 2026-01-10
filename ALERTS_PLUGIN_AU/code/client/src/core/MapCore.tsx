@@ -209,10 +209,13 @@ function mapboxTransformRequest(token?: string) {
     };
 }
 
-function resolveMapStyle(provider: MapProvider): StyleSpecification | string {
+function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSpecification | string {
     if (provider === 'maptiler') {
         const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
-        const styleId = (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) || 'streets-v2';
+        const styleId =
+            maptilerStyle ||
+            (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) ||
+            '019ba5e4-9d97-74d1-bac9-f2e25b888881';
         if (apiKey) {
             return `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
         }
@@ -334,6 +337,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const updateViewState = useMapStore((state) => state.updateViewState);
     const terrainExaggeration = useMapStore((state) => state.terrainExaggeration);
     const provider = useMapProviderStore((state) => state.provider);
+    const maptilerStyle = useMapProviderStore((state) => state.maptilerStyle);
 
     // Track current zoom for indicator
     const [currentZoom, setCurrentZoom] = useState<number>(MAP_CONFIG.DEFAULT_ZOOM);
@@ -364,7 +368,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
         if (mapRef.current) {
             if (currentEngineRef.current === engine) {
                 try {
-                    mapRef.current.setStyle(resolveMapStyle(provider));
+                    mapRef.current.setStyle(resolveMapStyle(provider, maptilerStyle));
                 } catch (error) {
                     console.warn('[MapCore] Failed to update map style:', error);
                 }
@@ -389,7 +393,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
 
                 map = new mapboxgl.Map({
                     container: containerRef.current,
-                    style: resolveMapStyle(provider),
+                    style: resolveMapStyle(provider, maptilerStyle),
                     center: MAP_CONFIG.DEFAULT_CENTER,
                     zoom: MAP_CONFIG.DEFAULT_ZOOM,
                     pitch: 60,
@@ -431,7 +435,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
 
                 map = new maplibregl.Map({
                     container: containerRef.current,
-                    style: resolveMapStyle(provider),
+                    style: resolveMapStyle(provider, maptilerStyle),
                     center: initialCenter,
                     zoom: initialZoom,
                     pitch: 60,
@@ -521,7 +525,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
             setError(error instanceof Error ? error : new Error('Failed to initialize map'));
             setInitializing(false);
         }
-    }, [destroyMap, provider, setMap, setLoaded, setInitializing, setError, updateViewState]);
+    }, [destroyMap, provider, maptilerStyle, setMap, setLoaded, setInitializing, setError, updateViewState]);
 
     // Initialize on mount
     useEffect(() => {

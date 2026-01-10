@@ -212,7 +212,9 @@ function mapboxTransformRequest(token?: string) {
 function resolveMapStyle(provider: MapProvider): StyleSpecification | string {
     if (provider === 'maptiler') {
         const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
-        const styleId = (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) || 'streets-v2';
+        const styleId =
+            (import.meta.env.VITE_MAPTILER_STYLE as string | undefined) ||
+            '019ba5e4-9d97-74d1-bac9-f2e25b888881';
         if (apiKey) {
             return `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
         }
