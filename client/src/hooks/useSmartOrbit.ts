@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useMapStore } from '@/stores/mapStore';
-import { easeInOut } from '@/flightSim/easing';
+import { easeInOut } from '@/utils/easing';
 import type { MapMouseEvent, MapTouchEvent } from '@maptiler/sdk';
 
 interface SmartOrbitOptions {

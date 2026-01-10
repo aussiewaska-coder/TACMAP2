@@ -1,7 +1,7 @@
 # TACMAP2 - Claude Code Context
 
-> **CURRENT FOCUS: MapTiler/MapLibre ONLY**
-> All development uses MapTiler as the sole map provider. Ignore Mapbox code paths.
+> **CURRENT FOCUS: MapTiler SDK ONLY**
+> All development uses MapTiler SDK as the sole map engine. No MapLibre/Mapbox direct usage.
 
 ## 🚨 FAULT RESPONSE PROTOCOL - TRIGGERS IMMEDIATELY
 
@@ -39,15 +39,14 @@
 
 ## Critical Rules
 
-1. **MapTiler Only** - Use MapLibre GL JS with MapTiler tiles exclusively
+1. **MapTiler SDK Only** - Use `@maptiler/sdk` exclusively. No direct maplibre-gl or mapbox-gl imports.
 2. **No Mapbox** - Do not add, modify, or reference Mapbox code
 3. **Root Deployment** - App deploys from ROOT directory, not subdirectories
 4. **Safe Map Access** - Never access map instance before `isLoaded` is true
 5. **Terrain Constraint** - When terrain enabled, prevent vertical shift during pan
-6. **NEVER TOUCH `/client/src/flightSim/` FOLDER - THE USER WILL FUCKING MURDER YOU IF YOU EDIT THESE FILES** - This is a separate flight simulator system. DO NOT edit, read, or reference ANY files in this folder unless explicitly asked to "edit the flight simulator". For map camera/orbit controls, ONLY edit `/client/src/components/recon/CameraControls.tsx` and related hooks. **STAY THE FUCK AWAY FROM THE FLIGHT SIMULATOR FOLDER.**
-7. **NEVER HARDCODE VARIABLES** - Always use environment variables. Never bypass env vars with hardcoded values. If an env var isn't working, fix the env var configuration, don't hardcode around it.
-8. **NEVER OVERCOMPLICATE STATE** - Use ONE state variable when ONE will do. Don't create multiple variables that need to stay in sync (e.g., `isConfirming` + `confirmStep`). Just use `confirmStep > 0` for the boolean check. If you find yourself keeping two variables in sync, YOU ARE DOING IT WRONG. Simplify or die.
-9. **NO COMPLEX INTERACTIONS WITHOUT PERMISSION** - If implementing multi-step flows, confirmation dialogs, state machines, or ANY complex UI interaction: STOP. Ask the user first. Explain the approach in plain English. Get explicit approval BEFORE writing the code. Do NOT surprise the user with clever bullshit that doesn't work. SIMPLE FIRST. Complex only with permission.
+6. **NEVER HARDCODE VARIABLES** - Always use environment variables. Never bypass env vars with hardcoded values. If an env var isn't working, fix the env var configuration, don't hardcode around it.
+7. **NEVER OVERCOMPLICATE STATE** - Use ONE state variable when ONE will do. Don't create multiple variables that need to stay in sync (e.g., `isConfirming` + `confirmStep`). Just use `confirmStep > 0` for the boolean check. If you find yourself keeping two variables in sync, YOU ARE DOING IT WRONG. Simplify or die.
+8. **NO COMPLEX INTERACTIONS WITHOUT PERMISSION** - If implementing multi-step flows, confirmation dialogs, state machines, or ANY complex UI interaction: STOP. Ask the user first. Explain the approach in plain English. Get explicit approval BEFORE writing the code. Do NOT surprise the user with clever bullshit that doesn't work. SIMPLE FIRST. Complex only with permission.
 
 ## ⚠️ CRITICAL: VITE ENV VARS & VERCEL DEPLOYMENT - READ THIS OR DIE
 
@@ -254,7 +253,7 @@ echo "// Build: $(date +%s)" > client/src/buildstamp.ts && git add -A && git com
 
 | Layer | Technology |
 |-------|------------|
-| Map Engine | MapLibre GL JS + MapTiler tiles |
+| Map Engine | MapTiler SDK (@maptiler/sdk) |
 | Frontend | React 19, Vite 7, TypeScript 5.9 |
 | State | Zustand (persisted stores) |
 | API Client | tRPC 11.6 + React Query 5.90 |
@@ -287,12 +286,12 @@ WAZE_API_KEY=your-waze-key
 
 | File | Purpose |
 |------|---------|
-| `MapCore.tsx` | MapLibre initialization, terrain, gov layers |
+| `MapCore.tsx` | MapTiler SDK initialization, terrain, gov layers |
 | `MapContainer.tsx` | Responsive map container |
 | `constants.ts` | MAP_CONFIG, AU cities, breakpoints |
 
 **MapCore Responsibilities:**
-- Initialize MapLibre GL with MapTiler style URL
+- Initialize MapTiler SDK with global API key config
 - Add 3D terrain (AWS Terrarium tiles)
 - Add government data layers (land use, geology, bushfire)
 - Sync map instance to Zustand store
@@ -350,7 +349,7 @@ WAZE_API_KEY=your-waze-key
 1. `AlertsSidebar` toggles mode (emergency/police)
 2. Hook fetches data (React Query or tRPC)
 3. `useUnifiedAlerts` normalizes to GeoJSON
-4. Renders MapLibre layers (points, clusters, polygons)
+4. Renders MapTiler SDK layers (points, clusters, polygons)
 5. Click handlers show popups
 
 ## Government Data Layers
@@ -391,7 +390,7 @@ safeRemoveSource(map, 'source-id');
 ```
 
 ### Map Lifecycle
-1. `MapCore` mounts → initializes MapLibre → syncs to Zustand
+1. `MapCore` mounts → initializes MapTiler SDK → syncs to Zustand
 2. Components subscribe to `useMapStore`, wait for `isLoaded=true`
 3. Hooks render layers only after map loaded
 4. Cleanup handlers safely remove layers/sources/events
@@ -406,7 +405,7 @@ Prefix layers with scope:
 
 1. **Accessing map before loaded** - Always check `isLoaded` from `useMapStore`
 2. **Forgetting cleanup** - Use `safeRemoveLayer`/`safeRemoveSource` in useEffect cleanup
-3. **Hardcoding Mapbox** - Use MapTiler/MapLibre APIs only
+3. **Using raw maplibre-gl** - Use `@maptiler/sdk` imports only (it wraps MapLibre)
 4. **Missing terrain lock** - Prevent vertical shift during pan when terrain enabled
 5. **Direct map mutations** - Update via Zustand store actions when possible
 

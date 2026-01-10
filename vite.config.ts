@@ -40,7 +40,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'maplibre-gl'],
+          vendor: ['react', 'react-dom', '@maptiler/sdk'],
           turf: ['@turf/turf'],
         },
       },

@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useMapStore } from '@/stores/mapStore';
-import { easeInOut } from '@/flightSim/easing';
+import { easeInOut } from '@/utils/easing';
 
 interface AnimationState {
   startTime: number;
