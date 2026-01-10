@@ -212,12 +212,23 @@ function mapboxTransformRequest(token?: string) {
 function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSpecification | string {
     if (provider === 'maptiler') {
         const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
-        const styleId = maptilerStyle || import.meta.env.VITE_MAPTILER_STYLE || '019ba6b7-5a01-7042-bc9a-d1ace6393958';
+        const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
+        const styleId = maptilerStyle || envStyleId || '019ba6b7-5a01-7042-bc9a-d1ace6393958';
+
+        console.log('[MapCore] Style resolution:', {
+            provider,
+            maptilerStyle,
+            envStyleId,
+            finalStyleId: styleId,
+            hasApiKey: !!apiKey
+        });
+
         if (apiKey) {
-            // Use our caching proxy instead of direct MapTiler API
-            // This reduces API requests by 95%+ via Redis caching
-            return `/api/maptiler/style?styleId=${styleId}&key=${apiKey}`;
+            const url = `/api/maptiler/style?styleId=${styleId}&key=${apiKey}`;
+            console.log('[MapCore] Using proxy URL:', url);
+            return url;
         }
+        console.warn('[MapCore] No API key, falling back to default style');
     }
 
     if (provider === 'mapbox') {
