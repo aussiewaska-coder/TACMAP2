@@ -69,13 +69,6 @@ export function FlightControlCenter() {
   const [currentBearing, setCurrentBearing] = useState(0);
   const [currentPitch, setCurrentPitch] = useState(0);
 
-  // Map label visibility
-  const [labels, setLabels] = useState({
-    cities: true,
-    suburbs: true,
-    towns: true,
-    roads: true,
-  });
 
   const rotationFrameRef = useRef<number | undefined>(undefined);
   const orbitFrameRef = useRef<number | undefined>(undefined);
@@ -338,40 +331,6 @@ export function FlightControlCenter() {
     if (map) map.easeTo({ bearing: 0, duration: 1500, easing: (t) => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2 });
   };
 
-  // Toggle map label visibility
-  const toggleLabel = (labelId: keyof typeof labels) => {
-    if (!map) return;
-
-    const newState = !labels[labelId];
-
-    // Get all layers and filter by label type patterns
-    const style = map.getStyle();
-    if (!style?.layers) return;
-
-    const patterns: Record<string, RegExp[]> = {
-      cities: [/place.*city/i, /place-city/i, /settlement.*city/i],
-      suburbs: [/place.*suburb/i, /place.*neighbourhood/i, /place.*neighborhood/i, /settlement.*suburb/i],
-      towns: [/place.*town/i, /place.*village/i, /settlement.*town/i, /settlement.*village/i],
-      roads: [/road.*label/i, /highway.*label/i, /street.*label/i, /path.*label/i],
-    };
-
-    const labelPatterns = patterns[labelId] || [];
-
-    style.layers.forEach((layer: any) => {
-      if (layer.type === 'symbol' && layer.id) {
-        const matches = labelPatterns.some(pattern => pattern.test(layer.id));
-        if (matches) {
-          try {
-            map.setLayoutProperty(layer.id, 'visibility', newState ? 'visible' : 'none');
-          } catch {
-            // Layer may not exist
-          }
-        }
-      }
-    });
-
-    setLabels(prev => ({ ...prev, [labelId]: newState }));
-  };
 
   if (!isLoaded) return null;
 
@@ -515,52 +474,6 @@ export function FlightControlCenter() {
           </div>
         </div>
 
-        {/* Map Labels */}
-        <div className="p-3 border-b border-slate-800/50">
-          <div className="text-[9px] text-slate-500 uppercase mb-2">Labels</div>
-          <div className="grid grid-cols-2 gap-1">
-            {[
-              { id: 'cities' as const, label: 'Cities' },
-              { id: 'suburbs' as const, label: 'Suburbs' },
-              { id: 'towns' as const, label: 'Towns' },
-              { id: 'roads' as const, label: 'Roads' },
-            ].map(({ id, label }) => (
-              <button
-                key={id}
-                onClick={() => toggleLabel(id)}
-                className={cn(
-                  "text-[10px] px-2 py-1.5 rounded border transition-all font-medium",
-                  labels[id]
-                    ? "bg-cyan-600/40 border-cyan-500/50 text-cyan-300"
-                    : "bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-700/60"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Orbit Controls */}
-        {isAutoOrbiting && (
-          <div className="p-3 border-b border-cyan-500/30 bg-cyan-950/20">
-            <div className="text-[9px] text-cyan-400 uppercase mb-2">Orbit Control</div>
-            <div className="grid grid-cols-2 gap-1">
-              <Button size="sm" variant="ghost" onClick={() => { orbitRadiusRef.current = Math.max(orbitRadiusRef.current * 0.8, 0.001); }}
-                className="text-xs h-6 bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">R-</Button>
-              <Button size="sm" variant="ghost" onClick={() => { orbitRadiusRef.current = Math.min(orbitRadiusRef.current * 1.2, 1.0); }}
-                className="text-xs h-6 bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">R+</Button>
-              <Button size="sm" variant="ghost" onClick={() => { orbitSpeedRef.current = Math.max(orbitSpeedRef.current * 0.7, 0.02); }}
-                className="text-xs h-6 bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">S-</Button>
-              <Button size="sm" variant="ghost" onClick={() => { orbitSpeedRef.current = Math.min(orbitSpeedRef.current * 1.4, Math.PI * 2); }}
-                className="text-xs h-6 bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">S+</Button>
-            </div>
-            <Button size="sm" variant="ghost" onClick={() => { orbitDirectionRef.current *= -1; }}
-              className="w-full mt-1 text-xs h-6 bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50">
-              Reverse Direction
-            </Button>
-          </div>
-        )}
 
         {/* Notifications Area */}
         <div className="flex-1 p-3 overflow-hidden">

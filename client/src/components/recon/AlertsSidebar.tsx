@@ -53,7 +53,7 @@ const PANEL_MARGIN = 16;
 
 type AlertMode = 'emergency' | 'police';
 type OpsMode = 'all' | 'warning' | 'ground_truth';
-type PanelTab = 'alerts' | 'map' | 'settings';
+type PanelTab = 'alerts' | 'map' | 'settings' | 'controls';
 
 interface AlertsSidebarProps {
   collapsed: boolean;
@@ -236,6 +236,14 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   const [selectedStates, setSelectedStates] = useState<string[]>([...STATES]);
   const [hoursAgo, setHoursAgo] = useState(1);
 
+  // Label visibility state
+  const [labelsVisible, setLabelsVisible] = useState({
+    cities: true,
+    suburbs: true,
+    towns: true,
+    roads: true,
+  });
+
   const hasAutoSwept = useRef(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
@@ -277,6 +285,42 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
       }
     });
   }, [map, showAlertGeometry]);
+
+  // Toggle label visibility
+  const toggleLabel = useCallback((labelType: keyof typeof labelsVisible) => {
+    if (!map) return;
+
+    const layerPatterns: Record<string, string[]> = {
+      cities: ['place_city', 'place-city'],
+      suburbs: ['place_suburb', 'place_neighbourhood', 'place_neighborhood', 'place-suburb'],
+      towns: ['place_town', 'place_village', 'place-town', 'place-village'],
+      roads: ['road_label', 'road-label', 'street_label', 'street-label'],
+    };
+
+    const patterns = layerPatterns[labelType] || [];
+    const style = map.getStyle();
+
+    if (!style?.layers) return;
+
+    const newState = !labelsVisible[labelType];
+
+    style.layers.forEach((layer: any) => {
+      if (layer.type === 'symbol') {
+        const matches = patterns.some(pattern =>
+          layer.id.toLowerCase().includes(pattern.toLowerCase())
+        );
+        if (matches) {
+          try {
+            map.setLayoutProperty(layer.id, 'visibility', newState ? 'visible' : 'none');
+          } catch (e) {
+            // Layer may not exist
+          }
+        }
+      }
+    });
+
+    setLabelsVisible(prev => ({ ...prev, [labelType]: newState }));
+  }, [map, labelsVisible]);
 
   const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -625,6 +669,18 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab('controls')}
+            className={`flex h-12 flex-1 items-center justify-center gap-2 text-sm font-medium transition md:h-10 md:text-xs ${
+              activeTab === 'controls'
+                ? 'border-b-2 border-cyan-400 text-cyan-100'
+                : 'text-emerald-100/50 hover:text-emerald-100/70'
+            }`}
+          >
+            <Plane className="h-4 w-4" />
+            Flight
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab('settings')}
             className={`flex h-12 flex-1 items-center justify-center gap-2 text-sm font-medium transition md:h-10 md:text-xs ${
               activeTab === 'settings'
@@ -949,6 +1005,50 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
                 >
                   Back to Home
                 </button>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'controls' && (
+            <div className="space-y-4 md:space-y-5">
+              {/* Flight Controls */}
+              <section className="rounded-2xl border border-cyan-400/15 bg-cyan-950/40 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/60">Flight</p>
+                    <p className="text-sm text-cyan-100/70">Camera modes</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Map Labels */}
+              <section className="rounded-2xl border border-cyan-400/15 bg-cyan-950/40 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/60">Labels</p>
+                    <p className="text-sm text-cyan-100/70">Place names</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { id: 'cities' as const, label: 'Cities' },
+                    { id: 'suburbs' as const, label: 'Suburbs' },
+                    { id: 'towns' as const, label: 'Towns' },
+                    { id: 'roads' as const, label: 'Roads' },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => toggleLabel(id)}
+                      className={`text-xs px-3 py-2 rounded border font-medium transition ${
+                        labelsVisible[id]
+                          ? 'bg-cyan-600/40 border-cyan-500/50 text-cyan-300'
+                          : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </section>
             </div>
           )}
