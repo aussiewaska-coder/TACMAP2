@@ -23,6 +23,7 @@ export const useMapProviderStore = create<MapProviderState>()(
         }),
         {
             name: 'reconmap-provider',
+            version: 2,
         }
     )
 );
