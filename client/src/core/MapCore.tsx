@@ -215,16 +215,15 @@ function startMaptilerDrift(map: maptilersdk.Map, shouldOrbit: () => boolean) {
 }
 
 /**
- * Resolve MapTiler style - use server proxy in production, direct API in dev
+ * Resolve MapTiler style - use server proxy with Redis caching & fallback
  *
- * Production (/api/maptiler-proxy):
+ * ✅ ALWAYS uses /api/maptiler-proxy (even in dev)
  * - Caches responses in Redis for 24 hours
  * - Returns cached data when API rate limit (429) is hit
- * - Enables graceful degradation when MapTiler hits rate limit
+ * - Fallback to OpenStreetMap if all else fails
+ * - No CORS issues (server-to-server requests)
  *
- * Development (direct API):
- * - Uses direct MapTiler API (no caching)
- * - Simpler for local development
+ * This ensures the map ALWAYS renders even if MapTiler API is down
  */
 function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification | string {
     const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
@@ -239,13 +238,13 @@ function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification
         maptilerStyle,
         envStyleId,
         finalStyleId: styleId,
-        environment: import.meta.env.MODE,
+        usingProxy: true,
     });
 
-    // Use direct MapTiler API (works immediately, no proxy needed)
-    // Future: Can implement /api/maptiler-proxy for Redis caching on Vercel
-    // MapTiler SDK handles API key automatically via maptilersdk.config.apiKey
-    return `https://api.maptiler.com/maps/${styleId}/style.json?key=${MAPTILER_API_KEY}`;
+    // ✅ ALWAYS use server proxy (handles CORS, caching, fallback)
+    // Server will cache in Redis and return cached style if MapTiler API fails
+    // Fallback to OSM style if proxy fails
+    return `/api/maptiler-proxy?path=${encodeURIComponent(`/maps/${styleId}/style.json`)}`;
 }
 
 function ensureBaseOverlays(map: maptilersdk.Map) {
