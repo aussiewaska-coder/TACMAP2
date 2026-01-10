@@ -38,6 +38,11 @@ export default function Home() {
     setLocation(`/map?provider=${providerId}`);
   };
 
+  const handleLaunchFlightSim = () => {
+    setProvider('maptiler');
+    setLocation('/flight-sim');
+  };
+
   return (
     <div
       className="relative min-h-screen overflow-hidden bg-slate-950 text-white"
@@ -150,6 +155,24 @@ export default function Home() {
                   </button>
                 );
               })}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-emerald-400/30 bg-emerald-400/5 p-4 shadow-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">Flight Simulator</p>
+                  <h3 className="mt-1 text-lg font-semibold text-emerald-200">Cinematic MapTiler Flight</h3>
+                  <p className="mt-1 text-sm text-emerald-50/70">Launch the stealth aircraft sim (MapLibre + MapTiler, orbit + click-to-target).</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLaunchFlightSim}
+                  className="rounded-full border border-emerald-300/60 bg-emerald-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100 transition hover:border-emerald-200 hover:bg-emerald-300/20"
+                  style={{ fontFamily: 'var(--recon-font-mono)' }}
+                >
+                  Launch
+                </button>
+              </div>
             </div>
           </div>
         </section>
