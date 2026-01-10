@@ -9,6 +9,8 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { handleMaptilerProxy } from "./maptiler-proxy";
+import { warmMapTilerCache } from "./maptiler-warm";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -103,6 +105,11 @@ async function startServer() {
     }
   });
 
+  // MapTiler Proxy with Redis Caching & Rate Limit Fallback
+  // Caches MapTiler responses (styles, tiles, sprites, fonts) for graceful degradation
+  // When rate limit (429) is hit, returns last known good cached response
+  app.get("/api/maptiler-proxy", handleMaptilerProxy);
+
   // Emergency Services API routes (for local dev - in production these are Vercel serverless)
   app.get("/api/emergency/registry", async (req, res) => {
     try {
@@ -138,6 +145,10 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+
+  // Warm MapTiler cache before starting server
+  // This ensures default style is cached, preventing blank map if first request hits rate limit
+  await warmMapTilerCache();
 
   const preferredPort = parseInt(process.env.PORT || "3001");
   const port = await findAvailablePort(preferredPort);

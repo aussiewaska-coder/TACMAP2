@@ -184,7 +184,11 @@ function startMaptilerDrift(map: maptilersdk.Map) {
 }
 
 /**
- * Resolve MapTiler style - SDK handles API key automatically
+ * Resolve MapTiler style - use server proxy for caching & rate limit fallback
+ * The proxy endpoint at /api/maptiler-proxy:
+ * - Caches responses in Redis for 24 hours
+ * - Returns cached data when API rate limit (429) is hit
+ * - Enables graceful degradation when MapTiler hits rate limit
  */
 function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification | string {
     const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
@@ -201,8 +205,13 @@ function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification
         finalStyleId: styleId,
     });
 
-    // MapTiler SDK handles API key automatically via maptilersdk.config.apiKey
-    return `https://api.maptiler.com/maps/${styleId}/style.json?key=${MAPTILER_API_KEY}`;
+    // Use server proxy for style.json requests
+    // This enables:
+    // - Redis caching (24h TTL)
+    // - Graceful fallback on rate limits (429)
+    // - Browser caching (1h max-age)
+    const path = encodeURIComponent(`/maps/${styleId}/style.json`);
+    return `/api/maptiler-proxy?path=${path}`;
 }
 
 function ensureBaseOverlays(map: maptilersdk.Map) {
