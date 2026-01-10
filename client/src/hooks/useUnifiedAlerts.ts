@@ -19,7 +19,7 @@ export interface UseUnifiedAlertsOptions {
 }
 
 export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
-    const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
+    const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 30, clusterMaxZoom = 14 } = options;
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
     const provider = useMapProviderStore((state) => state.provider);
@@ -110,7 +110,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                         filter: ['has', 'point_count'],
                         paint: {
                             'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
-                            'circle-radius': 12,
+                            'circle-radius': 6,
                             'circle-stroke-width': 2,
                             'circle-stroke-color': '#FFFFFF',
                             'circle-opacity': 0.9
@@ -181,7 +181,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                         ['!', ['has', 'point_count']]
                     ],
                     paint: {
-                        'circle-radius': 12,
+                        'circle-radius': 6,
                         'circle-color': alertSource === 'emergency' ? '#ef4444' : '#dc2626',
                         'circle-stroke-width': 2,
                         'circle-stroke-color': '#FFFFFF',

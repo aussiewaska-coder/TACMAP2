@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useLocation } from 'wouter';
-import { AlertTriangle, Radio, Shield, Scan, Flame, Layers, MapPin, ChevronLeft } from 'lucide-react';
+import { AlertTriangle, Radio, Shield, Scan, Flame, Layers, MapPin, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -23,6 +24,8 @@ const HAZARD_TYPES = [
   { id: 'general', label: 'General', accent: 'border-slate-400/40 text-slate-200' },
 ];
 
+const PANEL_MARGIN = 16;
+
 type AlertMode = 'emergency' | 'police';
 
 type OpsMode = 'all' | 'warning' | 'ground_truth';
@@ -40,15 +43,23 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   const [enabled, setEnabled] = useState(true);
   const [alertMode, setAlertMode] = useState<AlertMode>('emergency');
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [showMarkers, setShowMarkers] = useState(true);
+  const [showMarkers, setShowMarkers] = useState(false);
   const [heatmapScheme, setHeatmapScheme] = useState<HeatmapColorScheme>('thermal');
 
   const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map((h) => h.id));
   const [opsMode, setOpsMode] = useState<OpsMode>('all');
   const [selectedStates, setSelectedStates] = useState<string[]>([...STATES]);
-  const [hoursAgo, setHoursAgo] = useState(336);
+  const [hoursAgo, setHoursAgo] = useState(1);
 
   const hasAutoSwept = useRef(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+  const dragPositionRef = useRef<{ x: number; y: number } | null>(null);
+
+  const [panelSide, setPanelSide] = useState<'left' | 'right'>('left');
+  const [panelTop, setPanelTop] = useState(PANEL_MARGIN);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     if (showHeatmap && alertMode === 'police') {
@@ -59,9 +70,72 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   useEffect(() => {
     if (alertMode === 'emergency') {
       setShowHeatmap(false);
-      setShowMarkers(true);
     }
   }, [alertMode]);
+
+  const clampValue = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+  const handleDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || !panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    dragOffsetRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    const startPosition = { x: rect.left, y: rect.top };
+    dragPositionRef.current = startPosition;
+    setDragPosition(startPosition);
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMove = (event: PointerEvent) => {
+      if (!panelRef.current || !dragOffsetRef.current) return;
+      const rect = panelRef.current.getBoundingClientRect();
+      const panelWidth = rect.width;
+      const panelHeight = rect.height;
+      const minX = PANEL_MARGIN;
+      const minY = PANEL_MARGIN;
+      const maxX = Math.max(PANEL_MARGIN, window.innerWidth - panelWidth - PANEL_MARGIN);
+      const maxY = Math.max(PANEL_MARGIN, window.innerHeight - panelHeight - PANEL_MARGIN);
+      const nextX = clampValue(event.clientX - dragOffsetRef.current.x, minX, maxX);
+      const nextY = clampValue(event.clientY - dragOffsetRef.current.y, minY, maxY);
+      const nextPosition = { x: nextX, y: nextY };
+      dragPositionRef.current = nextPosition;
+      setDragPosition(nextPosition);
+    };
+
+    const handleUp = () => {
+      const finalPosition = dragPositionRef.current;
+      if (finalPosition && panelRef.current) {
+        const panelWidth = panelRef.current.getBoundingClientRect().width;
+        const nextSide = finalPosition.x + panelWidth / 2 >= window.innerWidth / 2 ? 'right' : 'left';
+        setPanelSide(nextSide);
+        setPanelTop(finalPosition.y);
+      }
+      dragOffsetRef.current = null;
+      dragPositionRef.current = null;
+      setIsDragging(false);
+      setDragPosition(null);
+    };
+
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    document.body.style.userSelect = 'none';
+
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
+
+  useEffect(() => {
+    if (!collapsed) return;
+    dragOffsetRef.current = null;
+    dragPositionRef.current = null;
+    setIsDragging(false);
+    setDragPosition(null);
+  }, [collapsed]);
 
   const utils = trpc.useUtils();
   const { data: rawEmergencyData, isLoading: emergencyLoading } = useEmergencyAlerts(enabled && alertMode === 'emergency');
@@ -206,7 +280,7 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
     data: currentData ?? null,
     showMarkers,
     layerPrefix: `recon-${alertMode}`,
-    clusterRadius: 60,
+    clusterRadius: 30,
     clusterMaxZoom: 14,
   });
 
@@ -216,278 +290,339 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
     colorScheme: heatmapScheme,
   });
 
-  if (collapsed) {
-    return (
-      <div className="fixed left-4 top-1/2 z-40 -translate-y-1/2">
-        <button
-          type="button"
-          onClick={onToggle}
-          className="group flex h-14 w-14 flex-col items-center justify-center rounded-2xl border border-white/15 bg-slate-900/80 text-white shadow-2xl backdrop-blur transition hover:border-emerald-400/50"
-        >
-          <AlertTriangle className="h-5 w-5 text-emerald-300" />
-          <span className="mt-1 text-[10px] font-semibold">{alertCount}</span>
-        </button>
-      </div>
-    );
-  }
+  const panelStyle = dragPosition
+    ? { left: dragPosition.x, top: dragPosition.y, right: 'auto' }
+    : panelSide === 'left'
+      ? { left: PANEL_MARGIN, top: panelTop, right: 'auto' }
+      : { right: PANEL_MARGIN, top: panelTop, left: 'auto' };
+
+  const panelTransform = collapsed
+    ? panelSide === 'left'
+      ? '-translate-x-[115%]'
+      : 'translate-x-[115%]'
+    : 'translate-x-0';
+
+  const collapsedButtonStyle = {
+    top: panelTop + 24,
+    ...(panelSide === 'left' ? { left: PANEL_MARGIN } : { right: PANEL_MARGIN })
+  };
+
+  const CollapseIcon = panelSide === 'left' ? ChevronLeft : ChevronRight;
+  const RevealIcon = panelSide === 'left' ? ChevronRight : ChevronLeft;
 
   return (
-    <aside className="fixed inset-y-4 left-4 z-30 flex w-[360px] max-w-[92vw] flex-col rounded-3xl border border-white/10 bg-slate-950/85 shadow-[0_25px_80px_rgba(15,23,42,0.6)] backdrop-blur-xl">
-      <header className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-        <div>
-          <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-white/50">
-            <span className="h-2 w-2 rounded-full bg-emerald-400" />
-            Recon Alerts
-          </div>
-          <h2 className="mt-2 flex items-center gap-2 text-lg font-semibold">
-            <Shield className="h-5 w-5 text-emerald-300" />
-            Alerts Command
-          </h2>
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <Badge className="rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
-            {provider}
-          </Badge>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setLocation('/')}
-              className="text-[10px] uppercase tracking-[0.2em] text-white/50 hover:text-white"
-            >
-              Switch
-            </button>
-            <button
-              type="button"
-              onClick={onToggle}
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 hover:text-white"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
+    <>
+      <aside
+        ref={panelRef}
+        style={panelStyle}
+        className={`fixed z-30 flex max-h-[calc(100vh-2rem)] w-[360px] max-w-[92vw] flex-col rounded-2xl border border-emerald-400/15 bg-emerald-950/70 shadow-[0_30px_80px_rgba(3,20,12,0.65)] ring-1 ring-emerald-500/10 backdrop-blur-2xl ${
+          collapsed ? 'pointer-events-none' : 'pointer-events-auto'
+        } ${panelTransform} ${isDragging ? 'transition-none' : 'transition-transform duration-300 ease-out'}`}
+        aria-hidden={collapsed}
+      >
+        <div className="flex justify-center pt-3">
+          <div
+            onPointerDown={handleDragStart}
+            className={`flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-emerald-200/70 ${
+              isDragging ? 'cursor-grabbing' : 'cursor-grab'
+            } select-none touch-none`}
+            role="button"
+            tabIndex={0}
+          >
+            <GripVertical className="h-3 w-3" />
+            Drag
           </div>
         </div>
-      </header>
-
-      <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">System</p>
-              <p className="text-sm text-white/70">Alerts pipeline</p>
+        <header className="flex items-center justify-between border-b border-emerald-400/15 px-5 py-4">
+          <div>
+            <div className="flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-emerald-100/60">
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              Recon Alerts
             </div>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
+            <h2 className="mt-2 flex items-center gap-2 text-lg font-semibold text-emerald-50">
+              <Shield className="h-5 w-5 text-emerald-300" />
+              Alerts Command
+            </h2>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-black/40 p-1">
-            <button
-              onClick={() => setAlertMode('emergency')}
-              className={`rounded-lg py-2 text-xs font-semibold transition ${
-                alertMode === 'emergency'
-                  ? 'bg-emerald-500/30 text-emerald-200'
-                  : 'text-white/40 hover:bg-white/5'
-              }`}
-            >
-              <AlertTriangle className="mr-2 inline h-3.5 w-3.5" />
-              Emergency
-            </button>
-            <button
-              onClick={() => setAlertMode('police')}
-              className={`rounded-lg py-2 text-xs font-semibold transition ${
-                alertMode === 'police'
-                  ? 'bg-blue-500/30 text-blue-200'
-                  : 'text-white/40 hover:bg-white/5'
-              }`}
-            >
-              <Radio className="mr-2 inline h-3.5 w-3.5" />
-              Police
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-white/50">Visuals</p>
-              <p className="text-sm text-white/70">Map overlays</p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs text-white/60">
-            <Label htmlFor="show-markers" className="cursor-pointer">Show markers</Label>
-            <Switch id="show-markers" checked={showMarkers} onCheckedChange={setShowMarkers} />
-          </div>
-
-          {alertMode === 'police' && (
-            <div className="mt-4 space-y-3">
+          <div className="flex flex-col items-end gap-2">
+            <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-100/70">
+              {provider}
+            </Badge>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setShowHeatmap((prev) => !prev)}
-                className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                  showHeatmap
-                    ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
-                    : 'border-white/10 bg-white/5 text-white/60 hover:border-white/30'
-                }`}
+                onClick={() => setLocation('/')}
+                className="text-[10px] uppercase tracking-[0.2em] text-emerald-100/60 hover:text-emerald-50"
               >
-                <span className="flex items-center gap-2">
-                  <Flame className="h-4 w-4" /> Heatmap
-                </span>
-                <span className="text-[10px]">{heatmapCount} nodes</span>
+                Switch
               </button>
-              {showHeatmap && (
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(HEATMAP_SCHEMES) as HeatmapColorScheme[]).map((scheme) => (
-                    <button
-                      key={scheme}
-                      type="button"
-                      onClick={() => setHeatmapScheme(scheme)}
-                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] ${
-                        heatmapScheme === scheme
-                          ? 'border-white/50 bg-white/15 text-white'
-                          : 'border-white/10 text-white/40 hover:border-white/30'
-                      }`}
-                    >
-                      {HEATMAP_SCHEMES[scheme].name}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={onToggle}
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-500/10 text-emerald-50/80 hover:text-emerald-50"
+              >
+                <CollapseIcon className="h-4 w-4" />
+              </button>
             </div>
-          )}
-        </section>
+          </div>
+        </header>
 
-        {alertMode === 'emergency' && (
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+          <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50">Filters</p>
-                <p className="text-sm text-white/70">Hazard types</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">System</p>
+                <p className="text-sm text-emerald-100/70">Alerts pipeline</p>
+              </div>
+              <Switch checked={enabled} onCheckedChange={setEnabled} />
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-emerald-900/30 p-1">
+              <button
+                onClick={() => setAlertMode('emergency')}
+                className={`rounded-lg py-2 text-xs font-semibold transition ${
+                  alertMode === 'emergency'
+                    ? 'bg-emerald-500/30 text-emerald-200'
+                    : 'text-emerald-100/40 hover:bg-emerald-500/10'
+                }`}
+              >
+                <AlertTriangle className="mr-2 inline h-3.5 w-3.5" />
+                Emergency
+              </button>
+              <button
+                onClick={() => setAlertMode('police')}
+                className={`rounded-lg py-2 text-xs font-semibold transition ${
+                  alertMode === 'police'
+                    ? 'bg-blue-500/30 text-blue-200'
+                    : 'text-emerald-100/40 hover:bg-emerald-500/10'
+                }`}
+              >
+                <Radio className="mr-2 inline h-3.5 w-3.5" />
+                Police
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Visuals</p>
+                <p className="text-sm text-emerald-100/70">Map overlays</p>
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {HAZARD_TYPES.map((type) => {
-                const isActive = activeFilters.includes(type.id);
-                return (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() =>
-                      setActiveFilters((prev) =>
-                        prev.includes(type.id) ? prev.filter((f) => f !== type.id) : [...prev, type.id]
-                      )
-                    }
-                    className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.2em] transition ${
-                      isActive ? type.accent : 'border-white/10 text-white/40 hover:border-white/30'
-                    }`}
-                  >
-                    {type.label}
-                  </button>
-                );
-              })}
+            <div className="mt-3 flex items-center justify-between text-xs text-emerald-100/70">
+              <Label htmlFor="show-markers" className="cursor-pointer text-emerald-100/70">Show markers</Label>
+              <button
+                id="show-markers"
+                type="button"
+                onClick={() => setShowMarkers((prev) => !prev)}
+                aria-pressed={showMarkers}
+                className={`relative inline-flex h-8 w-24 items-center rounded-full border px-1 text-[10px] uppercase tracking-[0.25em] transition active:scale-[0.98] ${
+                  showMarkers
+                    ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.35)]'
+                    : 'border-emerald-400/20 bg-emerald-950/40 text-emerald-100/40'
+                }`}
+              >
+                <span className="relative z-10 flex-1 text-center">Off</span>
+                <span className="relative z-10 flex-1 text-center">On</span>
+                <span
+                  className={`absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full bg-emerald-400/30 transition-transform duration-300 ${
+                    showMarkers ? 'translate-x-full' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-black/40 p-1">
-              {['all', 'warning', 'ground_truth'].map((mode) => (
+
+            {alertMode === 'police' && (
+              <div className="mt-4 space-y-3">
                 <button
-                  key={mode}
                   type="button"
-                  onClick={() => setOpsMode(mode as OpsMode)}
-                  className={`rounded-lg py-1 text-[10px] uppercase tracking-[0.2em] transition ${
-                    opsMode === mode
-                      ? 'bg-white/10 text-white'
-                      : 'text-white/40 hover:bg-white/5'
+                  onClick={() => setShowHeatmap((prev) => !prev)}
+                  className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                    showHeatmap
+                      ? 'border-orange-400/40 bg-orange-400/10 text-orange-200'
+                      : 'border-emerald-400/20 bg-emerald-950/40 text-emerald-100/60 hover:border-emerald-300/50'
                   }`}
                 >
-                  {mode === 'all' ? 'All' : mode === 'warning' ? 'Warnings' : 'Ground'}
+                  <span className="flex items-center gap-2">
+                    <Flame className="h-4 w-4" /> Heatmap
+                  </span>
+                  <span className="text-[10px]">{heatmapCount} nodes</span>
                 </button>
-              ))}
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-                <span>States</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedStates((prev) =>
-                      prev.length === STATES.length ? [] : [...STATES]
-                    )
-                  }
-                  className="text-white/50 hover:text-white"
-                >
-                  {selectedStates.length === STATES.length ? 'None' : 'All'}
-                </button>
+                {showHeatmap && (
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(HEATMAP_SCHEMES) as HeatmapColorScheme[]).map((scheme) => (
+                      <button
+                        key={scheme}
+                        type="button"
+                        onClick={() => setHeatmapScheme(scheme)}
+                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] ${
+                          heatmapScheme === scheme
+                            ? 'border-emerald-200/60 bg-emerald-500/20 text-emerald-50'
+                            : 'border-emerald-400/20 text-emerald-100/40 hover:border-emerald-300/50'
+                        }`}
+                      >
+                        {HEATMAP_SCHEMES[scheme].name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {STATES.map((state) => {
-                  const isActive = selectedStates.includes(state);
+            )}
+          </section>
+
+          {alertMode === 'emergency' && (
+            <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Filters</p>
+                  <p className="text-sm text-emerald-100/70">Hazard types</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {HAZARD_TYPES.map((type) => {
+                  const isActive = activeFilters.includes(type.id);
                   return (
                     <button
-                      key={state}
+                      key={type.id}
                       type="button"
                       onClick={() =>
-                        setSelectedStates((prev) =>
-                          prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state]
+                        setActiveFilters((prev) =>
+                          prev.includes(type.id) ? prev.filter((f) => f !== type.id) : [...prev, type.id]
                         )
                       }
-                      className={`rounded-md border px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${
-                        isActive ? 'border-cyan-400/40 text-cyan-200' : 'border-white/10 text-white/40'
+                      className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.2em] transition ${
+                        isActive ? type.accent : 'border-emerald-400/15 text-emerald-100/40 hover:border-emerald-300/50'
                       }`}
                     >
-                      {state}
+                      {type.label}
                     </button>
                   );
                 })}
               </div>
-            </div>
-          </section>
-        )}
-
-        {alertMode === 'police' && (
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50">Scan window</p>
-                <p className="text-sm text-white/70">Time range</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl bg-emerald-900/30 p-1">
+                {['all', 'warning', 'ground_truth'].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setOpsMode(mode as OpsMode)}
+                    className={`rounded-lg py-1 text-[10px] uppercase tracking-[0.2em] transition ${
+                      opsMode === mode
+                        ? 'bg-emerald-500/15 text-emerald-50'
+                        : 'text-emerald-100/40 hover:bg-emerald-500/10'
+                    }`}
+                  >
+                    {mode === 'all' ? 'All' : mode === 'warning' ? 'Warnings' : 'Ground'}
+                  </button>
+                ))}
               </div>
-              <Badge className="rounded-full border border-white/15 bg-white/5 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
-                {hoursAgo > 48 ? `${Math.round(hoursAgo / 24)}d` : `${hoursAgo}h`}
-              </Badge>
-            </div>
-            <div className="mt-3">
-              <Slider
-                value={[hoursAgo]}
-                onValueChange={(value) => setHoursAgo(value[0])}
-                min={1}
-                max={336}
-                step={1}
-              />
-              <div className="mt-2 flex justify-between text-[10px] text-white/40">
-                <span>1h</span>
-                <span>14d</span>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-emerald-100/50">
+                  <span>States</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedStates((prev) =>
+                        prev.length === STATES.length ? [] : [...STATES]
+                      )
+                    }
+                    className="text-emerald-100/60 hover:text-emerald-50"
+                  >
+                    {selectedStates.length === STATES.length ? 'None' : 'All'}
+                  </button>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {STATES.map((state) => {
+                    const isActive = selectedStates.includes(state);
+                    return (
+                      <button
+                        key={state}
+                        type="button"
+                        onClick={() =>
+                          setSelectedStates((prev) =>
+                            prev.includes(state) ? prev.filter((s) => s !== state) : [...prev, state]
+                          )
+                        }
+                        className={`rounded-md border px-2 py-1 text-[10px] uppercase tracking-[0.2em] ${
+                          isActive ? 'border-cyan-400/40 text-cyan-200' : 'border-emerald-400/15 text-emerald-100/40'
+                        }`}
+                      >
+                        {state}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-4 w-full border border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
-              onClick={handleSweep}
-              disabled={sweepMutation.isPending}
-            >
-              <Scan className={`mr-2 h-4 w-4 ${sweepMutation.isPending ? 'animate-spin' : ''}`} />
-              {sweepMutation.isPending ? 'Sweeping...' : 'Sweep Area'}
-            </Button>
-          </section>
-        )}
-      </div>
+            </section>
+          )}
 
-      <footer className="border-t border-white/10 px-5 py-4">
-        <div className="flex items-center justify-between text-xs text-white/60">
-          <span className="flex items-center gap-2">
-            <MapPin className="h-3.5 w-3.5 text-emerald-300" />
-            {isLoading ? 'Syncing alerts...' : `${alertCount} live alerts`}
-          </span>
-          <span className="flex items-center gap-2">
-            <Layers className="h-3.5 w-3.5 text-cyan-300" />
-            {enabled ? 'Active' : 'Paused'}
-          </span>
+          {alertMode === 'police' && (
+            <section className="rounded-2xl border border-emerald-400/15 bg-emerald-950/40 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/60">Scan window</p>
+                  <p className="text-sm text-emerald-100/70">Time range</p>
+                </div>
+                <Badge className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-100/70">
+                  {hoursAgo > 48 ? `${Math.round(hoursAgo / 24)}d` : `${hoursAgo}h`}
+                </Badge>
+              </div>
+              <div className="mt-3">
+                <Slider
+                  value={[hoursAgo]}
+                  onValueChange={(value) => setHoursAgo(value[0])}
+                  min={1}
+                  max={336}
+                  step={1}
+                />
+                <div className="mt-2 flex justify-between text-[10px] text-emerald-100/40">
+                  <span>1h</span>
+                  <span>14d</span>
+                </div>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="mt-4 w-full border border-cyan-400/30 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20"
+                onClick={handleSweep}
+                disabled={sweepMutation.isPending}
+              >
+                <Scan className={`mr-2 h-4 w-4 ${sweepMutation.isPending ? 'animate-spin' : ''}`} />
+                {sweepMutation.isPending ? 'Sweeping...' : 'Sweep Area'}
+              </Button>
+            </section>
+          )}
         </div>
-      </footer>
-    </aside>
+
+        <footer className="border-t border-emerald-400/15 px-5 py-4">
+          <div className="flex items-center justify-between text-xs text-emerald-50/70">
+            <span className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 text-emerald-300" />
+              {isLoading ? 'Syncing alerts...' : `${alertCount} live alerts`}
+            </span>
+            <span className="flex items-center gap-2">
+              <Layers className="h-3.5 w-3.5 text-cyan-300" />
+              {enabled ? 'Active' : 'Paused'}
+            </span>
+          </div>
+        </footer>
+      </aside>
+
+      {collapsed && (
+        <div className="fixed z-40" style={collapsedButtonStyle}>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="group flex h-14 w-14 flex-col items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-950/80 text-emerald-50 shadow-[0_18px_45px_rgba(3,20,12,0.6)] backdrop-blur transition hover:border-emerald-300/60"
+          >
+            <AlertTriangle className="h-5 w-5 text-emerald-300" />
+            <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold">
+              <span>{alertCount}</span>
+              <RevealIcon className="h-3 w-3 text-emerald-200/80" />
+            </div>
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 

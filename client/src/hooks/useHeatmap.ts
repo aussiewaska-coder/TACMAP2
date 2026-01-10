@@ -105,26 +105,28 @@ export function useHeatmap(options: UseHeatmapOptions) {
     }
   );
 
-  // Accumulate data into session map (like old system)
+  // Keep heatmap data scoped to the selected time window
   useEffect(() => {
     if (!heatmapData || !enabled) return;
 
-    let newPoints = 0;
+    const nextSession = new Map<string, number>();
     heatmapData.data.forEach(([lat, lon, count]) => {
       const key = `${lat},${lon}`;
-      if (!sessionData.current.has(key)) {
-        newPoints++;
-      }
-      // Keep higher count
-      const existing = sessionData.current.get(key) || 0;
-      sessionData.current.set(key, Math.max(existing, count));
+      nextSession.set(key, count);
     });
 
-    console.log(`🔥 Heatmap session: +${newPoints} points (${sessionData.current.size} total)`);
+    sessionData.current = nextSession;
+    console.log(`🔥 Heatmap session: ${sessionData.current.size} points (${hoursAgo}h window)`);
 
     // Trigger re-render to update map
     setRenderTrigger(prev => prev + 1);
-  }, [heatmapData, enabled]);
+  }, [heatmapData, enabled, hoursAgo]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    sessionData.current = new Map();
+    setRenderTrigger(prev => prev + 1);
+  }, [hoursAgo, enabled]);
 
   // Render heatmap using MapLibre
   useEffect(() => {
@@ -191,13 +193,13 @@ export function useHeatmap(options: UseHeatmapOptions) {
           ],
           'heatmap-color': heatmapColorExpr,
           'heatmap-radius': ['interpolate', ['exponential', 1.6], ['zoom'],
-            0, 2,
-            6, 20,
-            10, 60,
-            12, 100,
-            14, 160,
-            16, 250,
-            20, 400
+            0, 1,
+            6, 10,
+            10, 30,
+            12, 50,
+            14, 80,
+            16, 125,
+            20, 200
           ],
           'heatmap-opacity': 0.75
         }

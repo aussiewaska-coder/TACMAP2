@@ -115,7 +115,7 @@ export function useAnimatedClusterMarkers({
     map,
     data,
     enabled,
-    clusterRadius = 60,
+    clusterRadius = 30,
     maxZoom = 14
 }: AnimatedClusterMarkersProps) {
     const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
@@ -136,7 +136,7 @@ export function useAnimatedClusterMarkers({
                     box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.7), 0 0 0 0 rgba(37, 99, 235, 0.7);
                 }
                 50% {
-                    box-shadow: 0 0 0 8px rgba(185, 28, 28, 0), 0 0 0 12px rgba(37, 99, 235, 0);
+                    box-shadow: 0 0 0 4px rgba(185, 28, 28, 0), 0 0 0 6px rgba(37, 99, 235, 0);
                 }
             }
         `;
@@ -147,10 +147,10 @@ export function useAnimatedClusterMarkers({
 
         el.innerHTML = `
             <div style="
-                width: 20px;
-                height: 20px;
+                width: 10px;
+                height: 10px;
                 background: linear-gradient(135deg, #B91C1C 0%, #B91C1C 50%, #2563EB 50%, #2563EB 100%);
-                border: 3px solid white;
+                border: 2px solid white;
                 border-radius: 50%;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.4);
                 cursor: pointer;
@@ -222,8 +222,8 @@ export function useAnimatedClusterMarkers({
             el.className = 'police-cluster-marker';
             el.innerHTML = `
                 <div class="cluster-circle" style="
-                    width: ${Math.min(60, 30 + (count || 0) * 2)}px;
-                    height: ${Math.min(60, 30 + (count || 0) * 2)}px;
+                    width: ${Math.min(30, 15 + (count || 0))}px;
+                    height: ${Math.min(30, 15 + (count || 0))}px;
                     background: ${count! < 10 ? '#51bbd6' : count! < 50 ? '#f1f075' : '#f28cb1'};
                     border-radius: 50%;
                     display: flex;
@@ -249,12 +249,12 @@ export function useAnimatedClusterMarkers({
             el.className = 'police-point-marker';
             el.innerHTML = `
                 <div style="
-                    width: 12px;
-                    height: 12px;
+                    width: 6px;
+                    height: 6px;
                     background: #B91C1C;
-                    border: 2px solid white;
+                    border: 1px solid white;
                     border-radius: 50%;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
                     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
                 "></div>
             `;
