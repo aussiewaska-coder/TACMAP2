@@ -213,7 +213,11 @@ function resolveMapStyle(provider: MapProvider, maptilerStyle?: string): StyleSp
     if (provider === 'maptiler') {
         const apiKey = import.meta.env.VITE_MAPTILER_API_KEY as string | undefined;
         const envStyleId = import.meta.env.VITE_MAPTILER_STYLE as string | undefined;
-        const styleId = maptilerStyle || envStyleId || '019ba6b7-5a01-7042-bc9a-d1ace6393958';
+        const styleId = maptilerStyle || envStyleId;
+        if (!styleId) {
+            console.error('[MapCore] VITE_MAPTILER_STYLE env var is not set!');
+            return buildDefaultStyle();
+        }
 
         console.log('[MapCore] Style resolution:', {
             provider,
