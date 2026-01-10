@@ -13,6 +13,34 @@
     },
     "rewrites": [
         {
+            "source": "/api/trpc/:path*",
+            "destination": "/api/trpc"
+        },
+        {
+            "source": "/api/maptiler/style",
+            "destination": "/api/maptiler/style"
+        },
+        {
+            "source": "/api/maptiler/tile",
+            "destination": "/api/maptiler/tile"
+        },
+        {
+            "source": "/api/maptiler/sprite",
+            "destination": "/api/maptiler/sprite"
+        },
+        {
+            "source": "/api/maptiler/glyph",
+            "destination": "/api/maptiler/glyph"
+        },
+        {
+            "source": "/api/maptiler/tilejson",
+            "destination": "/api/maptiler/tilejson"
+        },
+        {
+            "source": "/api/maptiler/cache",
+            "destination": "/api/maptiler/cache"
+        },
+        {
             "source": "/api/tiles/:z/:x/:y",
             "destination": "/api/tiles/[z]/[x]/[y]"
         },
@@ -31,10 +59,6 @@
         {
             "source": "/api/health/metrics",
             "destination": "/api/health/metrics"
-        },
-        {
-            "source": "/api/trpc/:path*",
-            "destination": "/api/trpc"
         },
         {
             "source": "/api/cache/warm",
@@ -80,23 +104,6 @@
                 {
                     "key": "Strict-Transport-Security",
                     "value": "max-age=31536000; includeSubDomains"
-                }
-            ]
-        },
-        {
-            "source": "/api/tiles/(.*)",
-            "headers": [
-                {
-                    "key": "Access-Control-Allow-Origin",
-                    "value": "*"
-                },
-                {
-                    "key": "Access-Control-Allow-Methods",
-                    "value": "GET, OPTIONS"
-                },
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=604800, immutable"
                 }
             ]
         },

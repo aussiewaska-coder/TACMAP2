@@ -4,23 +4,26 @@ import { persist } from 'zustand/middleware';
 export type MapProvider = 'maptiler' | 'mapbox';
 
 interface MapProviderState {
-  provider: MapProvider;
-  maptilerStyle: string | null;
-  setProvider: (provider: MapProvider) => void;
-  setMaptilerStyle: (styleId: string) => void;
+    provider: MapProvider;
+    setProvider: (provider: MapProvider) => void;
+    maptilerStyle: string;
+    setMaptilerStyle: (style: string) => void;
 }
 
+const DEFAULT_PROVIDER: MapProvider = (import.meta.env.VITE_RECONMAP_DEFAULT_PROVIDER as MapProvider) || 'maptiler';
+const DEFAULT_MAPTILER_STYLE = import.meta.env.VITE_MAPTILER_STYLE as string;
+
 export const useMapProviderStore = create<MapProviderState>()(
-  persist(
-    (set) => ({
-      provider: 'maptiler',
-      maptilerStyle: null,
-      setProvider: (provider) => set({ provider }),
-      setMaptilerStyle: (maptilerStyle) => set({ maptilerStyle }),
-    }),
-    {
-      name: 'reconmap-provider',
-      version: 3,
-    }
-  )
+    persist(
+        (set) => ({
+            provider: DEFAULT_PROVIDER,
+            setProvider: (provider) => set({ provider }),
+            maptilerStyle: DEFAULT_MAPTILER_STYLE,
+            setMaptilerStyle: (style) => set({ maptilerStyle: style }),
+        }),
+        {
+            name: 'reconmap-provider',
+            version: 2,
+        }
+    )
 );

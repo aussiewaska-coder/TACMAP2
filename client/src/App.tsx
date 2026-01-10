@@ -2,7 +2,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Home from "./pages/Home";
-import MapPage from "./pages/MapPage";
+import MapPage from "./pages/MapPageNew";
 import ComingSoon from "./pages/ComingSoon";
 
 function Router() {
