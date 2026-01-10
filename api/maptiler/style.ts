@@ -174,19 +174,10 @@ function transformStyleToUseProxy(style: StyleJSON, host: string): StyleJSON {
     }
   }
 
-  // Transform sprite URLs
-  if (transformed.sprite && typeof transformed.sprite === 'string') {
-    if (transformed.sprite.includes('api.maptiler.com')) {
-      transformed.sprite = `https://${host}/api/maptiler/sprite?url=${encodeURIComponent(transformed.sprite)}`;
-    }
-  }
-
-  // Transform glyphs URLs
-  if (transformed.glyphs && typeof transformed.glyphs === 'string') {
-    if (transformed.glyphs.includes('api.maptiler.com')) {
-      transformed.glyphs = `https://${host}/api/maptiler/glyph?url=${encodeURIComponent(transformed.glyphs)}`;
-    }
-  }
+  // ⚠️ DO NOT transform sprite/glyph URLs - they have template variables {id}, {range}, etc.
+  // URL-encoding breaks the template syntax. Let them hit MapTiler directly.
+  // If CORS blocked, the SDK falls back to built-in default style.
+  // (tile URLs are already transformed above, which is what matters most)
 
   return transformed;
 }
