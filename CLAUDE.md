@@ -46,6 +46,7 @@
 5. **Terrain Constraint** - When terrain enabled, prevent vertical shift during pan
 6. **NEVER TOUCH `/client/src/flightSim/` FOLDER - THE USER WILL FUCKING MURDER YOU IF YOU EDIT THESE FILES** - This is a separate flight simulator system. DO NOT edit, read, or reference ANY files in this folder unless explicitly asked to "edit the flight simulator". For map camera/orbit controls, ONLY edit `/client/src/components/recon/CameraControls.tsx` and related hooks. **STAY THE FUCK AWAY FROM THE FLIGHT SIMULATOR FOLDER.**
 7. **NEVER HARDCODE VARIABLES** - Always use environment variables. Never bypass env vars with hardcoded values. If an env var isn't working, fix the env var configuration, don't hardcode around it.
+8. **NEVER OVERCOMPLICATE STATE** - Use ONE state variable when ONE will do. Don't create multiple variables that need to stay in sync (e.g., `isConfirming` + `confirmStep`). Just use `confirmStep > 0` for the boolean check. If you find yourself keeping two variables in sync, YOU ARE DOING IT WRONG. Simplify or die.
 
 ## ⚠️ CRITICAL: VITE ENV VARS & VERCEL DEPLOYMENT - READ THIS OR DIE
 
