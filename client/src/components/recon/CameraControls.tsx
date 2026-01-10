@@ -7,14 +7,91 @@ import {
   Plane,
   RotateCw,
   Orbit,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   Plus,
   Minus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+// Military Compass Component
+function MilitaryCompass({ onPan }: { onPan: (direction: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW') => void }) {
+  const directions = [
+    { dir: 'N' as const, angle: 0, label: 'N', isCardinal: true },
+    { dir: 'NE' as const, angle: 45, label: 'NE', isCardinal: false },
+    { dir: 'E' as const, angle: 90, label: 'E', isCardinal: true },
+    { dir: 'SE' as const, angle: 135, label: 'SE', isCardinal: false },
+    { dir: 'S' as const, angle: 180, label: 'S', isCardinal: true },
+    { dir: 'SW' as const, angle: 225, label: 'SW', isCardinal: false },
+    { dir: 'W' as const, angle: 270, label: 'W', isCardinal: true },
+    { dir: 'NW' as const, angle: 315, label: 'NW', isCardinal: false },
+  ];
+
+  return (
+    <div className="relative w-24 h-24">
+      {/* Compass base circle */}
+      <div className="absolute inset-0 rounded-full bg-slate-900/60 backdrop-blur-sm border-2 border-cyan-500/40 shadow-lg shadow-cyan-500/20">
+        {/* Tick marks */}
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100">
+          {directions.map(({ angle, isCardinal }) => {
+            const rad = (angle - 90) * Math.PI / 180;
+            const startRadius = isCardinal ? 38 : 40;
+            const endRadius = isCardinal ? 46 : 44;
+            const x1 = 50 + Math.cos(rad) * startRadius;
+            const y1 = 50 + Math.sin(rad) * startRadius;
+            const x2 = 50 + Math.cos(rad) * endRadius;
+            const y2 = 50 + Math.sin(rad) * endRadius;
+            return (
+              <line
+                key={angle}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={isCardinal ? '#06b6d4' : '#334155'}
+                strokeWidth={isCardinal ? '2' : '1'}
+                strokeLinecap="round"
+              />
+            );
+          })}
+        </svg>
+
+        {/* Center crosshair */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 ring-2 ring-cyan-400/30" />
+        </div>
+
+        {/* Direction buttons */}
+        {directions.map(({ dir, angle, label, isCardinal }) => {
+          const rad = (angle - 90) * Math.PI / 180;
+          const radius = 36;
+          const x = 50 + Math.cos(rad) * radius;
+          const y = 50 + Math.sin(rad) * radius;
+
+          return (
+            <button
+              key={dir}
+              onClick={() => onPan(dir)}
+              className={cn(
+                "absolute text-[9px] font-bold transition-all hover:scale-110",
+                isCardinal ? "text-cyan-300 w-5 h-5" : "text-slate-400 w-4 h-4",
+                "flex items-center justify-center rounded-full",
+                "hover:bg-cyan-500/20 hover:text-cyan-200",
+                "active:bg-cyan-500/40"
+              )}
+              style={{
+                left: `${x}%`,
+                top: `${y}%`,
+                transform: 'translate(-50%, -50%)',
+              }}
+              title={`Pan ${label}`}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export function CameraControls() {
   const map = useMapStore((state) => state.map);
@@ -219,7 +296,7 @@ export function CameraControls() {
       <div className="bg-slate-950/80 backdrop-blur-md rounded-lg p-3 shadow-2xl border border-cyan-500/30 pointer-events-auto">
 
         {/* Mode & Navigation Row */}
-        <div className="flex gap-2 mb-2">
+        <div className="flex gap-3 mb-2 items-center">
           {/* Mode Buttons */}
           <div className="flex gap-1">
             <Button
@@ -266,30 +343,8 @@ export function CameraControls() {
             </Button>
           </div>
 
-          {/* Pan Controls Grid */}
-          <div className="grid grid-cols-3 gap-0.5">
-            <div />
-            <Button size="icon-sm" variant="ghost" onClick={() => panDirection('N')} title="Pan North"
-              className="bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 h-7 w-7">
-              <ChevronUp className="size-3" />
-            </Button>
-            <div />
-            <Button size="icon-sm" variant="ghost" onClick={() => panDirection('W')} title="Pan West"
-              className="bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 h-7 w-7">
-              <ChevronLeft className="size-3" />
-            </Button>
-            <div />
-            <Button size="icon-sm" variant="ghost" onClick={() => panDirection('E')} title="Pan East"
-              className="bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 h-7 w-7">
-              <ChevronRight className="size-3" />
-            </Button>
-            <div />
-            <Button size="icon-sm" variant="ghost" onClick={() => panDirection('S')} title="Pan South"
-              className="bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 h-7 w-7">
-              <ChevronDown className="size-3" />
-            </Button>
-            <div />
-          </div>
+          {/* Military Compass */}
+          <MilitaryCompass onPan={panDirection} />
 
           {/* Zoom Controls */}
           <div className="flex flex-col gap-0.5">

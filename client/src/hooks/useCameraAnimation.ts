@@ -115,8 +115,8 @@ export function useCameraAnimation() {
     animationFrameRef.current = requestAnimationFrame(animate);
   }, [map, stopAnimation]);
 
-  // Pan in a direction (N, S, E, W)
-  const panDirection = useCallback((direction: 'N' | 'S' | 'E' | 'W', distance = 0.25) => {
+  // Pan in a direction (N, NE, E, SE, S, SW, W, NW)
+  const panDirection = useCallback((direction: 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW', distance = 0.25) => {
     if (!map) return;
 
     const center = map.getCenter();
@@ -124,6 +124,7 @@ export function useCameraAnimation() {
 
     // Adjust distance based on zoom level (more pan at lower zoom)
     const scaledDistance = distance / Math.pow(2, zoom - 10);
+    const diagonalDistance = scaledDistance * Math.SQRT1_2; // Scale diagonal movement
 
     const newCenter: [number, number] = [...(center.toArray() as [number, number])];
 
@@ -131,14 +132,30 @@ export function useCameraAnimation() {
       case 'N':
         newCenter[1] += scaledDistance;
         break;
-      case 'S':
-        newCenter[1] -= scaledDistance;
+      case 'NE':
+        newCenter[0] += diagonalDistance;
+        newCenter[1] += diagonalDistance;
         break;
       case 'E':
         newCenter[0] += scaledDistance;
         break;
+      case 'SE':
+        newCenter[0] += diagonalDistance;
+        newCenter[1] -= diagonalDistance;
+        break;
+      case 'S':
+        newCenter[1] -= scaledDistance;
+        break;
+      case 'SW':
+        newCenter[0] -= diagonalDistance;
+        newCenter[1] -= diagonalDistance;
+        break;
       case 'W':
         newCenter[0] -= scaledDistance;
+        break;
+      case 'NW':
+        newCenter[0] -= diagonalDistance;
+        newCenter[1] += diagonalDistance;
         break;
     }
 
