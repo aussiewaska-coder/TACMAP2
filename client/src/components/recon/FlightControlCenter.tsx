@@ -99,6 +99,9 @@ export function FlightControlCenter() {
   const randomHeadingChangeTimeRef = useRef(0);
   const randomPathStartTimeRef = useRef(0);
 
+  // Flight arrival transition tracking
+  const flightArrivalTriggeredRef = useRef(false);
+
   // Track map state
   useEffect(() => {
     if (!map || !isLoaded) return;
@@ -111,6 +114,11 @@ export function FlightControlCenter() {
     map.on('move', update);
     return () => { map.off('move', update); };
   }, [map, isLoaded]);
+
+  // Reset flight arrival trigger when target location changes
+  useEffect(() => {
+    flightArrivalTriggeredRef.current = false;
+  }, [targetLocation]);
 
   // Orbit target marker - shows what we're orbiting around
   useEffect(() => {
@@ -464,20 +472,19 @@ export function FlightControlCenter() {
       map.setCenter(newCenter);
 
       // Check if close to target - if so, start smooth transition to orbit
-      if (targetLocation) {
+      if (targetLocation && !flightArrivalTriggeredRef.current) {
         const dx = targetLocation[0] - newCenter[0];
         const dy = targetLocation[1] - newCenter[1];
         const distanceToTarget = Math.sqrt(dx * dx + dy * dy);
         const arrivalThreshold = 0.01; // ~1km at typical zoom
 
-        if (distanceToTarget < arrivalThreshold && !isNavigatingToTarget) {
-          // Mark that we're transitioning (prevent re-triggering)
-          setIsNavigatingToTarget(true);
+        if (distanceToTarget < arrivalThreshold) {
+          // Mark that we've triggered transition (prevent re-triggering)
+          flightArrivalTriggeredRef.current = true;
 
           // Smooth transition animation into orbit position
           const orbitPitch = 60;
-          const currentZoom = zoom;
-          const orbitZoom = currentZoom - 1; // Back up slightly for orbit view
+          const orbitZoom = zoom - 1; // Back up slightly for orbit view
 
           animateTo({
             center: targetLocation,
@@ -488,11 +495,13 @@ export function FlightControlCenter() {
 
           // After animation completes, start orbit
           setTimeout(() => {
-            setIsFlightMode(false);
-            orbitStartAngleRef.current = -(bearing + 90) * Math.PI / 180;
-            setOrbitCenter(targetLocation);
-            setIsAutoOrbiting(true);
-            setIsNavigatingToTarget(false);
+            if (isFlightMode) {
+              setIsFlightMode(false);
+              orbitStartAngleRef.current = -(bearing + 90) * Math.PI / 180;
+              setOrbitCenter(targetLocation);
+              setIsAutoOrbiting(true);
+            }
+            flightArrivalTriggeredRef.current = false;
           }, 3000);
 
           return; // Stop flight loop during transition
@@ -606,10 +615,12 @@ export function FlightControlCenter() {
       if (isAutoRotating) setIsAutoRotating(false);
       if (isAutoOrbiting) setIsAutoOrbiting(false);
       if (isRandomPathFlight) setIsRandomPathFlight(false);
+      flightArrivalTriggeredRef.current = false; // Reset arrival trigger for new flight
       animateTo({ pitch: 75, zoom: 11, duration: 3000 });
       setIsFlightMode(true);
     } else {
       animateTo({ pitch: 60, zoom: map.getZoom(), duration: 3000 });
+      flightArrivalTriggeredRef.current = false; // Reset arrival trigger when disabling
       setIsFlightMode(false);
     }
   };
