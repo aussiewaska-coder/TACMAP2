@@ -4,7 +4,7 @@ import { Route, Switch, Redirect } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Home from "./pages/Home";
 import MapPage from "./pages/MapPageNew";
-import FlightSimPage from "./pages/FlightSimPage";
+import ComingSoon from "./pages/ComingSoon";
 
 function Router() {
   return (
@@ -12,7 +12,10 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/map"} component={MapPage} />
       <Route path={"/emergency"} component={MapPage} />
-      <Route path={"/flight-sim"} component={FlightSimPage} />
+      <Route path={"/flight-sim"}>
+        <Redirect to="/coming-soon" />
+      </Route>
+      <Route path={"/coming-soon"} component={ComingSoon} />
       <Route>
         <Redirect to="/" />
       </Route>

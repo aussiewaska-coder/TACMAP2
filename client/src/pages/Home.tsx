@@ -39,8 +39,7 @@ export default function Home() {
   };
 
   const handleLaunchFlightSim = () => {
-    setProvider('maptiler');
-    setLocation('/flight-sim');
+    setLocation('/coming-soon');
   };
 
   return (
@@ -162,15 +161,15 @@ export default function Home() {
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-emerald-300/80">Flight Simulator</p>
                   <h3 className="mt-1 text-lg font-semibold text-emerald-200">Cinematic MapTiler Flight</h3>
-                  <p className="mt-1 text-sm text-emerald-50/70">Launch the stealth aircraft sim (MapLibre + MapTiler, orbit + click-to-target).</p>
+                  <p className="mt-1 text-sm text-emerald-50/70">Temporarily offline while we finalize the next release.</p>
                 </div>
                 <button
                   type="button"
                   onClick={handleLaunchFlightSim}
-                  className="rounded-full border border-emerald-300/60 bg-emerald-300/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100 transition hover:border-emerald-200 hover:bg-emerald-300/20"
+                  className="cursor-not-allowed rounded-full border border-emerald-300/30 bg-emerald-300/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-100/60"
                   style={{ fontFamily: 'var(--recon-font-mono)' }}
                 >
-                  Launch
+                  Coming soon
                 </button>
               </div>
             </div>
