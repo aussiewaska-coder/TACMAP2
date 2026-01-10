@@ -487,11 +487,12 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
       }
 
       // Add new raster source with ATAK map tiles
+      // Use tiles array format (MapLibre GL JS standard) instead of url property
       map.addSource(sourceId, {
         type: 'raster',
-        url: mapUrl,
+        tiles: [mapUrl],
         tileSize: 256,
-      });
+      } as any);
 
       // Add raster layer
       map.addLayer({
