@@ -10,6 +10,7 @@
 3. **Root Deployment** - App deploys from ROOT directory, not subdirectories
 4. **Safe Map Access** - Never access map instance before `isLoaded` is true
 5. **Terrain Constraint** - When terrain enabled, prevent vertical shift during pan
+6. **NEVER TOUCH `/client/src/flightSim/` FOLDER** - This is a separate flight simulator system. DO NOT edit, read, or reference ANY files in this folder unless explicitly asked to "edit the flight simulator". For map camera/orbit controls, ONLY edit `/client/src/components/recon/CameraControls.tsx` and related hooks.
 
 ## Project Structure
 
