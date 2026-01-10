@@ -111,14 +111,15 @@ export function CameraControls() {
   const [isAutoOrbiting, setIsAutoOrbiting] = useState(false);
   const [isFlightMode, setIsFlightMode] = useState(false);
   const [orbitCenter, setOrbitCenter] = useState<[number, number] | null>(null);
-  const [orbitRadius, setOrbitRadius] = useState(0.05); // degrees
-  const [orbitSpeed, setOrbitSpeed] = useState((2 * Math.PI) / 60); // 1 rotation per 60 seconds
-  const [orbitDirection, setOrbitDirection] = useState(1); // 1 = clockwise, -1 = counterclockwise
-
   const rotationFrameRef = useRef<number | undefined>(undefined);
   const orbitFrameRef = useRef<number | undefined>(undefined);
   const flightFrameRef = useRef<number | undefined>(undefined);
   const orbitStartAngleRef = useRef<number | null>(null);
+
+  // Use refs for orbit params so animation doesn't restart on changes
+  const orbitRadiusRef = useRef(0.05);
+  const orbitSpeedRef = useRef((2 * Math.PI) / 60);
+  const orbitDirectionRef = useRef(1);
 
   // Track current zoom for display
   const [currentZoom, setCurrentZoom] = useState(0);
@@ -166,10 +167,10 @@ export function CameraControls() {
     let angle = orbitStartAngleRef.current ?? 0;
     let lastTime = performance.now();
 
-    // Smooth interpolation state
-    let currentRadius = 0.001; // Start tiny, ease to target
-    let currentSpeed = orbitSpeed * 0.1; // Start slow
-    let currentDirection = orbitDirection;
+    // Smooth interpolation state - reads from refs for live updates
+    let currentRadius = 0.001;
+    let currentSpeed = orbitSpeedRef.current * 0.1;
+    let currentDirection = orbitDirectionRef.current;
 
     // Ease-in duration (ms)
     const easeInDuration = 1500;
@@ -186,17 +187,17 @@ export function CameraControls() {
       // Use cubic ease-out for smooth acceleration
       const easeFactor = 1 - Math.pow(1 - easeInProgress, 3);
 
-      // Smoothly interpolate radius and speed to target values
-      const targetRadius = orbitRadius;
-      const targetSpeed = orbitSpeed;
-      currentRadius = currentRadius + (targetRadius - currentRadius) * easeFactor * 0.1;
-      currentSpeed = currentSpeed + (targetSpeed - currentSpeed) * easeFactor * 0.1;
+      // Read targets from refs (allows live adjustment via buttons)
+      const targetRadius = orbitRadiusRef.current;
+      const targetSpeed = orbitSpeedRef.current;
+      const targetDirection = orbitDirectionRef.current;
 
-      // Direction can change instantly (reverse button)
-      currentDirection += (orbitDirection - currentDirection) * 0.1;
+      // Smoothly interpolate to target values
+      currentRadius += (targetRadius - currentRadius) * Math.min(easeFactor * 0.1, 0.05);
+      currentSpeed += (targetSpeed - currentSpeed) * Math.min(easeFactor * 0.1, 0.05);
+      currentDirection += (targetDirection - currentDirection) * 0.1;
 
       // Frame-adjusted speed (radians per frame)
-      // Positive = counterclockwise (standard math), negative = clockwise
       // Flip sign so positive direction = clockwise (more intuitive for map)
       const frameAdjustedSpeed = -currentSpeed * currentDirection * (deltaTime / 1000);
 
@@ -211,11 +212,8 @@ export function CameraControls() {
       map.setCenter(newCenter);
 
       // Point camera toward orbit center
-      // atan2(dy, dx) gives angle from camera to center
-      // We need bearing: 0° = North, 90° = East
       const dx = centerLng - newCenter[0];
       const dy = centerLat - newCenter[1];
-      // atan2(dx, dy) because bearing is measured from North (y-axis)
       const bearing = (Math.atan2(dx, dy) * 180) / Math.PI;
       map.setBearing(bearing);
 
@@ -230,7 +228,7 @@ export function CameraControls() {
         cancelAnimationFrame(orbitFrameRef.current);
       }
     };
-  }, [map, isLoaded, isAutoOrbiting, orbitCenter, orbitRadius, orbitSpeed, orbitDirection]);
+  }, [map, isLoaded, isAutoOrbiting, orbitCenter]);
 
   // Flight mode: simulate forward movement at high altitude
   useEffect(() => {
@@ -281,9 +279,12 @@ export function CameraControls() {
     if (isFlightMode) setIsFlightMode(false);
 
     if (isAutoOrbiting) {
-      // Turning off
+      // Turning off - reset refs to defaults
       setOrbitCenter(null);
       orbitStartAngleRef.current = null;
+      orbitRadiusRef.current = 0.05;
+      orbitSpeedRef.current = (2 * Math.PI) / 60;
+      orbitDirectionRef.current = 1;
     } else {
       // Turning on - capture current state for smooth transition
       if (map) {
@@ -429,23 +430,23 @@ export function CameraControls() {
         {isAutoOrbiting && (
           <div className="flex gap-1 pt-2 border-t border-cyan-500/20">
             <div className="text-[10px] text-cyan-400 flex items-center pr-1 uppercase tracking-wider">Orbit:</div>
-            <Button size="sm" variant="ghost" onClick={() => setOrbitRadius(r => Math.max(r * 0.8, 0.001))} title="Radius -"
+            <Button size="sm" variant="ghost" onClick={() => { orbitRadiusRef.current = Math.max(orbitRadiusRef.current * 0.8, 0.001); }} title="Radius -"
               className="text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 px-2 h-6">
               R-
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOrbitRadius(r => Math.min(r * 1.2, 1.0))} title="Radius +"
+            <Button size="sm" variant="ghost" onClick={() => { orbitRadiusRef.current = Math.min(orbitRadiusRef.current * 1.2, 1.0); }} title="Radius +"
               className="text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 px-2 h-6">
               R+
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOrbitSpeed(s => Math.max(s * 0.8, 0.01))} title="Speed -"
+            <Button size="sm" variant="ghost" onClick={() => { orbitSpeedRef.current = Math.max(orbitSpeedRef.current * 0.7, 0.02); }} title="Speed -"
               className="text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 px-2 h-6">
               S-
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOrbitSpeed(s => Math.min(s * 1.2, Math.PI))} title="Speed +"
+            <Button size="sm" variant="ghost" onClick={() => { orbitSpeedRef.current = Math.min(orbitSpeedRef.current * 1.4, Math.PI * 2); }} title="Speed +"
               className="text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 px-2 h-6">
               S+
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setOrbitDirection(d => d * -1)} title="Reverse Direction"
+            <Button size="sm" variant="ghost" onClick={() => { orbitDirectionRef.current *= -1; }} title="Reverse Direction"
               className="text-xs bg-slate-800/40 hover:bg-slate-700/60 text-slate-300 border border-slate-700/50 px-2 h-6">
               ⟲
             </Button>
