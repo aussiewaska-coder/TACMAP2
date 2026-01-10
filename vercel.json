@@ -14,6 +14,26 @@
             "destination": "/api/trpc"
         },
         {
+            "source": "/api/maptiler/style",
+            "destination": "/api/maptiler/style"
+        },
+        {
+            "source": "/api/maptiler/tile",
+            "destination": "/api/maptiler/tile"
+        },
+        {
+            "source": "/api/maptiler/sprite",
+            "destination": "/api/maptiler/sprite"
+        },
+        {
+            "source": "/api/maptiler/glyph",
+            "destination": "/api/maptiler/glyph"
+        },
+        {
+            "source": "/api/maptiler/tilejson",
+            "destination": "/api/maptiler/tilejson"
+        },
+        {
             "source": "/((?!api/).*)",
             "destination": "/index.html"
         }
