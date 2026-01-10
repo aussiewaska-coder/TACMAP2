@@ -554,7 +554,9 @@ export function FlightControlCenter() {
     } else if (map) {
       const bearing = map.getBearing();
       orbitStartAngleRef.current = -(bearing + 90) * Math.PI / 180;
-      setOrbitCenter([map.getCenter().lng, map.getCenter().lat]);
+      // If target location is set, orbit that; otherwise orbit current view center
+      const orbitTarget = targetLocation || [map.getCenter().lng, map.getCenter().lat] as [number, number];
+      setOrbitCenter(orbitTarget);
     }
     setIsAutoOrbiting(!isAutoOrbiting);
   };
