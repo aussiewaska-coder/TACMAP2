@@ -515,11 +515,11 @@ export function FlightControlCenter() {
   const handleModeChange = (mode: FlightMode) => {
     setActiveMode(mode);
 
-    // Stop all current modes
-    if (isAutoRotating) setIsAutoRotating(false);
-    if (isAutoOrbiting) setIsAutoOrbiting(false);
-    if (isFlightMode) setIsFlightMode(false);
-    if (isRandomPathFlight) setIsRandomPathFlight(false);
+    // Stop all current modes (except the one being entered)
+    if (isAutoRotating && mode !== 'auto-rotate') setIsAutoRotating(false);
+    if (isAutoOrbiting && mode !== 'auto-orbit') setIsAutoOrbiting(false);
+    if (isFlightMode && mode !== 'flight') setIsFlightMode(false);
+    if (isRandomPathFlight && mode !== 'random-path') setIsRandomPathFlight(false);
 
     // Start new mode
     switch (mode) {
