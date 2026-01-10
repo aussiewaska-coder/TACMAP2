@@ -125,34 +125,45 @@ function getMaptilerInitialView() {
 }
 
 function startMaptilerDrift(map: maptilersdk.Map) {
-    let stopped = false;
-    let timeoutId: number | null = null;
+    let isPaused = false;
+    let driftTimeoutId: number | null = null;
+    let resumeTimeoutId: number | null = null;
 
     const easeInOutCubic = (t: number) =>
         t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-    const stop = () => {
-        if (stopped) return;
-        stopped = true;
-        if (timeoutId !== null) {
-            window.clearTimeout(timeoutId);
+    const resume = () => {
+        isPaused = false;
+        driftOnce();
+    };
+
+    const pause = () => {
+        if (isPaused) return;
+        isPaused = true;
+
+        // Clear any pending drift
+        if (driftTimeoutId !== null) {
+            window.clearTimeout(driftTimeoutId);
+            driftTimeoutId = null;
         }
-        map.off('dragstart', stop);
-        map.off('mousedown', stop);
-        map.off('touchstart', stop);
-        map.off('wheel', stop);
-        map.off('zoomstart', stop);
+
+        // Resume drift after user stops interacting (2-3 seconds)
+        if (resumeTimeoutId !== null) {
+            window.clearTimeout(resumeTimeoutId);
+        }
+        resumeTimeoutId = window.setTimeout(resume, randomBetween(2000, 3000)) as unknown as number;
     };
 
     const driftOnce = () => {
-        if (stopped) return;
+        if (isPaused) return;
         const canvas = map.getCanvas();
         if (!canvas) return;
 
         const center = map.getCenter();
         const centerPoint = map.project(center);
         const angle = randomBetween(0, Math.PI * 2);
-        const distance = Math.min(canvas.width, canvas.height) * randomBetween(0.06, 0.14);
+        // Much smaller, more subtle movements (3-7% of screen instead of 6-14%)
+        const distance = Math.min(canvas.width, canvas.height) * randomBetween(0.03, 0.07);
         const targetPoint: [number, number] = [
             centerPoint.x + Math.cos(angle) * distance,
             centerPoint.y + Math.sin(angle) * distance,
@@ -161,26 +172,39 @@ function startMaptilerDrift(map: maptilersdk.Map) {
 
         map.easeTo({
             center: target,
-            bearing: map.getBearing() + randomBetween(-6, 6),
-            duration: randomBetween(18000, 36000),
+            bearing: map.getBearing() + randomBetween(-2, 2),  // Smaller bearing changes
+            duration: randomBetween(8000, 15000),  // Shorter, more frequent drifts
             easing: easeInOutCubic,
         });
 
         map.once('moveend', () => {
-            if (stopped) return;
-            timeoutId = window.setTimeout(driftOnce, randomBetween(1200, 3500));
+            if (isPaused) return;
+            // Drift continuously with brief pauses between movements
+            driftTimeoutId = window.setTimeout(driftOnce, randomBetween(400, 800)) as unknown as number;
         });
     };
 
-    map.on('dragstart', stop);
-    map.on('mousedown', stop);
-    map.on('touchstart', stop);
-    map.on('wheel', stop);
-    map.on('zoomstart', stop);
+    // Pause on user interaction, resume after they stop
+    map.on('dragstart', pause);
+    map.on('mousedown', pause);
+    map.on('touchstart', pause);
+    map.on('wheel', pause);
+    map.on('zoomstart', pause);
 
-    timeoutId = window.setTimeout(driftOnce, randomBetween(800, 1800));
+    // Start initial drift
+    driftTimeoutId = window.setTimeout(driftOnce, randomBetween(500, 1000)) as unknown as number;
 
-    return stop;
+    // Return cleanup function
+    return () => {
+        isPaused = true;
+        if (driftTimeoutId !== null) window.clearTimeout(driftTimeoutId);
+        if (resumeTimeoutId !== null) window.clearTimeout(resumeTimeoutId);
+        map.off('dragstart', pause);
+        map.off('mousedown', pause);
+        map.off('touchstart', pause);
+        map.off('wheel', pause);
+        map.off('zoomstart', pause);
+    };
 }
 
 /**
