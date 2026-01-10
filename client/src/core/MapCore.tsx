@@ -211,16 +211,10 @@ function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification
         environment: import.meta.env.MODE,
     });
 
-    // In development: use direct MapTiler API (no proxy needed)
-    // In production: use /api/maptiler-proxy for Redis caching and rate limit protection
-    if (import.meta.env.MODE === 'development') {
-        // Dev: Direct API call (MapTiler SDK handles API key automatically via config.apiKey)
-        return `https://api.maptiler.com/maps/${styleId}/style.json?key=${MAPTILER_API_KEY}`;
-    } else {
-        // Production: Use server proxy for caching & rate limit fallback
-        const path = encodeURIComponent(`/maps/${styleId}/style.json`);
-        return `/api/maptiler-proxy?path=${path}`;
-    }
+    // Use direct MapTiler API (works immediately, no proxy needed)
+    // Future: Can implement /api/maptiler-proxy for Redis caching on Vercel
+    // MapTiler SDK handles API key automatically via maptilersdk.config.apiKey
+    return `https://api.maptiler.com/maps/${styleId}/style.json?key=${MAPTILER_API_KEY}`;
 }
 
 function ensureBaseOverlays(map: maptilersdk.Map) {
