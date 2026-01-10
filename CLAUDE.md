@@ -3,6 +3,40 @@
 > **CURRENT FOCUS: MapTiler/MapLibre ONLY**
 > All development uses MapTiler as the sole map provider. Ignore Mapbox code paths.
 
+## 🚨 FAULT RESPONSE PROTOCOL - TRIGGERS IMMEDIATELY
+
+**WHEN THE USER SAYS ANY OF THESE:**
+- "not working" / "doesn't work" / "broken"
+- "not updating" / "not showing" / "not appearing"
+- "your code is garbage" / "fucking garbage" / any frustration about code
+- "still the same" / "nothing changed"
+- "why isn't this working"
+
+**YOU MUST IMMEDIATELY:**
+
+1. **STOP. DO NOT GUESS. DO NOT MAKE RANDOM CHANGES.**
+
+2. **RUN THROUGH THE CHECKLISTS BELOW IN ORDER:**
+   - Section: "FULL TROUBLESHOOTING CHECKLIST - When Code Changes Don't Work"
+   - Section: "UI ELEMENTS NOT SHOWING - Why Your Component Is Invisible"
+
+3. **VERIFY EACH ITEM SYSTEMATICALLY** - don't assume anything
+
+4. **START WITH THE MOST LIKELY CULPRITS:**
+   - VITE_ env vars not rebuilt (BAKED AT BUILD TIME)
+   - Zustand localStorage caching old values
+   - Vercel build cache serving old code
+   - Browser cache serving old JS
+   - Component not rendering due to conditional/state issue
+
+5. **TEST BEFORE CLAIMING IT'S FIXED:**
+   - `curl` the API endpoints directly
+   - Check Vercel deployment logs
+   - Verify with browser Network tab
+   - Force clean rebuild if ANY doubt
+
+**DO NOT PUSH RANDOM FIXES. DIAGNOSE FIRST.**
+
 ## Critical Rules
 
 1. **MapTiler Only** - Use MapLibre GL JS with MapTiler tiles exclusively
