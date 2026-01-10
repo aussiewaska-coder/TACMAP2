@@ -8,7 +8,6 @@ This module is a standalone, modular alerts plugin for AU police + emergency ser
 - Emergency alerts pipeline: fetch -> normalize -> GeoJSON output (no persistence).
 - Police alerts pipeline: Waze sweep -> persist to DB -> query endpoints.
 - Frontend: provider selection landing screen + Recon alerts dashboard.
-- Optional aircraft tracking feed (ADSB) delivered as GeoJSON.
 
 ## System Components
 ### Backend
@@ -35,12 +34,6 @@ This module is a standalone, modular alerts plugin for AU police + emergency ser
 - Endpoint: tRPC query police.heatmap
 - Aggregates police_reports into ~100m buckets
 
-5) Aircraft Tracking
-- Endpoint: GET /api/emergency/tracks
-- Data source: ADSB.LOL v2 API
-- Filters to registry-known aircraft in public/registry.json
-- Output: GeoJSON FeatureCollection
-
 ### Frontend
 1) Landing Screen
 - Component: Home
@@ -56,7 +49,6 @@ This module is a standalone, modular alerts plugin for AU police + emergency ser
 - Modes: emergency / police
 - Emergency filters: hazard type, ops mode, state
 - Police filters: time range, sweep action, heatmap toggle
-- Optional aircraft overlay toggle
 
 4) Map Rendering
 - Hook: useUnifiedAlerts
@@ -71,11 +63,7 @@ This module is a standalone, modular alerts plugin for AU police + emergency ser
 - Hook: useHeatmap
 - Map layer type: heatmap
 
-6) Aircraft Tracks
-- Hook: useAircraftTracks
-- Map layer: useAircraftLayer (points + labels)
-
-7) User Location
+6) User Location
 - Component: UserLocationLayer
 - Creates a single geolocation control with smooth flyTo
 
@@ -117,10 +105,6 @@ If the target SDK lacks native clustering, implement server-side clustering or c
 - sweep -> save -> query -> map
 - heatmap -> aggregated query -> heatmap layer
 
-3) Aircraft tracking
-- ADSB -> filter -> GeoJSON -> map (optional)
-- This bundle includes an aircraft layer hook: `code/client/src/hooks/useAircraftLayer.ts`
-
 ## Cache Strategy
 - Emergency alerts use stale-while-revalidate caching to avoid API timeouts.
 - Alerts are not persisted; they are always derived at request time.
@@ -151,7 +135,6 @@ Frontend:
 ## Extension Points
 - Add new feed types by implementing a new normalizer.
 - Add additional alert sources by adding rows to emergency_registry.
-- Enable aircraft tracks by adding a map layer and toggles in the UI.
 
 ## Source Code Included
 All relevant files are copied into this bundle under `code/` with original paths preserved.

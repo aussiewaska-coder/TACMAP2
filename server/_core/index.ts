@@ -114,16 +114,6 @@ async function startServer() {
     }
   });
 
-  app.get("/api/emergency/tracks", async (req, res) => {
-    try {
-      const { default: handler } = await import("../../api/emergency/tracks.js");
-      await handler(req as any, res as any);
-    } catch (error) {
-      console.error("Tracks API error:", error);
-      res.status(500).json({ error: "Failed to load tracks API" });
-    }
-  });
-
   app.get("/api/emergency/alerts", async (req, res) => {
     try {
       const { default: handler } = await import("../../api/emergency/alerts.js");

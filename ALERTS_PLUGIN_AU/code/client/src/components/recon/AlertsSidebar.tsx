@@ -12,8 +12,6 @@ import { trpc } from '@/lib/trpc';
 import { useEmergencyAlerts } from '@/hooks/useEmergencyAlerts';
 import { useUnifiedAlerts } from '@/hooks/useUnifiedAlerts';
 import { useHeatmap, HEATMAP_SCHEMES, HeatmapColorScheme } from '@/hooks/useHeatmap';
-import { useAircraftTracks } from '@/hooks/useAircraftTracks';
-import { useAircraftLayer } from '@/hooks/useAircraftLayer';
 
 const STATES = ['NSW', 'VIC', 'QLD', 'WA', 'SA', 'TAS', 'ACT', 'NT', 'AUS'] as const;
 
@@ -45,7 +43,6 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showMarkers, setShowMarkers] = useState(true);
   const [heatmapScheme, setHeatmapScheme] = useState<HeatmapColorScheme>('thermal');
-  const [showAircraft, setShowAircraft] = useState(false);
 
   const [activeFilters, setActiveFilters] = useState<string[]>(HAZARD_TYPES.map((h) => h.id));
   const [opsMode, setOpsMode] = useState<OpsMode>('all');
@@ -67,15 +64,8 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
     }
   }, [alertMode]);
 
-  useEffect(() => {
-    if (alertMode === 'police') {
-      setShowAircraft(false);
-    }
-  }, [alertMode]);
-
   const utils = trpc.useUtils();
   const { data: rawEmergencyData, isLoading: emergencyLoading } = useEmergencyAlerts(enabled && alertMode === 'emergency');
-  const { data: aircraftData, isLoading: aircraftLoading } = useAircraftTracks(enabled && showAircraft && alertMode === 'emergency');
 
   const sweepMutation = trpc.waze.getAlertsAndJams.useMutation({
     onSuccess: (data) => {
@@ -230,13 +220,6 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
     colorScheme: heatmapScheme,
   });
 
-  const { trackCount } = useAircraftLayer({
-    enabled: enabled && showAircraft && alertMode === 'emergency',
-    data: aircraftData ?? null,
-    showMarkers: true,
-    layerPrefix: 'recon-aircraft',
-  });
-
   if (collapsed) {
     return (
       <div className="fixed left-4 top-1/2 z-40 -translate-y-1/2">
@@ -372,23 +355,6 @@ export function AlertsSidebar({ collapsed, onToggle }: AlertsSidebarProps) {
             </div>
           )}
         </section>
-
-        {alertMode === 'emergency' && (
-          <section className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-white/50">Aviation</p>
-                <p className="text-sm text-white/70">Live aircraft tracks</p>
-              </div>
-              <Switch checked={showAircraft} onCheckedChange={setShowAircraft} />
-            </div>
-            {showAircraft && (
-              <div className="mt-2 text-[11px] text-white/50">
-                {aircraftLoading ? 'Scanning airspace...' : `${trackCount} active tracks`}
-              </div>
-            )}
-          </section>
-        )}
 
         {alertMode === 'emergency' && (
           <section className="rounded-2xl border border-white/10 bg-white/5 p-4">

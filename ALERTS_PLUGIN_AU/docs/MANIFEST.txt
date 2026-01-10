@@ -1,6 +1,5 @@
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/api/emergency/alerts.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/api/emergency/registry.ts
-/Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/api/emergency/tracks.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/App.tsx
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/main.tsx
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/index.css
@@ -25,8 +24,6 @@
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useUnifiedAlerts.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useEmergencyAlerts.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useHeatmap.ts
-/Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useAircraftTracks.ts
-/Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useAircraftLayer.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useMapEvent.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/useAnimatedClusterMarkers.ts
 /Users/chris/github/TACMAP2/ALERTS_PLUGIN_AU/code/client/src/hooks/usePersistFn.ts

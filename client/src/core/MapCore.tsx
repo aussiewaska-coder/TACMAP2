@@ -65,6 +65,119 @@ function buildDefaultStyle(): StyleSpecification {
     };
 }
 
+const MAPTILER_COASTAL_LOCATIONS: Array<[number, number]> = [
+    [115.8575, -31.9505], // Perth
+    [117.8800, -35.0228], // Albany
+    [114.9855, -25.2984], // Kalbarri
+    [122.2368, -17.9614], // Broome
+    [130.8456, -12.4634], // Darwin
+    [136.8193, -12.1842], // Nhulunbuy
+    [145.7700, -16.9186], // Cairns
+    [146.8179, -19.2576], // Townsville
+    [149.1856, -21.1412], // Mackay
+    [153.0260, -27.4705], // Brisbane
+    [153.4000, -28.0167], // Gold Coast
+    [153.1225, -30.2963], // Coffs Harbour
+    [151.2093, -33.8688], // Sydney
+    [150.8931, -34.4278], // Wollongong
+    [144.9631, -37.8136], // Melbourne
+    [144.3607, -38.1499], // Geelong
+    [138.6007, -34.9285], // Adelaide
+    [135.8572, -34.7282], // Port Lincoln
+    [147.3272, -42.8821], // Hobart
+];
+
+const MAPTILER_ALTITUDE_FT = {
+    min: 10000,
+    max: 100000,
+};
+
+function randomBetween(min: number, max: number) {
+    return min + Math.random() * (max - min);
+}
+
+function getRandomCoastalLocation(): [number, number] {
+    const index = Math.floor(Math.random() * MAPTILER_COASTAL_LOCATIONS.length);
+    return MAPTILER_COASTAL_LOCATIONS[index];
+}
+
+function altitudeFeetToZoom(altitudeFeet: number): number {
+    const clamped = Math.min(MAPTILER_ALTITUDE_FT.max, Math.max(MAPTILER_ALTITUDE_FT.min, altitudeFeet));
+    const t = (clamped - MAPTILER_ALTITUDE_FT.min) / (MAPTILER_ALTITUDE_FT.max - MAPTILER_ALTITUDE_FT.min);
+    const maxZoom = 12.5;
+    const minZoom = 7;
+    const zoom = maxZoom - t * (maxZoom - minZoom);
+    return Math.max(MAP_CONFIG.MIN_ZOOM, Math.min(MAP_CONFIG.MAX_ZOOM, zoom));
+}
+
+function getMaptilerInitialView() {
+    const altitudeFeet = randomBetween(MAPTILER_ALTITUDE_FT.min, MAPTILER_ALTITUDE_FT.max);
+    return {
+        center: getRandomCoastalLocation(),
+        zoom: altitudeFeetToZoom(altitudeFeet),
+        altitudeFeet,
+    };
+}
+
+function startMaptilerDrift(map: MapInstance) {
+    let stopped = false;
+    let timeoutId: number | null = null;
+
+    const easeInOutCubic = (t: number) =>
+        t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+    const stop = () => {
+        if (stopped) return;
+        stopped = true;
+        if (timeoutId !== null) {
+            window.clearTimeout(timeoutId);
+        }
+        map.off('dragstart', stop);
+        map.off('mousedown', stop);
+        map.off('touchstart', stop);
+        map.off('wheel', stop);
+        map.off('zoomstart', stop);
+    };
+
+    const driftOnce = () => {
+        if (stopped) return;
+        const canvas = map.getCanvas();
+        if (!canvas) return;
+
+        const center = map.getCenter();
+        const centerPoint = map.project(center);
+        const angle = randomBetween(0, Math.PI * 2);
+        const distance = Math.min(canvas.width, canvas.height) * randomBetween(0.06, 0.14);
+        const targetPoint = {
+            x: centerPoint.x + Math.cos(angle) * distance,
+            y: centerPoint.y + Math.sin(angle) * distance,
+        };
+        const target = map.unproject(targetPoint);
+
+        map.easeTo({
+            center: target,
+            bearing: map.getBearing() + randomBetween(-6, 6),
+            duration: randomBetween(18000, 36000),
+            easing: easeInOutCubic,
+        });
+
+        map.once('moveend', () => {
+            if (stopped) return;
+            timeoutId = window.setTimeout(driftOnce, randomBetween(1200, 3500));
+        });
+    };
+
+    map.on('dragstart', stop);
+    map.on('mousedown', stop);
+    map.on('touchstart', stop);
+    map.on('wheel', stop);
+    map.on('zoomstart', stop);
+
+    timeoutId = window.setTimeout(driftOnce, randomBetween(800, 1800));
+
+    return stop;
+}
+
 function mapboxTransformRequest(token?: string) {
     return (url: string) => {
         if (!token) return { url };
@@ -212,6 +325,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const mapRef = useRef<MapInstance | null>(null);
     const currentEngineRef = useRef<MapEngine | null>(null);
+    const driftCleanupRef = useRef<(() => void) | null>(null);
 
     const setMap = useMapStore((state) => state.setMap);
     const setLoaded = useMapStore((state) => state.setLoaded);
@@ -227,6 +341,10 @@ export function MapCore({ className = '' }: MapCoreProps) {
     // Initialize map
     const destroyMap = useCallback(() => {
         if (!mapRef.current) return;
+        if (driftCleanupRef.current) {
+            driftCleanupRef.current();
+            driftCleanupRef.current = null;
+        }
         const mapToDestroy = mapRef.current;
         mapRef.current = null;
         setMap(null);
@@ -307,11 +425,15 @@ export function MapCore({ className = '' }: MapCoreProps) {
                     'bottom-right'
                 );
             } else {
+                const maptilerView = provider === 'maptiler' ? getMaptilerInitialView() : null;
+                const initialCenter = maptilerView?.center ?? MAP_CONFIG.DEFAULT_CENTER;
+                const initialZoom = maptilerView?.zoom ?? MAP_CONFIG.DEFAULT_ZOOM;
+
                 map = new maplibregl.Map({
                     container: containerRef.current,
                     style: resolveMapStyle(provider),
-                    center: MAP_CONFIG.DEFAULT_CENTER,
-                    zoom: MAP_CONFIG.DEFAULT_ZOOM,
+                    center: initialCenter,
+                    zoom: initialZoom,
                     pitch: 60,
                     bearing: MAP_CONFIG.DEFAULT_BEARING,
                     minZoom: MAP_CONFIG.MIN_ZOOM,
@@ -359,6 +481,10 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 // Initial view state sync
                 updateViewState();
                 setCurrentZoom(map.getZoom());
+
+                if (provider === 'maptiler') {
+                    driftCleanupRef.current = startMaptilerDrift(map);
+                }
 
                 console.log(`[MapCore] ${engine} map initialized with 3D terrain & Gov layers`);
             });

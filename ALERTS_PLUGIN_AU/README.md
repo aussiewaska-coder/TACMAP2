@@ -28,13 +28,7 @@ Any map SDK integration must implement a minimal adapter with:
 
 If the target SDK does not support clustering, perform clustering before data reaches the map.
 
-## Aircraft Tracks Layer
-A MapLibre/Mapbox-compatible aircraft tracks layer hook is included:
-`code/client/src/hooks/useAircraftLayer.ts`
-It renders live ADSB tracks when enabled in the Alerts sidebar.
-
 ## Notes
 - Emergency alerts are fetched live and normalized on each request.
 - Police alerts are persisted in the database via Waze sweeps.
-- Aircraft tracking is available as GeoJSON and can be rendered via the aircraft layer hook.
 - Provider selection defaults to Mapbox; MapTiler is available as an open-source option.

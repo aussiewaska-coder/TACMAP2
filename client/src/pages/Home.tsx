@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useLocation } from 'wouter';
-import { ArrowRight, Map, Satellite, Shield, Waves } from 'lucide-react';
+import { ArrowRight, Map, Shield, Sliders, Waves } from 'lucide-react';
 import { useMapProviderStore } from '@/stores';
 
 const PROVIDERS = [
@@ -62,7 +62,7 @@ export default function Home() {
             </h1>
             <p className="max-w-xl text-lg text-white/70">
               A modular AU emergency and police alerts platform. Choose your map engine, deploy the plugin,
-              and instantly serve live alerts, Waze sweeps, heatmaps, and aircraft tracking.
+              and instantly serve live alerts, Waze sweeps, heatmaps, and operational filters.
             </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -81,10 +81,10 @@ export default function Home() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center gap-3 text-sm text-white/80">
-                  <Satellite className="h-4 w-4 text-amber-300" />
-                  Aircraft tracks
+                  <Sliders className="h-4 w-4 text-amber-300" />
+                  Ops filters
                 </div>
-                <p className="mt-2 text-xs text-white/50">ADSB feeds filtered against AU aviation registry.</p>
+                <p className="mt-2 text-xs text-white/50">State, hazard, and severity controls for quick triage.</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="flex items-center gap-3 text-sm text-white/80">
