@@ -141,18 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Transform tile URLs to use our proxy
     const transformedStyle = transformStyleToUseProxy(styleJson, req.headers.host || '');
 
-    // ✅ CACHE IMMEDIATELY - don't wait for request to complete
-    // This way next request hits Redis even if this one fails
-    if (redisUrl && transformedStyle) {
-      const redis = new Redis(redisUrl, { lazyConnect: true });
-      redis.connect().then(() => {
-        redis.set(cacheKey, JSON.stringify(transformedStyle), 'EX', 604800);
-        redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 604800);
-        redis.disconnect();
-      }).catch(err => console.error('[Cache] Background write error:', err));
-    }
-
-    // Cache in Redis
+    // ✅ Cache in Redis (single write to avoid race conditions)
     if (redisUrl) {
       console.log('[MapTiler Style Cache] Writing to Redis cache');
       const redis = new Redis(redisUrl, { lazyConnect: true });
@@ -218,10 +207,20 @@ function transformStyleToUseProxy(style: StyleJSON, host: string): StyleJSON {
     }
   }
 
-  // ⚠️ DO NOT transform sprite/glyph URLs - they have template variables {id}, {range}, etc.
-  // URL-encoding breaks the template syntax. Let them hit MapTiler directly.
-  // If CORS blocked, the SDK falls back to built-in default style.
-  // (tile URLs are already transformed above, which is what matters most)
+  // ✅ Transform sprite URLs to use Redis proxy
+  if (transformed.sprite) {
+    const spriteUrl = transformed.sprite.replace('maptiler://', 'https://api.maptiler.com/');
+    transformed.sprite = `https://${host}/api/maptiler/sprite?url=${encodeURIComponent(spriteUrl)}`;
+  }
+
+  // ✅ Transform glyph URLs to use Redis proxy (preserve {fontstack} and {range} templates)
+  if (transformed.glyphs) {
+    const glyphsUrl = transformed.glyphs.replace('maptiler://', 'https://api.maptiler.com/');
+    // Encode the URL but preserve template variables
+    const baseUrl = glyphsUrl.split('{')[0];
+    const templates = glyphsUrl.substring(baseUrl.length);
+    transformed.glyphs = `https://${host}/api/maptiler/glyph?url=${encodeURIComponent(baseUrl)}${templates}`;
+  }
 
   return transformed;
 }
