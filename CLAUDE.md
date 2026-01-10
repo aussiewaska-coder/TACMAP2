@@ -48,3 +48,4 @@ RECONMAP is a modular AU emergency + police alerts system with a map-engine swap
 1. Don’t access the map instance before `isLoaded` is true.
 2. Use `useMapStore` and `isMapValid` for safe cleanup on unmount.
 3. Provider changes must rebuild the map (handled by `MapCore`).
+4. Core rule: when terrain or hillshade is enabled, lock pitch/bearing and disable rotate/pitch gestures to prevent vertical shift during pan.

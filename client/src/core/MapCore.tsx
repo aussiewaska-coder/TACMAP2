@@ -236,6 +236,25 @@ function getEngine(provider: MapProvider): MapEngine {
     return provider === 'mapbox' ? 'mapbox' : 'maplibre';
 }
 
+function setTerrainPanLock(map: MapInstance, enabled: boolean) {
+    if (enabled) {
+        map.dragRotate?.disable();
+        map.touchZoomRotate?.disableRotation();
+        map.keyboard?.disableRotation?.();
+        map.touchPitch?.disable?.();
+        map.easeTo({
+            pitch: MAP_CONFIG.DEFAULT_PITCH,
+            bearing: MAP_CONFIG.DEFAULT_BEARING,
+            duration: 0,
+        });
+    } else {
+        map.dragRotate?.enable();
+        map.touchZoomRotate?.enableRotation();
+        map.keyboard?.enableRotation?.();
+        map.touchPitch?.enable?.();
+    }
+}
+
 function ensureBaseOverlays(map: MapInstance) {
     if (!map.getLayer('sky')) {
         map.addLayer({
@@ -336,6 +355,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const setError = useMapStore((state) => state.setError);
     const updateViewState = useMapStore((state) => state.updateViewState);
     const terrainExaggeration = useMapStore((state) => state.terrainExaggeration);
+    const terrainEnabled = useMapStore((state) => state.terrainEnabled);
     const provider = useMapProviderStore((state) => state.provider);
     const maptilerStyle = useMapProviderStore((state) => state.maptilerStyle);
 
@@ -490,6 +510,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
                     driftCleanupRef.current = startMaptilerDrift(map);
                 }
 
+                setTerrainPanLock(map, terrainEnabled);
                 console.log(`[MapCore] ${engine} map initialized with 3D terrain & Gov layers`);
             });
 
@@ -525,7 +546,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
             setError(error instanceof Error ? error : new Error('Failed to initialize map'));
             setInitializing(false);
         }
-    }, [destroyMap, provider, maptilerStyle, setMap, setLoaded, setInitializing, setError, updateViewState]);
+    }, [destroyMap, provider, maptilerStyle, setMap, setLoaded, setInitializing, setError, terrainEnabled, updateViewState]);
 
     // Initialize on mount
     useEffect(() => {
@@ -554,6 +575,34 @@ export function MapCore({ className = '' }: MapCoreProps) {
             }
         }
     }, [terrainExaggeration]);
+
+    useEffect(() => {
+        const map = mapRef.current;
+        if (!map || !map.loaded()) return;
+
+        const enforceLock = () => {
+            if (!terrainEnabled) return;
+            if (
+                Math.abs(map.getPitch() - MAP_CONFIG.DEFAULT_PITCH) > 0.05 ||
+                Math.abs(map.getBearing() - MAP_CONFIG.DEFAULT_BEARING) > 0.05
+            ) {
+                map.easeTo({
+                    pitch: MAP_CONFIG.DEFAULT_PITCH,
+                    bearing: MAP_CONFIG.DEFAULT_BEARING,
+                    duration: 0,
+                });
+            }
+        };
+
+        setTerrainPanLock(map, terrainEnabled);
+        map.on('pitch', enforceLock);
+        map.on('rotate', enforceLock);
+
+        return () => {
+            map.off('pitch', enforceLock);
+            map.off('rotate', enforceLock);
+        };
+    }, [terrainEnabled]);
 
     return (
         <div className={`relative w-full h-full ${className}`}>
