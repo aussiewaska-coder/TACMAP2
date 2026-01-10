@@ -1,13 +1,13 @@
 # AU Emergency Services Alerts Plugin - Map-Agnostic Technical Spec
 
 ## Purpose
-This module is a standalone, modular alerts plugin for AU police + emergency services data. It is map-system agnostic by design: all map-specific work is isolated behind an adapter layer so it can run on MapLibre, MapTiler, ArcGIS JS, Google Maps, Cesium, or any other map SDK with GeoJSON support.
+This module is a standalone, modular alerts plugin for AU police + emergency services data. It is map-system agnostic by design: all map-specific work is isolated behind an adapter layer so it can run on Mapbox, MapTiler (MapLibre), ArcGIS JS, Google Maps, Cesium, or any other map SDK with GeoJSON support.
 
 ## High-Level Architecture
 - Data registry: emergency feed catalog stored in a database table.
 - Emergency alerts pipeline: fetch -> normalize -> GeoJSON output (no persistence).
 - Police alerts pipeline: Waze sweep -> persist to DB -> query endpoints.
-- Frontend: unified Alerts UI (filters + toggles) and map layers (points, clusters, polygons, heatmap).
+- Frontend: provider selection landing screen + Recon alerts dashboard.
 - Optional aircraft tracking feed (ADSB) delivered as GeoJSON.
 
 ## System Components
@@ -42,28 +42,42 @@ This module is a standalone, modular alerts plugin for AU police + emergency ser
 - Output: GeoJSON FeatureCollection
 
 ### Frontend
-1) Alerts UI
-- Component: UnifiedAlertsPanel
+1) Landing Screen
+- Component: Home
+- Purpose: provider selection (Mapbox or MapTiler)
+- Persists provider to `mapProviderStore`, routes to `/map?provider=...`
+
+2) Recon Layout
+- Component: ReconLayout
+- Purpose: map container + atmospheric overlays + alert controls
+
+3) Alerts UI
+- Component: AlertsSidebar (collapsible)
 - Modes: emergency / police
 - Emergency filters: hazard type, ops mode, state
 - Police filters: time range, sweep action, heatmap toggle
+- Optional aircraft overlay toggle
 
-2) Map Rendering
+4) Map Rendering
 - Hook: useUnifiedAlerts
 - Renders:
   - Emergency: points + polygons
-  - Police: point clusters
+  - Police: clustered points
 - Click behavior:
   - Cluster click -> zoom to expansion
   - Feature click -> popup
 
-3) Police Heatmap
+5) Police Heatmap
 - Hook: useHeatmap
 - Map layer type: heatmap
 
-4) Aircraft Tracks
+6) Aircraft Tracks
 - Hook: useAircraftTracks
-- Note: no map rendering in current UI; adapter should add a layer if enabled
+- Map layer: useAircraftLayer (points + labels)
+
+7) User Location
+- Component: UserLocationLayer
+- Creates a single geolocation control with smooth flyTo
 
 ## Canonical Alert Model
 See `server/lib/ingest/types.ts`.
@@ -105,7 +119,7 @@ If the target SDK lacks native clustering, implement server-side clustering or c
 
 3) Aircraft tracking
 - ADSB -> filter -> GeoJSON -> map (optional)
-- This bundle includes a MapLibre aircraft layer hook: `code/client/src/hooks/useAircraftLayer.ts`
+- This bundle includes an aircraft layer hook: `code/client/src/hooks/useAircraftLayer.ts`
 
 ## Cache Strategy
 - Emergency alerts use stale-while-revalidate caching to avoid API timeouts.
@@ -117,12 +131,15 @@ Critical:
 - DATABASE_URL
 - WAZE_API_KEY
 - KV_REST_API_URL + KV_REST_API_TOKEN (if cache enabled)
+- VITE_RECONMAP_DEFAULT_PROVIDER (mapbox by default)
+- VITE_MAPBOX_ACCESS_TOKEN (for Mapbox)
+- VITE_MAPTILER_API_KEY (for MapTiler)
 
 ## Dependencies (Core)
 Backend:
 - drizzle-orm, @vercel/node, @vercel/kv, fast-xml-parser
 Frontend:
-- maplibre-gl (or any map SDK), @tanstack/react-query, @trpc/*,
+- mapbox-gl, maplibre-gl, @tanstack/react-query, @trpc/*,
   isomorphic-dompurify, sonner
 
 ## Modularity Guidance

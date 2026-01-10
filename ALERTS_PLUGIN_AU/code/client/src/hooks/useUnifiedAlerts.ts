@@ -1,6 +1,7 @@
 // useUnifiedAlerts - SIMPLIFIED - JUST SHOW THE FUCKING DOTS
 import { useEffect, useMemo } from 'react';
-import { useMapStore } from '@/stores';
+import { useMapStore, useMapProviderStore } from '@/stores';
+import mapboxgl from 'mapbox-gl';
 import maplibregl from 'maplibre-gl';
 import DOMPurify from 'isomorphic-dompurify';
 import { isMapValid } from '@/utils/mapUtils';
@@ -21,6 +22,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
     const { enabled, alertSource, data, showMarkers = true, layerPrefix, clusterRadius = 60, clusterMaxZoom = 14 } = options;
     const map = useMapStore((state) => state.map);
     const isLoaded = useMapStore((state) => state.isLoaded);
+    const provider = useMapProviderStore((state) => state.provider);
 
     // Convert to simple GeoJSON
     const geoJsonData = useMemo(() => {
@@ -245,7 +247,8 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 </div>
             `;
 
-            new maplibregl.Popup({ maxWidth: '350px' })
+            const PopupClass = provider === 'mapbox' ? mapboxgl.Popup : maplibregl.Popup;
+            new PopupClass({ maxWidth: '350px' })
                 .setLngLat(e.lngLat)
                 .setHTML(html)
                 .addTo(map);
@@ -360,7 +363,7 @@ export function useUnifiedAlerts(options: UseUnifiedAlertsOptions) {
                 // Map may be destroyed
             }
         };
-    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom]);
+    }, [map, isLoaded, enabled, geoJsonData, showMarkers, layerPrefix, alertSource, clusterRadius, clusterMaxZoom, provider]);
 
     return {
         alertCount: geoJsonData.features.length

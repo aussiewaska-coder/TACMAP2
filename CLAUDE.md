@@ -10,106 +10,45 @@
 - `vercel.json` - Vercel deployment config
 - `vite.config.ts` - Vite config (root is `/client/`)
 
-## Tactical Flight Command Dashboard
+## RECONMAP Alerts Command Dashboard
 
 ### Overview
-A full HUD overlay system with manual controls, automated great-circle missions, and real-time telemetry. Features a glassmorphic tactical aesthetic with cyan/blue accents.
+RECONMAP is a modular AU emergency + police alerts system with a map-engine swap layer. The landing screen selects Mapbox or MapTiler (MapLibre). The main UI is a collapsible, tactical Alerts sidebar over the map.
 
 ### Key Files
 | File | Purpose |
 |------|---------|
-| `/client/src/stores/flightStore.ts` | Flight state management (Zustand) |
-| `/client/src/hooks/useFlight.ts` | Flight animation hook |
-| `/client/src/utils/geodesic.ts` | Great-circle calculations |
-| `/client/src/components/overlays/FlightDashboard.tsx` | Main HUD container |
-| `/client/src/components/layout/UnifiedSidebar.tsx` | Flight button (toggles dashboard) |
+| `/client/src/pages/Home.tsx` | Provider selection landing screen |
+| `/client/src/pages/MapPageNew.tsx` | Map page entry point |
+| `/client/src/components/recon/ReconLayout.tsx` | Map + overlay layout |
+| `/client/src/components/recon/AlertsSidebar.tsx` | Tactical alerts command UI |
+| `/client/src/core/MapCore.tsx` | Map engine bootstrap + provider switching |
+| `/client/src/stores/mapProviderStore.ts` | Persisted provider selection |
+| `/client/src/stores/mapStore.ts` | Shared map state |
+| `/client/src/hooks/useUnifiedAlerts.ts` | Alert layers + clustering |
+| `/client/src/hooks/useHeatmap.ts` | Police heatmap overlay |
+| `/client/src/hooks/useAircraftTracks.ts` | Aircraft tracking query |
+| `/client/src/hooks/useAircraftLayer.ts` | Aircraft map layer |
+| `/client/src/layers/live/UserLocationLayer.tsx` | Geolocation control |
 
-### Activation
-- Click the Plane button (bottom-right) to open/close the dashboard
-- Button color indicates state:
-  - White/glass: Dashboard closed
-  - Cyan: Dashboard open, flight off
-  - Blue: Manual flight active
-  - Green (pulsing): Autopilot active
+### Provider Selection
+- Default provider comes from `VITE_RECONMAP_DEFAULT_PROVIDER` (defaults to `mapbox`).
+- Landing screen sets provider and routes to `/map?provider=...`.
+- `MapCore` re-initializes when provider changes (Mapbox GL JS vs MapLibre).
 
-### Flight Modes
-1. **Off** - No flight, dashboard can be open or closed
-2. **Manual** - User controls via speed/heading/altitude sliders
-3. **Autopilot** - Follow great-circle route to destination
+### Alert Pipelines
+- Emergency alerts: `GET /api/emergency/alerts` (live GeoJSON, no persistence).
+- Police alerts: Waze sweep -> `police_reports` table -> `trpc.police.list`.
+- Heatmap: `trpc.police.heatmap` aggregates police reports.
+- Aircraft tracks: `GET /api/emergency/tracks` (optional overlay).
 
-### Manual Controls
-| Control | Range | Default |
-|---------|-------|---------|
-| Speed | 100-2000 km/h | 500 |
-| Heading | 0-360° | 0 (north) |
-| Altitude | 1000-50000m | 10000 |
+### UI + Map Layers
+- `AlertsSidebar` controls mode (emergency/police), filters, heatmap, aircraft overlay.
+- `useUnifiedAlerts` renders points, clusters, and emergency polygons.
+- `useHeatmap` renders police heatmap.
+- `useAircraftLayer` renders aircraft points/labels.
 
-### Autopilot Destinations
-Predefined Australian destinations:
-- Sydney, Nimbin, Melbourne, Brisbane, Uluru, Perth, Adelaide, Hobart, Darwin, Cairns
-
-### HUD Layout
-```
-+------------------------------------------------------------------+
-|  [COMPASS]     MODE: AUTOPILOT     [LAT/LNG]  [SPEED]  [ETA]    |
-+------------------------------------------------------------------+
-|  [HORIZON]                                        [CONTROLS]     |
-|  [ALTITUDE]          [MAP AREA]                   [AUTOPILOT]    |
-+------------------------------------------------------------------+
-```
-
-### State Management (flightStore)
-```typescript
-interface FlightState {
-  dashboardOpen: boolean;
-  mode: 'off' | 'manual' | 'autopilot';
-  targetSpeed: number;
-  targetHeading: number;
-  targetAltitude: number;
-  telemetry: FlightTelemetry;
-  destination: Destination | null;
-  routeGeometry: GeoJSON.LineString | null;
-  distanceRemaining: number;
-  etaSeconds: number;
-}
-```
-
-### Geodesic Utilities (geodesic.ts)
-- `greatCircleDistance(from, to)` - Haversine formula
-- `greatCircleBearing(from, to)` - Forward azimuth
-- `greatCirclePath(from, to, numPoints)` - Interpolated LineString
-- `greatCircleInterpolate(from, to, fraction)` - Point along path
-- `destinationPoint(from, bearing, distance)` - Point at bearing/distance
-
-### Auto-Stop on User Interaction
-Flight automatically stops when user:
-- Drags the map (`dragstart`)
-- Scrolls/zooms (`wheel`)
-- Double-clicks (`dblclick`)
-- Touches the map (`touchstart`)
-
-### Route Visualization
-Autopilot routes are displayed on the map as a dashed cyan line using a GeoJSON source/layer:
-- Source ID: `flight-route-source`
-- Layer ID: `flight-route-layer`
-- Style: 3px width, cyan color, 70% opacity, dashed
-
-### Animation Pattern
-Uses `requestAnimationFrame` with delta time calculation (capped at 50ms)
-
-## Key Files
-
-| File | Purpose |
-|------|---------|
-| `/client/src/components/layout/UnifiedSidebar.tsx` | Main sidebar + flight button |
-| `/client/src/components/layout/MapLayout.tsx` | Layout that renders UnifiedSidebar |
-| `/client/src/pages/MapPageNew.tsx` | Map page component |
-| `/client/src/stores/index.ts` | Zustand stores including mapStore |
-| `/client/src/core/constants.ts` | Z_INDEX and other constants |
-
-## Common Mistakes to Avoid
-
-1. **DO NOT** edit files in any `maplibre_mapping_app/` directory - it doesn't exist anymore and was never deployed
-2. **ALWAYS** check `vite.config.ts` and `vercel.json` to understand build structure
-3. The map instance comes from `useMapStore`, not a ref in the component
-4. MapLibre GL JS uses `jumpTo()` for instant updates, `easeTo()`/`flyTo()` for animated
+### Common Mistakes to Avoid
+1. Don’t access the map instance before `isLoaded` is true.
+2. Use `useMapStore` and `isMapValid` for safe cleanup on unmount.
+3. Provider changes must rebuild the map (handled by `MapCore`).

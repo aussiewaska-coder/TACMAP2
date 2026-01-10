@@ -6,22 +6,23 @@ interface AircraftTrackFeature {
     type: 'Feature';
     geometry: {
         type: 'Point';
-        coordinates: [number, number, number];
+        coordinates: [number, number];
     };
     properties: {
         icao24: string;
         registration?: string;
         callsign?: string;
-        altitude_m: number;
-        ground_speed_mps: number;
-        track_deg: number;
-        vertical_rate?: number;
-        age_s: number;
-        stale: boolean;
-        source: 'adsb_lol' | 'opensky';
+        altitude_m?: number;
+        speed?: number;
+        heading?: number;
+        verticalRate?: number;
+        seen?: number;
+        status?: 'active' | 'stale';
         operator?: string;
         role?: string;
-        on_ground?: boolean;
+        onGround?: boolean;
+        source_id?: string;
+        jurisdiction_state?: string;
     };
 }
 
@@ -31,7 +32,7 @@ interface AircraftTracksResponse {
     metadata: {
         total_tracked: number;
         active_tracks: number;
-        stale: boolean;
+        stale: number;
         error?: string;
     };
 }
