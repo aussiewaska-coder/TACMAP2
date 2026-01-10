@@ -13,20 +13,31 @@ export async function getTile(z: number, x: number, y: number): Promise<Buffer> 
       const redis = await getRedisClient();
       if (redis) {
         const cached = await redis.get(redisKey);
-        if (cached) { console.log(`[TilePipeline] HIT: ${key}`); return Buffer.from(cached, 'base64'); }
+        if (cached) {
+          console.log(`[Tile] REDIS CACHE ${key}`);
+          return Buffer.from(cached, 'base64');
+        }
       }
-      
+
+      console.log(`[Tile] FETCHING MAPTILER ${key}`);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
       const res = await fetch(`https://api.maptiler.com/tiles/v3/${z}/${x}/${y}.png?key=${process.env.VITE_MAPTILER_API_KEY}`, { signal: controller.signal });
       clearTimeout(timeout);
-      
+
       if (!res.ok) throw new Error(`MapTiler ${res.status}`);
       const buf = Buffer.from(await res.arrayBuffer());
-      
-      if (redis) redis.set(redisKey, buf.toString('base64')).catch(console.error);
+      console.log(`[Tile] MAPTILER OK ${key} (${buf.length} bytes)`);
+
+      if (redis) {
+        redis.set(redisKey, buf.toString('base64')).catch(console.error);
+        console.log(`[Tile] CACHED TO REDIS ${key}`);
+      }
       return buf;
-    } catch (e) { console.error(`[TilePipeline] FAIL ${key}:`, e); return fallbackTile; }
+    } catch (e) {
+      console.error(`[Tile] FALLBACK ${key}:`, e);
+      return fallbackTile;
+    }
     finally { inflight.delete(key); }
   })();
   
