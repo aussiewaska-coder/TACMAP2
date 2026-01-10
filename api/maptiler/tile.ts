@@ -26,6 +26,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const kvUrl = process.env.KV_REST_API_URL;
     const kvToken = process.env.KV_REST_API_TOKEN;
 
+    console.log('[MapTiler Tile Cache] Request:', {
+      hasRedis: !!(kvUrl && kvToken),
+      cacheKey: tileKey.substring(0, 100) + '...'
+    });
+
     if (kvUrl && kvToken) {
       const redis = createClient({ url: kvUrl, token: kvToken });
 
@@ -48,8 +53,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
           res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
 
+          console.log('[MapTiler Tile Cache] ✅ CACHE HIT', {
+            ageSeconds: Math.floor(age / 1000),
+            sizeBytes: buffer.length,
+            isStale
+          });
+
           // Background refresh if stale
           if (isStale) {
+            console.log('[MapTiler Tile Cache] Background refresh triggered (stale)');
             refreshTile(url, cacheKey, redis).catch(console.error);
           }
 
@@ -59,10 +71,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Fetch from MapTiler
+    console.log('[MapTiler Tile Cache] ❌ CACHE MISS - Fetching from MapTiler API');
     const response = await fetch(url);
 
     if (!response.ok) {
       // Don't cache errors
+      console.error('[MapTiler Tile Cache] MapTiler API error:', response.status);
       return res.status(response.status).json({ error: 'Failed to fetch tile' });
     }
 
@@ -77,12 +91,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Only cache if tile is reasonable size (< 500KB)
       if (base64.length < 500000) {
+        console.log('[MapTiler Tile Cache] Writing to Redis', {
+          sizeBytes: buffer.length,
+          sizeBase64: base64.length
+        });
         await redis.set(cacheKey, base64);
         await redis.set(`${cacheKey}:timestamp`, Date.now().toString());
         await redis.set(`${cacheKey}:type`, contentType);
         await redis.expire(cacheKey, 2592000); // 30 days
         await redis.expire(`${cacheKey}:timestamp`, 2592000);
         await redis.expire(`${cacheKey}:type`, 2592000);
+        console.log('[MapTiler Tile Cache] ✅ Cached in Redis (TTL: 30 days)');
+      } else {
+        console.warn('[MapTiler Tile Cache] ⚠️ Tile too large to cache:', base64.length);
       }
     }
 

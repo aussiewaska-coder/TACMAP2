@@ -29,17 +29,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const kvUrl = process.env.KV_REST_API_URL;
     const kvToken = process.env.KV_REST_API_TOKEN;
 
+    console.log('[MapTiler Style Cache] Redis config:', {
+      hasUrl: !!kvUrl,
+      hasToken: !!kvToken,
+      styleId,
+      cacheKey
+    });
+
     if (kvUrl && kvToken) {
       const redis = createClient({ url: kvUrl, token: kvToken });
+      console.log('[MapTiler Style Cache] Redis client created');
 
       // Check cache
       const cached = await redis.get(cacheKey);
       const timestamp = await redis.get(`${cacheKey}:timestamp`);
 
+      console.log('[MapTiler Style Cache] Cache lookup:', {
+        hasCached: !!cached,
+        hasTimestamp: !!timestamp
+      });
+
       if (cached && timestamp) {
         const age = Date.now() - parseInt(timestamp as string, 10);
         const isStale = age > 86400000; // 1 day in ms
         const isExpired = age > 604800000; // 7 days in ms
+
+        console.log('[MapTiler Style Cache] Cache status:', {
+          ageSeconds: Math.floor(age / 1000),
+          isStale,
+          isExpired
+        });
 
         if (!isExpired) {
           // Set aggressive cache headers
@@ -47,17 +66,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
           res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
 
+          console.log('[MapTiler Style Cache] ✅ CACHE HIT - Serving from Redis');
+
           // Background refresh if stale
           if (isStale) {
+            console.log('[MapTiler Style Cache] Triggering background refresh (stale)');
             refreshStyle(styleId as string, key as string, redis).catch(console.error);
           }
 
           return res.status(200).json(JSON.parse(cached as string));
         }
       }
+    } else {
+      console.warn('[MapTiler Style Cache] ⚠️ Redis not configured - KV env vars missing');
     }
 
     // Fetch fresh style from MapTiler
+    console.log('[MapTiler Style Cache] ❌ CACHE MISS - Fetching from MapTiler API');
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${key}`;
     const response = await fetch(styleUrl);
 
@@ -72,17 +97,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Cache in Redis
     if (kvUrl && kvToken) {
+      console.log('[MapTiler Style Cache] Writing to Redis cache');
       const redis = createClient({ url: kvUrl, token: kvToken });
       await redis.set(cacheKey, JSON.stringify(transformedStyle));
       await redis.set(`${cacheKey}:timestamp`, Date.now().toString());
       await redis.expire(cacheKey, 604800); // 7 days
       await redis.expire(`${cacheKey}:timestamp`, 604800);
+      console.log('[MapTiler Style Cache] ✅ Cached in Redis (TTL: 7 days)');
     }
 
     // Set cache headers
     res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
     res.setHeader('X-Cache', 'MISS');
 
+    console.log('[MapTiler Style Cache] Response sent to client');
     return res.status(200).json(transformedStyle);
 
   } catch (error) {
