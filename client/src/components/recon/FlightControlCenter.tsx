@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Navigation,
+  Compass,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -64,6 +65,7 @@ export function FlightControlCenter() {
   const [isAutoRotating, setIsAutoRotating] = useState(false);
   const [isAutoOrbiting, setIsAutoOrbiting] = useState(false);
   const [isFlightMode, setIsFlightMode] = useState(false);
+  const [isRandomPathFlight, setIsRandomPathFlight] = useState(false);
   const [orbitCenter, setOrbitCenter] = useState<[number, number] | null>(null);
   const [currentZoom, setCurrentZoom] = useState(0);
   const [currentBearing, setCurrentBearing] = useState(0);
@@ -73,6 +75,7 @@ export function FlightControlCenter() {
   const rotationFrameRef = useRef<number | undefined>(undefined);
   const orbitFrameRef = useRef<number | undefined>(undefined);
   const flightFrameRef = useRef<number | undefined>(undefined);
+  const randomPathFrameRef = useRef<number | undefined>(undefined);
   const orbitStartAngleRef = useRef<number | null>(null);
   const orbitRadiusRef = useRef(0.05);
   const orbitSpeedRef = useRef((2 * Math.PI) / 60);
@@ -84,6 +87,11 @@ export function FlightControlCenter() {
   const flightHeadingDeltaRef = useRef(0);
   const flightAltitudeDeltaRef = useRef(0);
   const flightPitchTargetRef = useRef(75);
+
+  // Random path flight
+  const randomHeadingTargetRef = useRef(Math.random() * 360);
+  const randomHeadingChangeTimeRef = useRef(0);
+  const randomPathStartTimeRef = useRef(0);
 
   // Track map state
   useEffect(() => {
@@ -320,15 +328,80 @@ export function FlightControlCenter() {
     };
   }, [map, isLoaded, isFlightMode]);
 
+  // Random path flight - autonomous navigation with smooth heading/altitude changes
+  useEffect(() => {
+    if (!map || !isLoaded || !isRandomPathFlight) return;
+    let lastTime = performance.now();
+
+    const randomPathFly = (currentTime: number) => {
+      if (!map || !isRandomPathFlight) return;
+      const deltaTime = currentTime - lastTime;
+      const frameAdjustedSpeed = flightSpeedRef.current * (deltaTime / 16.67);
+
+      // Get current state
+      const bearing = map.getBearing();
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      const pitch = map.getPitch();
+
+      // Change heading randomly every 3-7 seconds
+      if (randomHeadingChangeTimeRef.current === 0) {
+        randomHeadingChangeTimeRef.current = currentTime + (3000 + Math.random() * 4000);
+        randomHeadingTargetRef.current = Math.random() * 360;
+      }
+
+      if (currentTime >= randomHeadingChangeTimeRef.current) {
+        randomHeadingChangeTimeRef.current = 0;
+      }
+
+      // Smooth heading interpolation
+      let headingDelta = randomHeadingTargetRef.current - bearing;
+      while (headingDelta > 180) headingDelta -= 360;
+      while (headingDelta < -180) headingDelta += 360;
+      const headingStep = headingDelta * 0.02; // Smooth interpolation
+      map.setBearing(bearing + headingStep);
+
+      // Random altitude changes (gentle)
+      if (Math.random() < 0.01 && zoom > 5 && zoom < 18) {
+        const altitudeDelta = (Math.random() - 0.5) * 0.02;
+        map.setZoom(Math.max(5, Math.min(18, zoom + altitudeDelta)));
+      }
+
+      // Maintain pitch with slight variation
+      const targetPitch = 65 + Math.sin(currentTime / 2000) * 10; // Oscillates between 55-75°
+      const pitchStep = (targetPitch - pitch) * 0.05;
+      map.setPitch(pitch + pitchStep);
+
+      // Forward flight
+      const bearingRad = (bearing * Math.PI) / 180;
+      map.setCenter([
+        center.lng + Math.sin(bearingRad) * frameAdjustedSpeed,
+        center.lat + Math.cos(bearingRad) * frameAdjustedSpeed,
+      ]);
+
+      lastTime = currentTime;
+      randomPathFrameRef.current = requestAnimationFrame(randomPathFly);
+    };
+
+    randomPathStartTimeRef.current = performance.now();
+    randomHeadingChangeTimeRef.current = 0;
+    randomPathFrameRef.current = requestAnimationFrame(randomPathFly);
+    return () => {
+      if (randomPathFrameRef.current !== undefined) cancelAnimationFrame(randomPathFrameRef.current);
+    };
+  }, [map, isLoaded, isRandomPathFlight]);
+
   const toggleAutoRotate = () => {
     if (isAutoOrbiting) setIsAutoOrbiting(false);
     if (isFlightMode) setIsFlightMode(false);
+    if (isRandomPathFlight) setIsRandomPathFlight(false);
     setIsAutoRotating(!isAutoRotating);
   };
 
   const toggleAutoOrbit = () => {
     if (isAutoRotating) setIsAutoRotating(false);
     if (isFlightMode) setIsFlightMode(false);
+    if (isRandomPathFlight) setIsRandomPathFlight(false);
 
     if (isAutoOrbiting) {
       setOrbitCenter(null);
@@ -349,11 +422,28 @@ export function FlightControlCenter() {
     if (!isFlightMode) {
       if (isAutoRotating) setIsAutoRotating(false);
       if (isAutoOrbiting) setIsAutoOrbiting(false);
+      if (isRandomPathFlight) setIsRandomPathFlight(false);
       animateTo({ pitch: 75, zoom: 11, duration: 3000 });
       setIsFlightMode(true);
     } else {
       animateTo({ pitch: 60, zoom: map.getZoom(), duration: 3000 });
       setIsFlightMode(false);
+    }
+  };
+
+  const toggleRandomPathFlight = () => {
+    if (!map) return;
+    if (!isRandomPathFlight) {
+      if (isAutoRotating) setIsAutoRotating(false);
+      if (isAutoOrbiting) setIsAutoOrbiting(false);
+      if (isFlightMode) setIsFlightMode(false);
+      animateTo({ pitch: 70, zoom: 11, duration: 3000 });
+      randomHeadingTargetRef.current = map.getBearing();
+      randomHeadingChangeTimeRef.current = 0;
+      setIsRandomPathFlight(true);
+    } else {
+      animateTo({ pitch: 60, zoom: map.getZoom(), duration: 3000 });
+      setIsRandomPathFlight(false);
     }
   };
 
@@ -472,9 +562,54 @@ export function FlightControlCenter() {
               <Plane className="size-4" />
             </Button>
           </div>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={toggleRandomPathFlight}
+            title="Random path autonomous flight"
+            className={cn(
+              'w-full h-7 mt-2 transition-all border text-xs',
+              isRandomPathFlight
+                ? 'bg-cyan-600/60 border-cyan-400/60 text-white'
+                : 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:bg-slate-700/60'
+            )}
+          >
+            <Compass className="size-3 mr-1" />
+            Random Path
+          </Button>
         </div>
 
-        {isFlightMode ? (
+        {isRandomPathFlight ? (
+          <>
+            {/* Random Path Flight Status */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Autonomous Status</div>
+              <div className="text-xs text-cyan-300 space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  <span>Navigation Active</span>
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  • Random heading every 3-7s
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  • Smooth altitude variation
+                </div>
+                <div className="text-[10px] text-slate-400">
+                  • Dynamic pitch oscillation
+                </div>
+              </div>
+            </div>
+
+            {/* Random Path Cannot Be Manually Controlled */}
+            <div className="p-3 border-b border-slate-800/50">
+              <div className="text-[9px] text-slate-500 uppercase mb-2">Info</div>
+              <p className="text-xs text-slate-400">
+                Random path flight is fully autonomous. Aircraft will continue on random route. Click Random Path again to return to manual control.
+              </p>
+            </div>
+          </>
+        ) : isFlightMode ? (
           <>
             {/* Flight Heading Controls */}
             <div className="p-3 border-b border-slate-800/50">
