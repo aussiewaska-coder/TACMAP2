@@ -1,0 +1,14 @@
+{
+  "name": "flight-sim",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@maptiler/3d": "^1.0.0",
+    "maplibre-gl": "^2.6.1",
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.160.0",
+    "typescript": "^5.2.2"
+  }
+}
