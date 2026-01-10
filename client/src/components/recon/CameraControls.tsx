@@ -125,28 +125,34 @@ export function CameraControls() {
   // Track current zoom for display
   const [currentZoom, setCurrentZoom] = useState(0);
 
-  // Double-tap in orbit mode: fly to location at 10,000 feet
+  // Double-tap in orbit mode: fly to location at 10,000 feet, keep orbiting
   useEffect(() => {
     if (!map || !isLoaded || !isAutoOrbiting) return;
 
     const handleDoubleClick = (e: MapMouseEvent) => {
       const targetLngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat];
 
-      // 10,000 feet ≈ zoom 12.5 (from altitudeFeetToZoom calculation)
+      // 10,000 feet ≈ zoom 12.5
       const targetZoom = 12.5;
 
-      // Stop orbiting
+      // Pause orbit during fly animation
       setIsAutoOrbiting(false);
-      setOrbitCenter(null);
-      orbitStartAngleRef.current = null;
 
-      // Fly to location - go to 10,000 feet regardless of current altitude
+      // Fly to location
       map.flyTo({
         center: targetLngLat,
         zoom: targetZoom,
         pitch: 60,
         duration: 2000,
         essential: true,
+      });
+
+      // When fly completes, resume orbit around new location
+      map.once('moveend', () => {
+        const newBearing = map.getBearing();
+        orbitStartAngleRef.current = -(newBearing + 90) * Math.PI / 180;
+        setOrbitCenter(targetLngLat);
+        setIsAutoOrbiting(true);
       });
     };
 
