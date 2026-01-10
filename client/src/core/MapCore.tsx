@@ -10,11 +10,10 @@ import { MAP_CONFIG } from '@/core/constants';
 import { useMapStore, useMapProviderStore, useFlightControlStore } from '@/stores';
 import { eventBus } from '@/events/EventBus';
 
-// Configure MapTiler API key globally
-const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY as string;
-if (MAPTILER_API_KEY) {
-    maptilersdk.config.apiKey = MAPTILER_API_KEY;
-}
+// ✅ DO NOT SET API KEY ON SDK
+// SDK will make direct MapTiler calls, bypassing Redis proxy
+// Instead: Backend proxy endpoints handle the API key
+// Frontend only gets pre-transformed URLs that go through proxy
 
 interface MapCoreProps {
     /** Additional CSS classes */
