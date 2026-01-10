@@ -7,7 +7,7 @@ import * as maptilersdk from '@maptiler/sdk';
 import '@maptiler/sdk/dist/maptiler-sdk.css';
 
 import { MAP_CONFIG } from '@/core/constants';
-import { useMapStore, useMapProviderStore } from '@/stores';
+import { useMapStore, useMapProviderStore, useFlightControlStore } from '@/stores';
 import { eventBus } from '@/events/EventBus';
 
 // Configure MapTiler API key globally
@@ -124,7 +124,7 @@ function getMaptilerInitialView() {
     };
 }
 
-function startMaptilerDrift(map: maptilersdk.Map) {
+function startMaptilerDrift(map: maptilersdk.Map, shouldOrbit: () => boolean) {
     let isOrbiting = true;
     let orbitTimeoutId: number | null = null;
     let orbitAngle = 0;
@@ -135,7 +135,7 @@ function startMaptilerDrift(map: maptilersdk.Map) {
     const SEGMENT_DURATION = (ORBIT_DURATION * SEGMENT_ANGLE) / 360;  // Time per segment
 
     const orbitSegment = () => {
-        if (!isOrbiting) return;
+        if (!isOrbiting || !shouldOrbit()) return;
         const canvas = map.getCanvas();
         if (!canvas) return;
 
@@ -172,7 +172,7 @@ function startMaptilerDrift(map: maptilersdk.Map) {
     };
 
     const resume = () => {
-        if (isOrbiting) return;
+        if (isOrbiting || !shouldOrbit()) return;
         isOrbiting = true;
         orbitSegment();
     };
@@ -343,6 +343,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const driftCleanupRef = useRef<(() => void) | null>(null);
     const constrainZoomRef = useRef<(() => void) | null>(null);
     const panLockRef = useRef<{ pitch: number; bearing: number; zoom: number } | null>(null);
+    const flightModeRef = useRef<string>('standard');
 
     const setMap = useMapStore((state) => state.setMap);
     const setLoaded = useMapStore((state) => state.setLoaded);
@@ -352,6 +353,7 @@ export function MapCore({ className = '' }: MapCoreProps) {
     const terrainExaggeration = useMapStore((state) => state.terrainExaggeration);
     const terrainEnabled = useMapStore((state) => state.terrainEnabled);
     const maptilerStyle = useMapProviderStore((state) => state.maptilerStyle);
+    const activeFlightMode = useFlightControlStore((state) => state.activeMode);
 
 
     // Initialize map
@@ -467,7 +469,8 @@ export function MapCore({ className = '' }: MapCoreProps) {
                 // Initial view state sync
                 updateViewState();
 
-                driftCleanupRef.current = startMaptilerDrift(map);
+                // Only orbit when NOT in flight mode
+                driftCleanupRef.current = startMaptilerDrift(map, () => flightModeRef.current !== 'flight');
 
                 console.log('[MapCore] MapTiler SDK map initialized with 3D terrain & Gov layers');
             });
@@ -537,6 +540,11 @@ export function MapCore({ className = '' }: MapCoreProps) {
             }
         }
     }, [terrainExaggeration]);
+
+    // Update flight mode ref for orbit logic
+    useEffect(() => {
+        flightModeRef.current = activeFlightMode;
+    }, [activeFlightMode]);
 
     useEffect(() => {
         const map = mapRef.current;
