@@ -243,8 +243,12 @@ function resolveMapStyle(maptilerStyle?: string): maptilersdk.StyleSpecification
 
     // ✅ Use Vercel serverless endpoint with Redis caching
     // Endpoint handles: caching, MapTiler fallback, style transformation
+    // IMPORTANT: Return ABSOLUTE URL so MapTiler SDK doesn't prepend its domain
     const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
-    return `/api/maptiler/style?styleId=${styleId}&key=${apiKey}`;
+    const absoluteUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/api/maptiler/style?styleId=${styleId}&key=${apiKey}`
+        : `/api/maptiler/style?styleId=${styleId}&key=${apiKey}`;
+    return absoluteUrl;
 }
 
 function ensureBaseOverlays(map: maptilersdk.Map) {
