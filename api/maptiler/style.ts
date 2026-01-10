@@ -23,16 +23,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const cacheKey = `maptiler:style:${styleId}`;
+  const redisUrl = process.env.REDIS_URL;
+
+  // ✅ ALWAYS try Redis first, store result in outer scope for fallback
+  let cachedData: string | null = null;
+  let cacheTimestamp: number | null = null;
 
   try {
-    // Try Redis cache first
-    const redisUrl = process.env.REDIS_URL;
-
-    console.log('[MapTiler Style Cache] Redis config:', {
-      hasRedisUrl: !!redisUrl,
-      styleId,
-      cacheKey
-    });
+    console.log('[MapTiler Style Cache] Checking Redis cache first...', { styleId, cacheKey });
 
     if (redisUrl) {
       const redis = new Redis(redisUrl, {
@@ -41,68 +39,74 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         enableOfflineQueue: true,
         connectTimeout: 10000,
       });
-      console.log('[MapTiler Style Cache] Redis client created');
 
       try {
-        // Connect first
         await redis.connect();
-        console.log('[MapTiler Style Cache] Redis connected');
+        console.log('[MapTiler Style Cache] ✅ Redis connected');
 
         // Check cache
         const cached = await redis.get(cacheKey);
         const timestamp = await redis.get(`${cacheKey}:timestamp`);
 
-        console.log('[MapTiler Style Cache] Cache lookup:', {
-          hasCached: !!cached,
-          hasTimestamp: !!timestamp
-        });
-
         if (cached && timestamp) {
-          const age = Date.now() - parseInt(timestamp, 10);
-          const isStale = age > 86400000; // 1 day in ms
-          const isExpired = age > 604800000; // 7 days in ms
+          cachedData = cached;
+          cacheTimestamp = parseInt(timestamp as string, 10);
 
-          console.log('[MapTiler Style Cache] Cache status:', {
+          const age = Date.now() - cacheTimestamp;
+          const isStale = age > 86400000; // 1 day
+          const isExpired = age > 604800000; // 7 days
+
+          console.log('[MapTiler Style Cache] Cache found:', {
             ageSeconds: Math.floor(age / 1000),
             isStale,
             isExpired
           });
 
           if (!isExpired) {
-            // Set aggressive cache headers
+            console.log('[MapTiler Style Cache] ✅ CACHE HIT - Serving from Redis');
+
             res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
             res.setHeader('X-Cache', isStale ? 'STALE' : 'HIT');
             res.setHeader('X-Cache-Age', Math.floor(age / 1000).toString());
 
-            console.log('[MapTiler Style Cache] ✅ CACHE HIT - Serving from Redis');
-
             // Background refresh if stale
             if (isStale) {
-              console.log('[MapTiler Style Cache] Triggering background refresh (stale)');
+              console.log('[MapTiler Style Cache] Background refresh triggered');
               refreshStyle(styleId as string, key as string, redisUrl).catch(console.error);
             }
 
             redis.disconnect();
-            return res.status(200).json(JSON.parse(cached));
+            return res.status(200).json(JSON.parse(cachedData));
           }
         }
       } catch (redisError) {
-        console.error('[MapTiler Style Cache] ❌ Redis connection failed:', redisError);
-        console.warn('[MapTiler Style Cache] ⚠️ Falling back to direct MapTiler API (no caching)');
-        // Continue to fetch from MapTiler if Redis fails
+        console.error('[MapTiler Style Cache] ⚠️ Redis error:', redisError);
       } finally {
         redis.disconnect();
       }
-    } else {
-      console.warn('[MapTiler Style Cache] ⚠️ Redis not configured - REDIS_URL missing');
     }
 
     // Fetch fresh style from MapTiler
-    console.log('[MapTiler Style Cache] ❌ CACHE MISS - Fetching from MapTiler API');
+    console.log('[MapTiler Style Cache] CACHE MISS - Fetching from MapTiler API');
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${key}`;
     const response = await fetch(styleUrl);
 
+    // ✅ If API fails, return cached data NO MATTER HOW OLD
     if (!response.ok) {
+      console.warn(`[MapTiler Style Cache] ⚠️ API returned ${response.status}`);
+
+      if (cachedData) {
+        const age = cacheTimestamp ? Date.now() - cacheTimestamp : 0;
+        const ageHours = Math.floor(age / (1000 * 60 * 60));
+        console.log(`[MapTiler Style Cache] ✅ FALLBACK: Returning cached (${ageHours}h old)`);
+
+        res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+        res.setHeader('X-Cache', 'FALLBACK');
+        res.setHeader('X-Cache-Age', ageHours.toString());
+
+        return res.status(200).json(JSON.parse(cachedData));
+      }
+
       throw new Error(`MapTiler API error: ${response.status}`);
     }
 
