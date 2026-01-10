@@ -14,15 +14,21 @@ import { useMapProviderStore, type MapProvider } from '@/stores';
  */
 export function MapPageNew() {
     const setProvider = useMapProviderStore((state) => state.setProvider);
+    const setMaptilerStyle = useMapProviderStore((state) => state.setMaptilerStyle);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const providerParam = params.get('provider') as MapProvider | null;
+        const maptilerStyleParam = params.get('maptilerStyle');
 
         if (providerParam === 'mapbox' || providerParam === 'maptiler') {
             setProvider(providerParam);
         }
-    }, [setProvider]);
+
+        if (maptilerStyleParam) {
+            setMaptilerStyle(maptilerStyleParam);
+        }
+    }, [setProvider, setMaptilerStyle]);
 
     return (
         <>
