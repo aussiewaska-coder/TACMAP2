@@ -112,10 +112,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             sizeBytes: buffer.length,
             sizeBase64: base64.length
           });
-          await redis.set(cacheKey, base64, 'EX', 2592000); // 30 days
-          await redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 2592000);
-          await redis.set(`${cacheKey}:type`, contentType, 'EX', 2592000);
-          console.log('[MapTiler Tile Cache] ✅ Cached in Redis (TTL: 30 days)');
+          // TILES NEVER EXPIRE - they don't change, save API costs forever
+          await redis.set(cacheKey, base64);
+          await redis.set(`${cacheKey}:timestamp`, Date.now().toString());
+          await redis.set(`${cacheKey}:type`, contentType);
+          console.log('[MapTiler Tile Cache] ✅ Cached in Redis (PERMANENT - no expiry)');
         } else {
           console.warn('[MapTiler Tile Cache] ⚠️ Tile too large to cache:', base64.length);
         }
@@ -160,10 +161,11 @@ async function refreshTile(url: string, cacheKey: string, redisUrl: string): Pro
     const base64 = buffer.toString('base64');
 
     if (base64.length < 500000) {
-      await redis.set(cacheKey, base64, 'EX', 2592000);
-      await redis.set(`${cacheKey}:timestamp`, Date.now().toString(), 'EX', 2592000);
-      await redis.set(`${cacheKey}:type`, contentType, 'EX', 2592000);
-      console.log('[MapTiler Tile Cache] Background refresh completed');
+      // TILES NEVER EXPIRE
+      await redis.set(cacheKey, base64);
+      await redis.set(`${cacheKey}:timestamp`, Date.now().toString());
+      await redis.set(`${cacheKey}:type`, contentType);
+      console.log('[MapTiler Tile Cache] Background refresh completed (PERMANENT)');
     }
   } catch (error) {
     console.error('Background tile refresh failed:', error);

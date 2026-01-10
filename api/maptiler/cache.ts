@@ -4,7 +4,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Redis } from 'ioredis';
 
-type CacheType = 'style' | 'tile' | 'sprite' | 'glyph' | 'tilejson' | 'all';
+type CacheType = 'style' | 'tile' | 'sprite' | 'glyph' | 'tilejson';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Only allow POST for cache clearing
@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Missing cache type' });
   }
 
-  const validTypes: CacheType[] = ['style', 'tile', 'sprite', 'glyph', 'tilejson', 'all'];
+  const validTypes: CacheType[] = ['style', 'tile', 'sprite', 'glyph', 'tilejson'];
   if (!validTypes.includes(type)) {
     return res.status(400).json({ error: 'Invalid cache type', validTypes });
   }
@@ -38,12 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await redis.connect();
     console.log('[Cache Clear] Connected to Redis');
 
-    let pattern: string;
-    if (type === 'all') {
-      pattern = 'maptiler:*';
-    } else {
-      pattern = `maptiler:${type}:*`;
-    }
+    const pattern = `maptiler:${type}:*`;
 
     // Find all matching keys
     const keys = await redis.keys(pattern);

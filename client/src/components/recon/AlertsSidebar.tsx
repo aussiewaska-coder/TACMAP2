@@ -60,21 +60,45 @@ interface AlertsSidebarProps {
   onToggle: () => void;
 }
 
-type CacheType = 'style' | 'tile' | 'sprite' | 'glyph' | 'tilejson' | 'all';
+type CacheType = 'style' | 'tile' | 'sprite' | 'glyph' | 'tilejson';
 
-const CACHE_TYPES: { type: CacheType; label: string; description: string }[] = [
+const CACHE_TYPES: { type: CacheType; label: string; description: string; dangerous?: boolean }[] = [
   { type: 'style', label: 'Styles', description: 'Map style JSON' },
-  { type: 'tile', label: 'Tiles', description: 'Vector/raster tiles' },
+  { type: 'tile', label: 'Tiles', description: 'PERMANENT cache', dangerous: true },
   { type: 'sprite', label: 'Sprites', description: 'Icon sprites' },
   { type: 'glyph', label: 'Glyphs', description: 'Font glyphs' },
   { type: 'tilejson', label: 'TileJSON', description: 'Tile metadata' },
-  { type: 'all', label: 'Clear All', description: 'All cached data' },
 ];
 
 function SettingsTab() {
   const [clearing, setClearing] = useState<CacheType | null>(null);
+  const [confirmingTileClear, setConfirmingTileClear] = useState(false);
+  const [confirmStep, setConfirmStep] = useState(0);
 
   const clearCache = async (type: CacheType) => {
+    // Tile cache requires 2-step confirmation
+    if (type === 'tile') {
+      if (confirmStep === 0) {
+        setConfirmingTileClear(true);
+        setConfirmStep(1);
+        toast.warning('⚠️ WARNING: Tile cache is PERMANENT', {
+          description: 'Click again to confirm. This will cost API calls to rebuild!',
+          duration: 5000,
+        });
+        return;
+      } else if (confirmStep === 1) {
+        setConfirmStep(2);
+        toast.error('🚨 FINAL WARNING: Are you sure?', {
+          description: 'All cached tiles will be deleted. Click once more to confirm.',
+          duration: 5000,
+        });
+        return;
+      }
+      // confirmStep === 2, proceed with clear
+      setConfirmingTileClear(false);
+      setConfirmStep(0);
+    }
+
     setClearing(type);
     try {
       const response = await fetch('/api/maptiler/cache', {
@@ -87,7 +111,7 @@ function SettingsTab() {
 
       if (response.ok) {
         toast.success(`Cleared ${data.cleared} cached items`, {
-          description: `${type === 'all' ? 'All caches' : type} cleared successfully`,
+          description: `${type} cache cleared successfully`,
         });
       } else {
         toast.error('Failed to clear cache', {
@@ -101,6 +125,15 @@ function SettingsTab() {
     } finally {
       setClearing(null);
     }
+  };
+
+  // Reset tile confirmation if user clicks elsewhere
+  const handleCacheClick = (type: CacheType) => {
+    if (type !== 'tile') {
+      setConfirmingTileClear(false);
+      setConfirmStep(0);
+    }
+    clearCache(type);
   };
 
   return (
@@ -120,16 +153,19 @@ function SettingsTab() {
         <div className="mt-4 grid grid-cols-2 gap-2">
           {CACHE_TYPES.map((cache) => {
             const isClearing = clearing === cache.type;
-            const isAll = cache.type === 'all';
+            const isDangerous = cache.dangerous;
+            const isTileConfirming = cache.type === 'tile' && confirmingTileClear;
             return (
               <button
                 key={cache.type}
                 type="button"
                 disabled={clearing !== null}
-                onClick={() => clearCache(cache.type)}
+                onClick={() => handleCacheClick(cache.type)}
                 className={`flex h-14 flex-col items-center justify-center rounded-xl border px-2 text-center transition active:scale-[0.98] disabled:opacity-50 md:h-auto md:rounded-lg md:py-2 ${
-                  isAll
-                    ? 'col-span-2 border-rose-400/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20'
+                  isDangerous || isTileConfirming
+                    ? isTileConfirming
+                      ? 'border-rose-400/60 bg-rose-500/30 text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.3)] animate-pulse'
+                      : 'border-rose-400/30 bg-rose-500/10 text-rose-200 hover:border-rose-300/50 hover:bg-rose-500/20'
                     : 'border-white/10 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10'
                 }`}
               >
@@ -139,9 +175,11 @@ function SettingsTab() {
                   <>
                     <span className="flex items-center gap-1 text-sm font-medium md:text-xs">
                       <Trash2 className="h-3 w-3" />
-                      {cache.label}
+                      {isTileConfirming ? `Confirm (${3 - confirmStep}/2)` : cache.label}
                     </span>
-                    <span className="text-[10px] opacity-60">{cache.description}</span>
+                    <span className="text-[10px] opacity-60">
+                      {isTileConfirming ? 'Click to confirm delete' : cache.description}
+                    </span>
                   </>
                 )}
               </button>
