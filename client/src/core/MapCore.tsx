@@ -18,11 +18,19 @@ export function MapCore({ children }: MapCoreProps) {
 
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
-    maptilersdk.config.apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
+
+    const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
+    const styleId = import.meta.env.VITE_MAPTILER_STYLE;
+
+    console.log('[MapCore] ENV VARS:', {
+      apiKey: apiKey ? `${apiKey.substring(0, 5)}...${apiKey.substring(apiKey.length - 5)}` : 'NOT SET',
+      styleId: styleId || 'NOT SET',
+    });
+
+    maptilersdk.config.apiKey = apiKey;
 
     const initMap = async () => {
       try {
-        const styleId = import.meta.env.VITE_MAPTILER_STYLE;
         if (!styleId) {
           throw new Error('VITE_MAPTILER_STYLE not configured');
         }
