@@ -109,7 +109,7 @@ export function useTileSourceDebug() {
           `z:${tile.z} x:${tile.x} y:${tile.y} • ${label}`,
           {
             duration: 2000,
-            position: 'bottom-right',
+            position: 'bottom-left',
           }
         );
       } catch (err) {
