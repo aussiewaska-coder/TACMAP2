@@ -38,8 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Test MapTiler
   try {
     const apiKey = process.env.VITE_MAPTILER_API_KEY;
-    const styleId = process.env.VITE_MAPTILER_STYLE || 'streets-v2';
-    if (apiKey) {
+    const styleId = process.env.VITE_MAPTILER_STYLE;
+    if (apiKey && styleId) {
       const url = `https://api.maptiler.com/maps/${styleId}/256/${testZ}/${testX}/${testY}.png?key=${apiKey}`;
       const start = Date.now();
       const response = await fetch(url, {
@@ -48,6 +48,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       results.maptiler.latency = Date.now() - start;
       results.maptiler.status = response.ok ? 'available' : `error_${response.status}`;
+    } else {
+      results.maptiler.status = 'not_configured';
     }
   } catch (e) {
     results.maptiler.status = 'error';

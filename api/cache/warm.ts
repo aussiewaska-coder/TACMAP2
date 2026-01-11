@@ -11,10 +11,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const redisUrl = process.env.REDIS_URL;
   const apiKey = process.env.VITE_MAPTILER_API_KEY;
-  const styleId = process.env.VITE_MAPTILER_STYLE || 'streets-v2';
+  const styleId = process.env.VITE_MAPTILER_STYLE;
 
-  if (!redisUrl || !apiKey) {
-    return res.status(500).json({ error: 'Missing REDIS_URL or VITE_MAPTILER_API_KEY' });
+  if (!redisUrl || !apiKey || !styleId) {
+    return res.status(500).json({ error: 'Missing REDIS_URL, VITE_MAPTILER_API_KEY, or VITE_MAPTILER_STYLE' });
   }
 
   const { locationId, priority } = req.body as { locationId?: string; priority?: number };

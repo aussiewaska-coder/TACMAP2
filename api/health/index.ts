@@ -30,8 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Check MapTiler
   try {
     const apiKey = process.env.VITE_MAPTILER_API_KEY;
-    if (apiKey) {
-      const response = await fetch(`https://api.maptiler.com/maps/streets-v2/style.json?key=${apiKey}`, {
+    const styleId = process.env.VITE_MAPTILER_STYLE;
+    if (apiKey && styleId) {
+      const response = await fetch(`https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`, {
         method: 'HEAD',
         signal: AbortSignal.timeout(3000)
       });

@@ -174,9 +174,9 @@ export default async function handler(
     if (Date.now() - startTime < TOTAL_TIMEOUT - 3000) {
       try {
         const apiKey = process.env.VITE_MAPTILER_API_KEY;
-        const styleId = process.env.VITE_MAPTILER_STYLE || 'streets-v2';
+        const styleId = process.env.VITE_MAPTILER_STYLE;
 
-        if (apiKey) {
+        if (apiKey && styleId) {
           const url = `https://api.maptiler.com/maps/${styleId}/256/${zNum}/${xNum}/${yNum}.png?key=${apiKey}`;
 
           const controller = new AbortController();
@@ -216,8 +216,13 @@ export default async function handler(
             cascade.push(`maptiler_${response.status}`);
           }
         } else {
-          console.warn('[Tile API] No MapTiler API key configured');
-          cascade.push('maptiler_nokey');
+          if (!apiKey) {
+            console.warn('[Tile API] No MapTiler API key configured');
+            cascade.push('maptiler_nokey');
+          } else {
+            console.warn('[Tile API] No MapTiler style ID configured');
+            cascade.push('maptiler_nostyle');
+          }
         }
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
