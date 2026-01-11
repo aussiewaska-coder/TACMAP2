@@ -38,40 +38,41 @@ export function FlightPathLayer() {
     });
 
     // Add line layer with gradient (fading trail)
-    map.addLayer(
-      {
-        id: LAYER_ID,
-        type: 'line',
-        source: SOURCE_ID,
-        paint: {
-          'line-color': '#06b6d4', // cyan-500
-          'line-width': 3,
-          'line-opacity': [
-            'interpolate',
-            ['linear'],
-            ['line-progress'],
-            0,
-            0.2, // Start of line: 20% opacity
-            1,
-            1, // End of line: 100% opacity
-          ],
-          'line-gradient': [
-            'interpolate',
-            ['linear'],
-            ['line-progress'],
-            0,
-            '#06b6d4', // cyan-500 at start
-            1,
-            '#f59e0b', // amber-500 at end (current position)
-          ],
-        },
-        layout: {
-          'line-cap': 'round',
-          'line-join': 'round',
-        },
+    const layerConfig = {
+      id: LAYER_ID,
+      type: 'line' as const,
+      source: SOURCE_ID,
+      paint: {
+        'line-color': '#06b6d4', // cyan-500
+        'line-width': 3,
+        'line-opacity': [
+          'interpolate',
+          ['linear'],
+          ['line-progress'],
+          0,
+          0.2, // Start of line: 20% opacity
+          1,
+          1, // End of line: 100% opacity
+        ],
+        'line-gradient': [
+          'interpolate',
+          ['linear'],
+          ['line-progress'],
+          0,
+          '#06b6d4', // cyan-500 at start
+          1,
+          '#f59e0b', // amber-500 at end (current position)
+        ],
       },
-      'water' // Insert before water layer to keep it below most features
-    );
+      layout: {
+        'line-cap': 'round',
+        'line-join': 'round',
+      },
+    };
+
+    // Only specify "before" layer if it exists in the style
+    const beforeLayer = map.getLayer('water') ? 'water' : undefined;
+    map.addLayer(layerConfig, beforeLayer);
 
     return () => {
       safeRemoveLayer(map, LAYER_ID);
