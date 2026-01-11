@@ -87,10 +87,16 @@ export async function interceptStyle(styleUrl: string): Promise<MapStyle> {
  */
 export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
   try {
-    const apiBase = import.meta.env.VITE_MAPTILER_API_BASE || 'https://api.maptiler.com';
-    const styleUrl = `${apiBase}/maps/${styleId}/style.json?key=${import.meta.env.VITE_MAPTILER_API_KEY}`;
+    // Use server proxy instead of hitting MapTiler directly
+    // This leverages Redis caching and doesn't expose API key to client
+    const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
+    if (!apiKey) {
+      throw new Error('VITE_MAPTILER_API_KEY not configured');
+    }
 
-    console.log('[StyleInterceptor] Fetching style:', styleUrl);
+    const styleUrl = `/api/maptiler/style?styleId=${encodeURIComponent(styleId)}&key=${encodeURIComponent(apiKey)}`;
+
+    console.log('[StyleInterceptor] Fetching style from proxy:', styleUrl);
     const response = await fetch(styleUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch style: ${response.status}`);
