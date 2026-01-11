@@ -11,16 +11,18 @@ async function createRedisClient(): Promise<any> {
   try {
     const redisUrl = process.env.REDIS_URL;
     if (!redisUrl) {
-      console.warn('[Tile] No REDIS_URL configured');
+      console.warn('[Tile API] ❌ REDIS_URL not configured in Vercel env vars');
       return null;
     }
 
+    console.log('[Tile API] 🔄 Attempting Redis connection...');
     const { Redis: RedisClass } = await import('ioredis');
     const redis = new RedisClass(redisUrl, {
       lazyConnect: true,
       connectTimeout: 3000,
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,
+      retryStrategy: () => null, // Don't retry after first failure
     });
 
     // Connect with timeout
@@ -30,10 +32,10 @@ async function createRedisClient(): Promise<any> {
     );
 
     await Promise.race([connectPromise, timeoutPromise]);
-    console.log('[Tile] Redis connected');
+    console.log('[Tile API] ✅ Redis connected successfully');
     return redis;
   } catch (err) {
-    console.error('[Tile] Redis init failed:', err instanceof Error ? err.message : err);
+    console.error('[Tile API] ❌ Redis connection failed:', err instanceof Error ? err.message : err);
     return null;
   }
 }
