@@ -375,36 +375,45 @@ export function FlightControlCenter() {
   }, [map, isLoaded, isAutoRotating]);
 
   // Auto-orbit - keep target centered, rotate bearing around it
+  // Uses chained easeTo() calls for smooth, artifact-free rendering
   useEffect(() => {
     if (!map || !isLoaded || !isAutoOrbiting || !orbitCenter) return;
 
     const centerLng = orbitCenter[0];
     const centerLat = orbitCenter[1];
     let currentBearing = map.getBearing();
-    let lastTime = performance.now();
-    const orbitSpeed = 12; // degrees per second (full rotation in 30 seconds)
 
-    const orbit = (currentTime: number) => {
+    // Duration for each segment (lower = smoother but more overhead)
+    const segmentDuration = 500; // 500ms per 6° rotation = smooth
+    const bearingDelta = 6; // degrees per segment
+
+    const orbitSegment = () => {
       if (!map || !isAutoOrbiting) return;
-      const deltaTime = currentTime - lastTime;
 
-      // Rotate bearing smoothly (target stays centered)
-      currentBearing += (deltaTime / 1000) * orbitSpeed;
-      if (currentBearing >= 360) currentBearing -= 360;
+      const nextBearing = (currentBearing + bearingDelta) % 360;
 
-      // Use jumpTo for instant, smooth updates without animation lag
-      map.jumpTo({
-        center: [centerLng, centerLat],
-        bearing: currentBearing,
-      });
+      // Use easing to smoothly interpolate bearing, integrated with tile rendering
+      map.easeTo(
+        {
+          center: [centerLng, centerLat],
+          bearing: nextBearing,
+          duration: segmentDuration,
+          easing: (t: number) => t, // Linear easing
+        },
+        {
+          // Fire next segment when this one completes
+          eventData: { isOrbit: true },
+        }
+      );
 
-      lastTime = currentTime;
-      orbitFrameRef.current = requestAnimationFrame(orbit);
+      currentBearing = nextBearing;
+      orbitFrameRef.current = setTimeout(orbitSegment, segmentDuration);
     };
 
-    orbitFrameRef.current = requestAnimationFrame(orbit);
+    orbitFrameRef.current = setTimeout(orbitSegment, 0) as any;
+
     return () => {
-      if (orbitFrameRef.current !== undefined) cancelAnimationFrame(orbitFrameRef.current);
+      if (orbitFrameRef.current) clearTimeout(orbitFrameRef.current as any);
     };
   }, [map, isLoaded, isAutoOrbiting, orbitCenter]);
 
