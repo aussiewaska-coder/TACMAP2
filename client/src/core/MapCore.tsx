@@ -2,6 +2,7 @@ import * as maptilersdk from '@maptiler/sdk';
 import '@maptiler/sdk/dist/maptiler-sdk.css';
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useMapStore } from '@/stores/mapStore';
+import { getRedisProxiedStyle } from './styleInterceptor';
 
 interface MapCoreProps {
   children?: (map: maptilersdk.Map) => ReactNode;
@@ -18,38 +19,50 @@ export function MapCore({ children }: MapCoreProps) {
     if (mapRef.current || !containerRef.current) return;
     maptilersdk.config.apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
 
-    try {
-      // Use local tile proxy for caching (fast), fallback to MapTiler
-      const styleUrl = import.meta.env.VITE_MAPTILER_STYLE ||
-        (import.meta.env.DEV ? '/api/styles/local' : '/api/styles/local');
+    const initMap = async () => {
+      try {
+        const styleId = import.meta.env.VITE_MAPTILER_STYLE;
+        if (!styleId) {
+          throw new Error('VITE_MAPTILER_STYLE not configured');
+        }
 
-      const map = new maptilersdk.Map({
-        container: containerRef.current,
-        style: styleUrl,
-        center: [133.7751, -25.2744],
-        zoom: 4,
-        pitch: 0,
-        bearing: 0,
-        maxBounds: [[100, -50], [180, -5]],
-      });
+        // Fetch MapTiler style and rewrite tile URLs to use Redis proxy
+        console.log('[MapCore] Fetching and rewriting style for Redis proxy...');
+        const styleUrl = await getRedisProxiedStyle(styleId);
 
-      map.on('load', () => {
-        console.log('[MapCore] Loaded');
-        setLoaded(true);
-        setStoreLoaded(true);
-      });
-      map.on('error', (e) => { console.error('[MapCore] Error:', e); setError('Map error'); });
+        const map = new maptilersdk.Map({
+          container: containerRef.current!,
+          style: styleUrl,
+          center: [133.7751, -25.2744],
+          zoom: 4,
+          pitch: 0,
+          bearing: 0,
+          maxBounds: [[100, -50], [180, -5]],
+        });
 
-      mapRef.current = map;
-      setMap(map);
+        map.on('load', () => {
+          console.log('[MapCore] ✓ Loaded with Redis proxy tile URLs');
+          setLoaded(true);
+          setStoreLoaded(true);
+        });
+        map.on('error', (e) => { console.error('[MapCore] Error:', e); setError('Map error'); });
 
-      return () => {
-        map.remove();
-        mapRef.current = null;
-        setMap(null);
-        setStoreLoaded(false);
-      };
-    } catch (err) { console.error('[MapCore] Init failed:', err); setError('Init failed'); }
+        mapRef.current = map;
+        setMap(map);
+
+        return () => {
+          map.remove();
+          mapRef.current = null;
+          setMap(null);
+          setStoreLoaded(false);
+        };
+      } catch (err) {
+        console.error('[MapCore] Init failed:', err instanceof Error ? err.message : err);
+        setError('Failed to load map');
+      }
+    };
+
+    initMap();
   }, [setMap, setStoreLoaded]);
 
   return (
