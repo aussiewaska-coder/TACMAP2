@@ -4,6 +4,7 @@ import { AlertMarkers } from './AlertMarkers';
 import { LayerControls } from './LayerControls';
 import { FlightControlCenter } from './recon/FlightControlCenter';
 import { TileSourceDebugger } from './TileSourceDebugger';
+import { RedisCacheStatus } from './RedisCacheStatus';
 
 export function MapView() {
   return (
@@ -16,6 +17,7 @@ export function MapView() {
             <AlertMarkers />
             <FlightControlCenter />
             <TileSourceDebugger />
+            <RedisCacheStatus />
           </>
         )}
       </MapCore>
