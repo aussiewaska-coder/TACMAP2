@@ -1,5 +1,6 @@
 import { MapCore } from '../core/MapCore';
 import { AlertsSidebar } from './AlertsSidebar';
+import { AlertMarkers } from './AlertMarkers';
 import { LayerControls } from './LayerControls';
 import { FlightControlCenter } from './recon/FlightControlCenter';
 
@@ -11,6 +12,7 @@ export function MapView() {
           <>
             <LayerControls map={map} />
             <AlertsSidebar />
+            <AlertMarkers />
             <FlightControlCenter />
           </>
         )}

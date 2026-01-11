@@ -30,10 +30,11 @@ export function FlightPathLayer() {
       },
     };
 
-    // Add source
+    // Add source with lineMetrics for gradient support
     map.addSource(SOURCE_ID, {
       type: 'geojson',
       data: geojson,
+      lineMetrics: true,
     });
 
     // Add line layer with gradient (fading trail)
