@@ -6,6 +6,38 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type Redis from 'ioredis';
 
+// Inline Redis client factory for serverless (can't import from /server)
+async function createRedisClient(): Promise<any> {
+  try {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      console.warn('[Tile] No REDIS_URL configured');
+      return null;
+    }
+
+    const { Redis: RedisClass } = await import('ioredis');
+    const redis = new RedisClass(redisUrl, {
+      lazyConnect: true,
+      connectTimeout: 3000,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+    });
+
+    // Connect with timeout
+    const connectPromise = redis.connect();
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Redis connect timeout')), 2000)
+    );
+
+    await Promise.race([connectPromise, timeoutPromise]);
+    console.log('[Tile] Redis connected');
+    return redis;
+  } catch (err) {
+    console.error('[Tile] Redis init failed:', err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 // STATIC FALLBACK TILE - 256x256 transparent gray PNG (minimal valid PNG)
 // This is a 256x256 solid gray (#808080) PNG encoded in base64
 const STATIC_FALLBACK_BASE64 =
@@ -27,7 +59,8 @@ function sendTile(
   buffer: Buffer,
   source: string,
   startTime: number,
-  debugCascade?: string
+  debugCascade?: string,
+  redis?: any
 ): void {
   const responseTime = Date.now() - startTime;
 
@@ -42,6 +75,13 @@ function sendTile(
   }
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+
+  // Cleanup Redis connection (fire and forget)
+  if (redis) {
+    redis.disconnect(false).catch(() => {
+      // Ignore errors
+    });
+  }
 
   res.status(200).send(buffer);
 }
@@ -118,17 +158,14 @@ export default async function handler(
     // LEVEL 1: REDIS CACHE
     // ═══════════════════════════════════════════════════════════════════
     try {
-      const { getRedisClient } = await import(
-        '../../../../server/lib/cache/client'
-      );
-      redis = await getRedisClient();
+      redis = await createRedisClient();
 
       if (redis) {
         const cached = await redis.get(cacheKey);
         if (cached) {
           console.log(`[Tile API] REDIS HIT: ${cacheKey}`);
           cascade.push('redis_hit');
-          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, cascade.join(','));
+          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, cascade.join(','), redis);
           return;
         }
         console.log(`[Tile API] REDIS MISS: ${cacheKey}`);
@@ -178,7 +215,7 @@ export default async function handler(
                 );
             }
 
-            sendTile(res, buffer, 'MAPTILER', startTime, cascade.join(','));
+            sendTile(res, buffer, 'MAPTILER', startTime, cascade.join(','), redis);
             return;
           } else {
             console.error(
@@ -236,7 +273,7 @@ export default async function handler(
               );
           }
 
-          sendTile(res, buffer, 'AWS', startTime, cascade.join(','));
+          sendTile(res, buffer, 'AWS', startTime, cascade.join(','), redis);
           return;
         } else {
           console.error(
@@ -260,7 +297,7 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     console.error(`[Tile API] ALL SOURCES FAILED for ${cacheKey}`);
     cascade.push('fallback');
-    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, cascade.join(','));
+    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, cascade.join(','), redis);
     return;
   } catch (e) {
     // ═══════════════════════════════════════════════════════════════════
@@ -268,7 +305,7 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     console.error('[Tile API] CATASTROPHIC ERROR:', e);
     cascade.push(`emergency:${e instanceof Error ? e.message : 'unknown'}`);
-    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, cascade.join(','));
+    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, cascade.join(','), redis);
     return;
   }
 }
