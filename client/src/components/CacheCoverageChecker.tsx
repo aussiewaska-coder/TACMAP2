@@ -9,10 +9,8 @@ import { useCacheCoverageLayer } from '@/hooks/useCacheCoverageLayer';
 export function CacheCoverageChecker() {
   const [enabled, setEnabled] = useState(false);
 
-  // Only render the layer if enabled
-  if (enabled) {
-    useCacheCoverageLayer();
-  }
+  // Call hook unconditionally - it handles enabled/disabled internally
+  useCacheCoverageLayer(enabled);
 
   return (
     <div className="fixed bottom-2 right-2 z-40">

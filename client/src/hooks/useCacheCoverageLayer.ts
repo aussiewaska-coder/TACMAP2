@@ -16,12 +16,23 @@ interface LocationCoverage {
  * Fetches coverage stats and renders circles on the map showing cache density
  * Green = fully cached, Red = empty
  */
-export function useCacheCoverageLayer() {
+export function useCacheCoverageLayer(enabled: boolean = true) {
   const map = useMapStore((state) => state.map);
   const isLoaded = useMapStore((state) => state.isLoaded);
 
   useEffect(() => {
-    if (!map || !isLoaded) return;
+    if (!map || !isLoaded || !enabled) {
+      // Clean up layer if disabling
+      if (!enabled) {
+        if (map?.getLayer('cache-coverage-circles')) {
+          map.removeLayer('cache-coverage-circles');
+        }
+        if (map?.getSource('cache-coverage-source')) {
+          map.removeSource('cache-coverage-source');
+        }
+      }
+      return;
+    }
 
     const fetchAndRender = async () => {
       try {
@@ -164,5 +175,5 @@ export function useCacheCoverageLayer() {
         map.removeSource('cache-coverage-source');
       }
     };
-  }, [map, isLoaded]);
+  }, [map, isLoaded, enabled]);
 }
