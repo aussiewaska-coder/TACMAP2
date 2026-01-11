@@ -61,11 +61,15 @@ function sendTile(
   buffer: Buffer,
   source: string,
   startTime: number,
+  format: string = 'png',
   debugCascade?: string
 ): void {
   const responseTime = Date.now() - startTime;
 
-  res.setHeader('Content-Type', 'image/png');
+  // Set content type based on format
+  const contentType = format === 'pbf' ? 'application/x-protobuf' : 'image/png';
+
+  res.setHeader('Content-Type', contentType);
   res.setHeader('Content-Length', buffer.length);
   // Cache for 1 week, immutable
   res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
@@ -101,7 +105,7 @@ export default async function handler(
   }
 
   // Extract z, x, y from path params
-  const { z, x, y: yRaw } = req.query;
+  const { z, x, y: yRaw, format } = req.query;
 
   // Handle .png extension in y parameter
   const yStr = String(yRaw).replace(/\.png$/i, '');
@@ -109,6 +113,7 @@ export default async function handler(
   const zNum = parseInt(String(z), 10);
   const xNum = parseInt(String(x), 10);
   const yNum = parseInt(yStr, 10);
+  const tileFormat = String(format || 'png').toLowerCase();
 
   // Validate coordinates
   if (isNaN(zNum) || isNaN(xNum) || isNaN(yNum)) {
@@ -159,7 +164,7 @@ export default async function handler(
         if (cached) {
           console.log(`[Tile API] REDIS HIT: ${cacheKey}`);
           cascade.push('redis_hit');
-          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, cascade.join(','));
+          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, tileFormat, cascade.join(','));
           return;
         }
         console.log(`[Tile API] REDIS MISS: ${cacheKey}`);
@@ -218,7 +223,7 @@ export default async function handler(
                 );
             }
 
-            sendTile(res, buffer, 'MAPTILER', startTime, cascade.join(','));
+            sendTile(res, buffer, 'MAPTILER', startTime, tileFormat, cascade.join(','));
             return;
           } else {
             console.error(
@@ -281,7 +286,7 @@ export default async function handler(
               );
           }
 
-          sendTile(res, buffer, 'AWS', startTime, cascade.join(','));
+          sendTile(res, buffer, 'AWS', startTime, tileFormat, cascade.join(','));
           return;
         } else {
           console.error(
@@ -305,7 +310,7 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     console.error(`[Tile API] ALL SOURCES FAILED for ${cacheKey}`);
     cascade.push('fallback');
-    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, cascade.join(','));
+    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, tileFormat, cascade.join(','));
     return;
   } catch (e) {
     // ═══════════════════════════════════════════════════════════════════
@@ -313,7 +318,7 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     console.error('[Tile API] CATASTROPHIC ERROR:', e);
     cascade.push(`emergency:${e instanceof Error ? e.message : 'unknown'}`);
-    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, cascade.join(','));
+    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, tileFormat, cascade.join(','));
     return;
   }
 }

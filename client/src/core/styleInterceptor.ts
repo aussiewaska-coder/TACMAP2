@@ -22,12 +22,14 @@ interface MapStyle {
  * To:       /api/tiles/{z}/{x}/{y}
  */
 function rewriteTileUrl(url: string): string {
-  // Match MapTiler tile URLs
-  // https://api.maptiler.com/maps/{styleId}/256/{z}/{x}/{y}.png?key={apiKey}
-  const match = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(png|jpg|webp)/);
+  // Match MapTiler tile URLs (both raster and vector)
+  // Raster: https://api.maptiler.com/maps/{styleId}/256/{z}/{x}/{y}.png?key={apiKey}
+  // Vector: https://api.maptiler.com/tiles/v4/{z}/{x}/{y}.pbf?key={apiKey}
+  const match = url.match(/\/(\d+)\/(\d+)\/(\d+)\.(png|jpg|webp|pbf)/);
   if (match) {
     const [, z, x, y, ext] = match;
-    return `/api/tiles/${z}/${x}/${y}`;
+    // Pass extension as query param to work with [z]/[x]/[y] route pattern
+    return `/api/tiles/${z}/${x}/${y}?format=${ext}`;
   }
   return url;
 }
@@ -104,13 +106,31 @@ export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
 
     const style: MapStyle = await response.json();
 
-    console.log('[StyleInterceptor] ✓ Vector tile style loaded from MapTiler');
-    console.log('[StyleInterceptor] Using MapTiler SDK to fetch vector tiles natively (free tier compatible)');
+    // Rewrite ALL tile URLs (both raster .png and vector .pbf)
+    // Browser CORS blocks direct requests to api.maptiler.com
+    // Route through /api/tiles proxy which handles both types
+    if (style.sources) {
+      for (const [sourceId, source] of Object.entries(style.sources)) {
+        if (source.type === 'raster' || source.type === 'vector') {
+          // Rewrite tiles array (for both vector and raster sources)
+          if (Array.isArray(source.tiles)) {
+            source.tiles = source.tiles.map(tile => {
+              const rewritten = rewriteTileUrl(tile);
+              console.log(`[StyleInterceptor] Rewrite tile: ${tile.substring(0, 80)}... → ${rewritten}`);
+              return rewritten;
+            });
+          }
+          // Rewrite TileJSON URL (points to maptiler:// protocol)
+          if (source.url) {
+            const rewritten = rewriteTileUrl(source.url);
+            console.log(`[StyleInterceptor] Rewrite source URL: ${source.url} → ${rewritten}`);
+            source.url = rewritten;
+          }
+        }
+      }
+    }
 
-    // For vector tiles: DO NOT rewrite URLs
-    // MapTiler SDK handles vector tile fetching natively
-    // This works on free tier accounts
-
+    console.log('[StyleInterceptor] ✓ Vector tile URLs rewritten to use proxy (CORS fix)');
     return style;
   } catch (err) {
     console.error('[StyleInterceptor] Failed to fetch style:', err);
