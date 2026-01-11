@@ -49,7 +49,15 @@ export function MapCore({ children }: MapCoreProps) {
           setLoaded(true);
           setStoreLoaded(true);
         });
-        map.on('error', (e) => { console.error('[MapCore] Error:', e); setError('Map error'); });
+        map.on('error', (e) => {
+          // Ignore "layer already exists" errors - they're non-fatal
+          if (e.error?.message?.includes('already exists')) {
+            console.warn('[MapCore] Non-fatal layer conflict:', e.error.message);
+            return;
+          }
+          console.error('[MapCore] Error:', e);
+          setError('Map error');
+        });
 
         mapRef.current = map;
         setMap(map);
