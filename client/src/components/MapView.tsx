@@ -5,6 +5,7 @@ import { LayerControls } from './LayerControls';
 import { FlightControlCenter } from './recon/FlightControlCenter';
 import { TileSourceDebugger } from './TileSourceDebugger';
 import { RedisCacheStatus } from './RedisCacheStatus';
+import { CacheCoverageChecker } from './CacheCoverageChecker';
 
 export function MapView() {
   return (
@@ -18,6 +19,7 @@ export function MapView() {
             <FlightControlCenter />
             <TileSourceDebugger />
             <RedisCacheStatus />
+            <CacheCoverageChecker />
           </>
         )}
       </MapCore>
