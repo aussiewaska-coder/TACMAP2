@@ -87,7 +87,8 @@ export async function interceptStyle(styleUrl: string): Promise<MapStyle> {
  */
 export async function getRedisProxiedStyle(styleId: string): Promise<string> {
   try {
-    const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${import.meta.env.VITE_MAPTILER_API_KEY}`;
+    const apiBase = import.meta.env.VITE_MAPTILER_API_BASE || 'https://api.maptiler.com';
+    const styleUrl = `${apiBase}/maps/${styleId}/style.json?key=${import.meta.env.VITE_MAPTILER_API_KEY}`;
 
     const response = await fetch(styleUrl);
     if (!response.ok) {

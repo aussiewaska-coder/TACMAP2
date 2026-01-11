@@ -3,6 +3,7 @@ import '@maptiler/sdk/dist/maptiler-sdk.css';
 import { useEffect, useRef, useState, ReactNode } from 'react';
 import { useMapStore } from '@/stores/mapStore';
 import { getRedisProxiedStyle } from './styleInterceptor';
+import { MAP_CONFIG } from './constants';
 
 interface MapCoreProps {
   children?: (map: maptilersdk.Map) => ReactNode;
@@ -33,11 +34,14 @@ export function MapCore({ children }: MapCoreProps) {
         const map = new maptilersdk.Map({
           container: containerRef.current!,
           style: styleUrl,
-          center: [133.7751, -25.2744],
-          zoom: 4,
-          pitch: 0,
-          bearing: 0,
-          maxBounds: [[100, -50], [180, -5]],
+          center: MAP_CONFIG.DEFAULT_CENTER,
+          zoom: MAP_CONFIG.DEFAULT_ZOOM,
+          pitch: MAP_CONFIG.DEFAULT_PITCH,
+          bearing: MAP_CONFIG.DEFAULT_BEARING,
+          maxBounds: [
+            [MAP_CONFIG.BOUNDS.MIN_LNG, MAP_CONFIG.BOUNDS.MIN_LAT],
+            [MAP_CONFIG.BOUNDS.MAX_LNG, MAP_CONFIG.BOUNDS.MAX_LAT],
+          ] as [[number, number], [number, number]],
         });
 
         map.on('load', () => {
