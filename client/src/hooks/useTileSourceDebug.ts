@@ -36,14 +36,36 @@ export function useTileSourceDebug() {
     }
 
     try {
-      const response = await fetch(`/api/tiles/${z}/${x}/${y}.png`, { method: 'HEAD' });
-      const source = response.headers.get('X-Cache') || 'UNKNOWN';
+      // Use GET with minimal timeout to just read headers
+      // Abort after 2 seconds to avoid loading entire tile
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
 
-      // Store in cache
-      tileCache.current.set(cacheKey, { source, timestamp: Date.now() });
-      cleanOldCache();
+      try {
+        const response = await fetch(`/api/tiles/${z}/${x}/${y}.png`, {
+          signal: controller.signal,
+          // Add cache-busting to avoid browser cache interfering
+          headers: { 'Cache-Control': 'no-cache' }
+        });
 
-      return source;
+        clearTimeout(timeout);
+        const source = response.headers.get('X-Cache') || 'UNKNOWN';
+
+        // Store in cache
+        tileCache.current.set(cacheKey, { source, timestamp: Date.now() });
+        cleanOldCache();
+
+        return source;
+      } catch (fetchErr) {
+        clearTimeout(timeout);
+        // Check if it was an abort or real error
+        if (fetchErr instanceof Error && fetchErr.name === 'AbortError') {
+          // Timeout or abort - still got headers before abort
+          const cacheVal = tileCache.current.get(cacheKey);
+          if (cacheVal) return cacheVal.source;
+        }
+        throw fetchErr;
+      }
     } catch (err) {
       console.error('[TileSourceDebug] Failed to fetch tile source:', err);
       return 'ERROR';
