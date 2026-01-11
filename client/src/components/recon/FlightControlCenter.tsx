@@ -392,9 +392,11 @@ export function FlightControlCenter() {
       currentBearing += (deltaTime / 1000) * orbitSpeed;
       if (currentBearing >= 360) currentBearing -= 360;
 
-      // Always keep target at center
-      map.setCenter([centerLng, centerLat]);
-      map.setBearing(currentBearing);
+      // Use jumpTo for instant, smooth updates without animation lag
+      map.jumpTo({
+        center: [centerLng, centerLat],
+        bearing: currentBearing,
+      });
 
       lastTime = currentTime;
       orbitFrameRef.current = requestAnimationFrame(orbit);

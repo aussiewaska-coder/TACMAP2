@@ -19,9 +19,9 @@ export function MapCore({ children }: MapCoreProps) {
     maptilersdk.config.apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
 
     try {
-      // Use a proper MapTiler style URL or fallback
+      // Use local tile proxy for caching (fast), fallback to MapTiler
       const styleUrl = import.meta.env.VITE_MAPTILER_STYLE ||
-        'https://api.maptiler.com/maps/streets-v2/style.json?key=' + import.meta.env.VITE_MAPTILER_API_KEY;
+        (import.meta.env.DEV ? '/api/styles/local' : '/api/styles/local');
 
       const map = new maptilersdk.Map({
         container: containerRef.current,
