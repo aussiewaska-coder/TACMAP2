@@ -19,12 +19,17 @@ export function MapCore({ children }: MapCoreProps) {
     maptilersdk.config.apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
 
     try {
+      // Use a proper MapTiler style URL or fallback
+      const styleUrl = import.meta.env.VITE_MAPTILER_STYLE ||
+        'https://api.maptiler.com/maps/streets-v2/style.json?key=' + import.meta.env.VITE_MAPTILER_API_KEY;
+
       const map = new maptilersdk.Map({
         container: containerRef.current,
-        style: import.meta.env.VITE_MAPTILER_STYLE || maptilersdk.MapStyle.STREETS,
+        style: styleUrl,
         center: [133.7751, -25.2744],
         zoom: 4,
-        pitch: 45,
+        pitch: 0,
+        bearing: 0,
         maxBounds: [[100, -50], [180, -5]],
       });
 
