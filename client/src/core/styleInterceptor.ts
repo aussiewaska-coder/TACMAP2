@@ -98,7 +98,7 @@ export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
     // Fetch directly from MapTiler
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
 
-    console.log('[StyleInterceptor] Fetching style directly from MapTiler');
+    console.log('[StyleInterceptor] Fetching style from MapTiler');
     const response = await fetch(styleUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch style: ${response.status}`);
@@ -106,31 +106,12 @@ export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
 
     const style: MapStyle = await response.json();
 
-    // Rewrite ALL tile URLs (both raster .png and vector .pbf)
-    // Browser CORS blocks direct requests to api.maptiler.com
-    // Route through /api/tiles proxy which handles both types
-    if (style.sources) {
-      for (const [sourceId, source] of Object.entries(style.sources)) {
-        if (source.type === 'raster' || source.type === 'vector') {
-          // Rewrite tiles array (for both vector and raster sources)
-          if (Array.isArray(source.tiles)) {
-            source.tiles = source.tiles.map(tile => {
-              const rewritten = rewriteTileUrl(tile);
-              console.log(`[StyleInterceptor] Rewrite tile: ${tile.substring(0, 80)}... → ${rewritten}`);
-              return rewritten;
-            });
-          }
-          // Rewrite TileJSON URL (points to maptiler:// protocol)
-          if (source.url) {
-            const rewritten = rewriteTileUrl(source.url);
-            console.log(`[StyleInterceptor] Rewrite source URL: ${source.url} → ${rewritten}`);
-            source.url = rewritten;
-          }
-        }
-      }
-    }
+    console.log('[StyleInterceptor] ✓ Style loaded - MapTiler SDK will fetch tiles natively');
 
-    console.log('[StyleInterceptor] ✓ Vector tile URLs rewritten to use proxy (CORS fix)');
+    // Don't rewrite tile URLs - let MapTiler SDK handle tile fetching
+    // The SDK has built-in CORS handling and optimizations
+    // Rewriting was adding latency and causing jank
+
     return style;
   } catch (err) {
     console.error('[StyleInterceptor] Failed to fetch style:', err);
