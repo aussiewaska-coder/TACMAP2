@@ -106,10 +106,14 @@ export function useTileSourceDebug() {
         }
 
         lastToastId.current = toast.info(
-          `z:${tile.z} x:${tile.x} y:${tile.y} • ${label}`,
+          `z:${tile.z} x:${tile.x} y:${tile.y}\n${label}`,
           {
             duration: 2000,
             position: 'bottom-left',
+            style: {
+              minWidth: '280px',
+              whiteSpace: 'pre-wrap',
+            },
           }
         );
       } catch (err) {
