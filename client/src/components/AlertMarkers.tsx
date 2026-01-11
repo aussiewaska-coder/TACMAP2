@@ -20,6 +20,9 @@ export function AlertMarkers() {
     data.features.forEach((feature: any) => {
       if (!feature.geometry?.coordinates) return;
 
+      // Skip non-Point geometries
+      if (feature.geometry.type !== 'Point') return;
+
       const [lng, lat] = feature.geometry.coordinates;
 
       // Validate coordinates

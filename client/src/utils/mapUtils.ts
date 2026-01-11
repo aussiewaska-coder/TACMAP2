@@ -80,3 +80,14 @@ export function safeOffEvent(
         // Ignore - map may be in invalid state
     }
 }
+
+/**
+ * Convert lat/lng to Web Mercator tile coordinates at given zoom level
+ * Returns { z, x, y } for the tile containing that point
+ */
+export function lngLatToTile(lng: number, lat: number, zoom: number): { z: number; x: number; y: number } {
+    const n = Math.pow(2, zoom);
+    const x = Math.floor(((lng + 180) / 360) * n);
+    const y = Math.floor(((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) * n);
+    return { z: zoom, x, y };
+}

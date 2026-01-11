@@ -3,6 +3,7 @@ import { AlertsSidebar } from './AlertsSidebar';
 import { AlertMarkers } from './AlertMarkers';
 import { LayerControls } from './LayerControls';
 import { FlightControlCenter } from './recon/FlightControlCenter';
+import { TileSourceDebugger } from './TileSourceDebugger';
 
 export function MapView() {
   return (
@@ -14,6 +15,7 @@ export function MapView() {
             <AlertsSidebar />
             <AlertMarkers />
             <FlightControlCenter />
+            <TileSourceDebugger />
           </>
         )}
       </MapCore>
