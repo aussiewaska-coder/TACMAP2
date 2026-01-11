@@ -88,13 +88,12 @@ export async function interceptStyle(styleUrl: string): Promise<MapStyle> {
 export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
   try {
     // Fetch style directly from MapTiler API
-    // Let MapTiler SDK handle sprites, fonts, etc normally
     const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
     if (!apiKey) {
       throw new Error('VITE_MAPTILER_API_KEY not configured');
     }
 
-    // Fetch directly from MapTiler - no proxy for style itself
+    // Fetch directly from MapTiler
     const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
 
     console.log('[StyleInterceptor] Fetching style directly from MapTiler');
@@ -105,29 +104,13 @@ export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
 
     const style: MapStyle = await response.json();
 
-    // ONLY rewrite tile URLs to use Redis-backed /api/tiles proxy
-    // Leave sprites, fonts, tilejson alone - let SDK fetch normally
-    if (style.sources) {
-      for (const [sourceId, source] of Object.entries(style.sources)) {
-        if (source.type === 'raster' || source.type === 'vector') {
-          if (Array.isArray(source.tiles)) {
-            source.tiles = source.tiles.map(tile => {
-              const rewritten = rewriteTileUrl(tile);
-              console.log(`[StyleInterceptor] Rewrite tile: ${tile.substring(0, 80)}... → ${rewritten}`);
-              return rewritten;
-            });
-          }
-          // Don't rewrite TileJSON URLs - let them go to MapTiler
-          // if (source.url) {
-          //   const rewritten = rewriteTileUrl(source.url);
-          //   console.log(`[StyleInterceptor] Rewrite source URL: ${source.url} → ${rewritten}`);
-          //   source.url = rewritten;
-          // }
-        }
-      }
-    }
+    console.log('[StyleInterceptor] ✓ Vector tile style loaded from MapTiler');
+    console.log('[StyleInterceptor] Using MapTiler SDK to fetch vector tiles natively (free tier compatible)');
 
-    console.log('[StyleInterceptor] ✓ Tile URLs rewritten to use Redis proxy');
+    // For vector tiles: DO NOT rewrite URLs
+    // MapTiler SDK handles vector tile fetching natively
+    // This works on free tier accounts
+
     return style;
   } catch (err) {
     console.error('[StyleInterceptor] Failed to fetch style:', err);
