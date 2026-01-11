@@ -82,14 +82,15 @@ export async function interceptStyle(styleUrl: string): Promise<MapStyle> {
 }
 
 /**
- * Fetch and cache the rewritten style as JSON
- * This bypasses MapTiler's style loading and uses our Redis proxy
+ * Fetch and rewrite style to use Redis tile proxy
+ * Returns the style object directly (MapTiler SDK accepts objects)
  */
-export async function getRedisProxiedStyle(styleId: string): Promise<string> {
+export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
   try {
     const apiBase = import.meta.env.VITE_MAPTILER_API_BASE || 'https://api.maptiler.com';
     const styleUrl = `${apiBase}/maps/${styleId}/style.json?key=${import.meta.env.VITE_MAPTILER_API_KEY}`;
 
+    console.log('[StyleInterceptor] Fetching style:', styleUrl);
     const response = await fetch(styleUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch style: ${response.status}`);
@@ -102,19 +103,23 @@ export async function getRedisProxiedStyle(styleId: string): Promise<string> {
       for (const [sourceId, source] of Object.entries(style.sources)) {
         if (source.type === 'raster' || source.type === 'vector') {
           if (Array.isArray(source.tiles)) {
-            source.tiles = source.tiles.map(tile => rewriteTileUrl(tile));
+            source.tiles = source.tiles.map(tile => {
+              const rewritten = rewriteTileUrl(tile);
+              console.log(`[StyleInterceptor] Rewrite tile: ${tile.substring(0, 80)}... → ${rewritten}`);
+              return rewritten;
+            });
           }
           if (source.url) {
-            source.url = rewriteTileUrl(source.url);
+            const rewritten = rewriteTileUrl(source.url);
+            console.log(`[StyleInterceptor] Rewrite source URL: ${source.url} → ${rewritten}`);
+            source.url = rewritten;
           }
         }
       }
     }
 
-    // Return as data URL
-    const dataUrl = `data:application/json;base64,${btoa(JSON.stringify(style))}`;
-    console.log('[StyleInterceptor] Style rewritten with Redis proxy URLs');
-    return dataUrl;
+    console.log('[StyleInterceptor] ✓ Style rewritten with Redis proxy URLs');
+    return style;
   } catch (err) {
     console.error('[StyleInterceptor] Failed to rewrite style:', err);
     throw err;

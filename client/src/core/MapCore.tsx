@@ -29,11 +29,11 @@ export function MapCore({ children }: MapCoreProps) {
 
         // Fetch MapTiler style and rewrite tile URLs to use Redis proxy
         console.log('[MapCore] Fetching and rewriting style for Redis proxy...');
-        const styleUrl = await getRedisProxiedStyle(styleId);
+        const style = await getRedisProxiedStyle(styleId);
 
         const map = new maptilersdk.Map({
           container: containerRef.current!,
-          style: styleUrl,
+          style: style as any, // MapTiler SDK accepts style objects
           center: MAP_CONFIG.DEFAULT_CENTER,
           zoom: MAP_CONFIG.DEFAULT_ZOOM,
           pitch: MAP_CONFIG.DEFAULT_PITCH,
