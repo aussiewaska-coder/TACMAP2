@@ -37,8 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Test MapTiler
   try {
-    const apiKey = process.env.VITE_MAPTILER_API_KEY;
-    const styleId = process.env.VITE_MAPTILER_STYLE;
+    const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
+    const styleId = process.env.MAPTILER_STYLE || process.env.VITE_MAPTILER_STYLE;
     if (apiKey && styleId) {
       const url = `https://api.maptiler.com/maps/${styleId}/256/${testZ}/${testX}/${testY}.png?key=${apiKey}`;
       const start = Date.now();

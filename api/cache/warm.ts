@@ -10,11 +10,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { latLonToTile, getTilesInRadius } = await import('../../server/lib/cache/tileUtils');
 
   const redisUrl = process.env.REDIS_URL;
-  const apiKey = process.env.VITE_MAPTILER_API_KEY;
-  const styleId = process.env.VITE_MAPTILER_STYLE;
+  const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
+  const styleId = process.env.MAPTILER_STYLE || process.env.VITE_MAPTILER_STYLE;
 
   if (!redisUrl || !apiKey || !styleId) {
-    return res.status(500).json({ error: 'Missing REDIS_URL, VITE_MAPTILER_API_KEY, or VITE_MAPTILER_STYLE' });
+    return res.status(500).json({ error: 'Missing REDIS_URL, MAPTILER_API_KEY, or MAPTILER_STYLE' });
   }
 
   const { locationId, priority } = req.body as { locationId?: string; priority?: number };

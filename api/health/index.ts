@@ -29,8 +29,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Check MapTiler
   try {
-    const apiKey = process.env.VITE_MAPTILER_API_KEY;
-    const styleId = process.env.VITE_MAPTILER_STYLE;
+    const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
+    const styleId = process.env.MAPTILER_STYLE || process.env.VITE_MAPTILER_STYLE;
     if (apiKey && styleId) {
       const response = await fetch(`https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`, {
         method: 'HEAD',

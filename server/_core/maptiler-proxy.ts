@@ -52,9 +52,9 @@ export async function handleMaptilerProxy(req: Request, res: Response) {
       return;
     }
 
-    const apiKey = process.env.VITE_MAPTILER_API_KEY;
+    const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
     if (!apiKey) {
-      res.status(500).json({ error: 'MapTiler API key not configured' });
+      res.status(500).json({ error: 'MAPTILER_API_KEY not configured' });
       return;
     }
 

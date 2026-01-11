@@ -12,11 +12,11 @@ import { getRedisClient } from '../lib/redis';
  * Warm the MapTiler cache with the default style
  */
 export async function warmMapTilerCache(): Promise<void> {
-  const apiKey = process.env.VITE_MAPTILER_API_KEY;
-  const styleId = process.env.VITE_MAPTILER_STYLE;
+  const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
+  const styleId = process.env.MAPTILER_STYLE || process.env.VITE_MAPTILER_STYLE;
 
   if (!apiKey || !styleId) {
-    console.warn('[MapTiler Cache] Missing API key or style ID, skipping cache warming');
+    console.warn('[MapTiler Cache] Missing MAPTILER_API_KEY or MAPTILER_STYLE, skipping cache warming');
     return;
   }
 

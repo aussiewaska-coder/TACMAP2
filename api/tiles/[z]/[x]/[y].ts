@@ -175,8 +175,10 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     if (Date.now() - startTime < TOTAL_TIMEOUT - 3000) {
       try {
-        const apiKey = process.env.VITE_MAPTILER_API_KEY;
-        const styleId = process.env.VITE_MAPTILER_STYLE;
+        // Note: Use MAPTILER_* (not VITE_*) for server-side env vars
+        // VITE_ prefix is for frontend only and not available on server
+        const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
+        const styleId = process.env.MAPTILER_STYLE || process.env.VITE_MAPTILER_STYLE;
 
         if (apiKey && styleId) {
           const url = `https://api.maptiler.com/maps/${styleId}/256/${zNum}/${xNum}/${yNum}.png?key=${apiKey}`;

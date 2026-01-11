@@ -22,7 +22,8 @@ export async function getTile(z: number, x: number, y: number): Promise<Buffer> 
       console.log(`[Tile] FETCHING MAPTILER ${key}`);
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
-      const res = await fetch(`https://api.maptiler.com/tiles/v3/${z}/${x}/${y}.png?key=${process.env.VITE_MAPTILER_API_KEY}`, { signal: controller.signal });
+      const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
+      const res = await fetch(`https://api.maptiler.com/tiles/v3/${z}/${x}/${y}.png?key=${apiKey}`, { signal: controller.signal });
       clearTimeout(timeout);
 
       if (!res.ok) throw new Error(`MapTiler ${res.status}`);
