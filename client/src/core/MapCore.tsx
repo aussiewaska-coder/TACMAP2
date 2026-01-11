@@ -1,6 +1,7 @@
 import * as maptilersdk from '@maptiler/sdk';
 import '@maptiler/sdk/dist/maptiler-sdk.css';
 import { useEffect, useRef, useState, ReactNode } from 'react';
+import { useMapStore } from '@/stores/mapStore';
 
 interface MapCoreProps {
   children?: (map: maptilersdk.Map) => ReactNode;
@@ -11,6 +12,7 @@ export function MapCore({ children }: MapCoreProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { setMap, setLoaded: setStoreLoaded } = useMapStore();
 
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return;
@@ -26,12 +28,24 @@ export function MapCore({ children }: MapCoreProps) {
         maxBounds: [[100, -50], [180, -5]],
       });
 
-      map.on('load', () => { console.log('[MapCore] Loaded'); setLoaded(true); });
+      map.on('load', () => {
+        console.log('[MapCore] Loaded');
+        setLoaded(true);
+        setStoreLoaded(true);
+      });
       map.on('error', (e) => { console.error('[MapCore] Error:', e); setError('Map error'); });
+
       mapRef.current = map;
-      return () => { map.remove(); mapRef.current = null; };
+      setMap(map);
+
+      return () => {
+        map.remove();
+        mapRef.current = null;
+        setMap(null);
+        setStoreLoaded(false);
+      };
     } catch (err) { console.error('[MapCore] Init failed:', err); setError('Init failed'); }
-  }, []);
+  }, [setMap, setStoreLoaded]);
 
   return (
     <div className="relative w-full h-full">
