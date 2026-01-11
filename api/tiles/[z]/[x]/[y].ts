@@ -180,6 +180,13 @@ export default async function handler(
         const apiKey = process.env.MAPTILER_API_KEY || process.env.VITE_MAPTILER_API_KEY;
         const styleId = process.env.MAPTILER_STYLE || process.env.VITE_MAPTILER_STYLE;
 
+        console.log('[Tile API] MapTiler attempt:', {
+          hasApiKey: !!apiKey,
+          apiKeySource: process.env.MAPTILER_API_KEY ? 'MAPTILER_API_KEY' : (process.env.VITE_MAPTILER_API_KEY ? 'VITE_MAPTILER_API_KEY' : 'NONE'),
+          hasStyleId: !!styleId,
+          styleIdSource: process.env.MAPTILER_STYLE ? 'MAPTILER_STYLE' : (process.env.VITE_MAPTILER_STYLE ? 'VITE_MAPTILER_STYLE' : 'NONE'),
+        });
+
         if (apiKey && styleId) {
           const url = `https://api.maptiler.com/maps/${styleId}/256/${zNum}/${xNum}/${yNum}.png?key=${apiKey}`;
 
