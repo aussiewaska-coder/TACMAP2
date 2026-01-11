@@ -21,6 +21,19 @@ export function AlertMarkers() {
       if (!feature.geometry?.coordinates) return;
 
       const [lng, lat] = feature.geometry.coordinates;
+
+      // Validate coordinates
+      if (!Number.isFinite(lng) || !Number.isFinite(lat)) {
+        console.warn('[AlertMarkers] Invalid coordinates:', { lng, lat }, feature);
+        return;
+      }
+
+      // Validate lng/lat are within valid ranges
+      if (lng < -180 || lng > 180 || lat < -90 || lat > 90) {
+        console.warn('[AlertMarkers] Out of bounds:', { lng, lat }, feature);
+        return;
+      }
+
       const props = feature.properties || {};
       const severity = props.severity?.toLowerCase() || 'information';
 
