@@ -115,7 +115,7 @@ export function FlightModeControls({
       <div className="p-4 border-b border-slate-800/50">
         <div className="text-xs text-slate-500 uppercase mb-3 font-semibold">Pitch</div>
         <PitchPresets
-          presets={[0, 15, 30, 45, 60, 75]}
+          presets={[0, 15, 30, 45, 60, 75, 80]}
           currentPitch={flightPitchTarget}
           onPitchSelect={onPitchSet}
           threshold={5}

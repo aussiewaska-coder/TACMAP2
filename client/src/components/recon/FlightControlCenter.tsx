@@ -24,6 +24,8 @@ import { StandardNavControls } from './FlightControlCenter/modes/StandardNavCont
 import { AutoOrbitControls } from './FlightControlCenter/modes/AutoOrbitControls';
 import { AutoRotateControls } from './FlightControlCenter/modes/AutoRotateControls';
 import { RandomPathControls } from './FlightControlCenter/modes/RandomPathControls';
+import { ReconLocations } from './ReconLocations';
+import { getRandomLocation, getRandomFlightParams } from '@/data/reconLocations';
 
 type FlightMode = 'auto-rotate' | 'auto-orbit' | 'flight' | 'random-path' | 'standard';
 
@@ -73,6 +75,37 @@ export function FlightControlCenter() {
   const randomHeadingChangeTimeRef = useRef(0);
   const randomPathStartTimeRef = useRef(0);
   const flightArrivalTriggeredRef = useRef(false);
+  const initialFlyDoneRef = useRef(false);
+
+  // Initial fly to random scenic location on map load
+  useEffect(() => {
+    if (!map || !isLoaded || initialFlyDoneRef.current) return;
+    initialFlyDoneRef.current = true;
+
+    const location = getRandomLocation();
+    const params = getRandomFlightParams();
+
+    console.log(`[Recon] Initial fly to: ${location.name}`);
+
+    // Delay slightly to let map fully initialize
+    setTimeout(() => {
+      map.flyTo({
+        center: location.coords,
+        zoom: location.defaultZoom + params.zoomOffset,
+        pitch: Math.min(params.pitch, 80),
+        bearing: params.bearing,
+        duration: 4000,
+        essential: true,
+      });
+
+      // Start orbiting after arrival
+      setTimeout(() => {
+        setOrbitCenter(location.coords);
+        setIsAutoOrbiting(true);
+        setActiveMode('auto-orbit');
+      }, 4500);
+    }, 1000);
+  }, [map, isLoaded, setActiveMode]);
 
   // Track map state
   useEffect(() => {
@@ -736,6 +769,15 @@ export function FlightControlCenter() {
 
         {/* Bookmarks */}
         <BookmarkManager />
+
+        {/* Recon Locations */}
+        <ReconLocations
+          onFlyTo={(location) => {
+            // Set orbit center when flying to a location
+            setOrbitCenter(location.coords);
+            setIsAutoOrbiting(true);
+          }}
+        />
 
         {/* Notifications Area */}
         <div className="flex-1 p-4 overflow-hidden">
