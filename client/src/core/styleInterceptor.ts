@@ -87,16 +87,17 @@ export async function interceptStyle(styleUrl: string): Promise<MapStyle> {
  */
 export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
   try {
-    // Use server proxy instead of hitting MapTiler directly
-    // This leverages Redis caching and doesn't expose API key to client
+    // Fetch style directly from MapTiler API
+    // Let MapTiler SDK handle sprites, fonts, etc normally
     const apiKey = import.meta.env.VITE_MAPTILER_API_KEY;
     if (!apiKey) {
       throw new Error('VITE_MAPTILER_API_KEY not configured');
     }
 
-    const styleUrl = `/api/maptiler/style?styleId=${encodeURIComponent(styleId)}&key=${encodeURIComponent(apiKey)}`;
+    // Fetch directly from MapTiler - no proxy for style itself
+    const styleUrl = `https://api.maptiler.com/maps/${styleId}/style.json?key=${apiKey}`;
 
-    console.log('[StyleInterceptor] Fetching style from proxy:', styleUrl);
+    console.log('[StyleInterceptor] Fetching style directly from MapTiler');
     const response = await fetch(styleUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch style: ${response.status}`);
@@ -104,7 +105,8 @@ export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
 
     const style: MapStyle = await response.json();
 
-    // Rewrite all tile sources to use /api/tiles proxy
+    // ONLY rewrite tile URLs to use Redis-backed /api/tiles proxy
+    // Leave sprites, fonts, tilejson alone - let SDK fetch normally
     if (style.sources) {
       for (const [sourceId, source] of Object.entries(style.sources)) {
         if (source.type === 'raster' || source.type === 'vector') {
@@ -115,19 +117,20 @@ export async function getRedisProxiedStyle(styleId: string): Promise<MapStyle> {
               return rewritten;
             });
           }
-          if (source.url) {
-            const rewritten = rewriteTileUrl(source.url);
-            console.log(`[StyleInterceptor] Rewrite source URL: ${source.url} → ${rewritten}`);
-            source.url = rewritten;
-          }
+          // Don't rewrite TileJSON URLs - let them go to MapTiler
+          // if (source.url) {
+          //   const rewritten = rewriteTileUrl(source.url);
+          //   console.log(`[StyleInterceptor] Rewrite source URL: ${source.url} → ${rewritten}`);
+          //   source.url = rewritten;
+          // }
         }
       }
     }
 
-    console.log('[StyleInterceptor] ✓ Style rewritten with Redis proxy URLs');
+    console.log('[StyleInterceptor] ✓ Tile URLs rewritten to use Redis proxy');
     return style;
   } catch (err) {
-    console.error('[StyleInterceptor] Failed to rewrite style:', err);
+    console.error('[StyleInterceptor] Failed to fetch style:', err);
     throw err;
   }
 }
