@@ -59,8 +59,7 @@ function sendTile(
   buffer: Buffer,
   source: string,
   startTime: number,
-  debugCascade?: string,
-  redis?: any
+  debugCascade?: string
 ): void {
   const responseTime = Date.now() - startTime;
 
@@ -75,13 +74,6 @@ function sendTile(
   }
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-
-  // Cleanup Redis connection (fire and forget)
-  if (redis) {
-    redis.disconnect(false).catch(() => {
-      // Ignore errors
-    });
-  }
 
   res.status(200).send(buffer);
 }
@@ -165,7 +157,7 @@ export default async function handler(
         if (cached) {
           console.log(`[Tile API] REDIS HIT: ${cacheKey}`);
           cascade.push('redis_hit');
-          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, cascade.join(','), redis);
+          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, cascade.join(','));
           return;
         }
         console.log(`[Tile API] REDIS MISS: ${cacheKey}`);
@@ -215,7 +207,7 @@ export default async function handler(
                 );
             }
 
-            sendTile(res, buffer, 'MAPTILER', startTime, cascade.join(','), redis);
+            sendTile(res, buffer, 'MAPTILER', startTime, cascade.join(','));
             return;
           } else {
             console.error(
@@ -273,7 +265,7 @@ export default async function handler(
               );
           }
 
-          sendTile(res, buffer, 'AWS', startTime, cascade.join(','), redis);
+          sendTile(res, buffer, 'AWS', startTime, cascade.join(','));
           return;
         } else {
           console.error(
@@ -297,7 +289,7 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     console.error(`[Tile API] ALL SOURCES FAILED for ${cacheKey}`);
     cascade.push('fallback');
-    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, cascade.join(','), redis);
+    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, cascade.join(','));
     return;
   } catch (e) {
     // ═══════════════════════════════════════════════════════════════════
@@ -305,7 +297,7 @@ export default async function handler(
     // ═══════════════════════════════════════════════════════════════════
     console.error('[Tile API] CATASTROPHIC ERROR:', e);
     cascade.push(`emergency:${e instanceof Error ? e.message : 'unknown'}`);
-    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, cascade.join(','), redis);
+    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, cascade.join(','));
     return;
   }
 }
