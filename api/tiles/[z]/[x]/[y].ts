@@ -26,7 +26,8 @@ function sendTile(
   res: VercelResponse,
   buffer: Buffer,
   source: string,
-  startTime: number
+  startTime: number,
+  debugCascade?: string
 ): void {
   const responseTime = Date.now() - startTime;
 
@@ -36,6 +37,9 @@ function sendTile(
   res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
   res.setHeader('X-Cache', source);
   res.setHeader('X-Response-Time', `${responseTime}ms`);
+  if (debugCascade) {
+    res.setHeader('X-Cache-Cascade', debugCascade);
+  }
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
 
@@ -107,6 +111,7 @@ export default async function handler(
   const SOURCE_TIMEOUT = 5000; // 5 seconds per source
 
   let redis: Redis | null = null;
+  const cascade: string[] = [];
 
   try {
     // ═══════════════════════════════════════════════════════════════════
@@ -122,13 +127,16 @@ export default async function handler(
         const cached = await redis.get(cacheKey);
         if (cached) {
           console.log(`[Tile API] REDIS HIT: ${cacheKey}`);
-          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime);
+          cascade.push('redis_hit');
+          sendTile(res, Buffer.from(cached, 'base64'), 'HIT', startTime, cascade.join(','));
           return;
         }
         console.log(`[Tile API] REDIS MISS: ${cacheKey}`);
+        cascade.push('redis_miss');
       }
     } catch (e) {
       console.error('[Tile API] Redis error:', e);
+      cascade.push(`redis_error:${e instanceof Error ? e.message : 'unknown'}`);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -156,6 +164,7 @@ export default async function handler(
             console.log(
               `[Tile API] MAPTILER SUCCESS: ${cacheKey} (${buffer.length} bytes)`
             );
+            cascade.push('maptiler_hit');
 
             // Write to Redis PERMANENTLY (fire and forget)
             if (redis) {
@@ -169,21 +178,25 @@ export default async function handler(
                 );
             }
 
-            sendTile(res, buffer, 'MAPTILER', startTime);
+            sendTile(res, buffer, 'MAPTILER', startTime, cascade.join(','));
             return;
           } else {
             console.error(
               `[Tile API] MapTiler HTTP ${response.status}: ${response.statusText}`
             );
+            cascade.push(`maptiler_${response.status}`);
           }
         } else {
           console.warn('[Tile API] No MapTiler API key configured');
+          cascade.push('maptiler_nokey');
         }
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
           console.error('[Tile API] MapTiler timeout');
+          cascade.push('maptiler_timeout');
         } else {
           console.error('[Tile API] MapTiler error:', e);
+          cascade.push(`maptiler_error:${e instanceof Error ? e.message : 'unknown'}`);
         }
       }
     }
@@ -209,6 +222,7 @@ export default async function handler(
           console.log(
             `[Tile API] AWS SUCCESS: ${cacheKey} (${buffer.length} bytes)`
           );
+          cascade.push('aws_hit');
 
           // Write to Redis PERMANENTLY (fire and forget)
           if (redis) {
@@ -222,18 +236,21 @@ export default async function handler(
               );
           }
 
-          sendTile(res, buffer, 'AWS', startTime);
+          sendTile(res, buffer, 'AWS', startTime, cascade.join(','));
           return;
         } else {
           console.error(
             `[Tile API] AWS HTTP ${response.status}: ${response.statusText}`
           );
+          cascade.push(`aws_${response.status}`);
         }
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') {
           console.error('[Tile API] AWS timeout');
+          cascade.push('aws_timeout');
         } else {
           console.error('[Tile API] AWS error:', e);
+          cascade.push(`aws_error:${e instanceof Error ? e.message : 'unknown'}`);
         }
       }
     }
@@ -242,14 +259,16 @@ export default async function handler(
     // LEVEL 4: STATIC FALLBACK (GUARANTEED)
     // ═══════════════════════════════════════════════════════════════════
     console.error(`[Tile API] ALL SOURCES FAILED for ${cacheKey}`);
-    sendTile(res, getStaticFallback(), 'FALLBACK', startTime);
+    cascade.push('fallback');
+    sendTile(res, getStaticFallback(), 'FALLBACK', startTime, cascade.join(','));
     return;
   } catch (e) {
     // ═══════════════════════════════════════════════════════════════════
     // LEVEL 5: EMERGENCY FALLBACK (CATASTROPHIC ERROR)
     // ═══════════════════════════════════════════════════════════════════
     console.error('[Tile API] CATASTROPHIC ERROR:', e);
-    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime);
+    cascade.push(`emergency:${e instanceof Error ? e.message : 'unknown'}`);
+    sendTile(res, getStaticFallback(), 'EMERGENCY', startTime, cascade.join(','));
     return;
   }
 }
